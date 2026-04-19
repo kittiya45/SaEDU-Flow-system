@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>ระบบเสนอเอกสาร กนค.</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        fontFamily: {
+          thai: ['"Noto Sans Thai"', 'sans-serif'],
+          mono: ['"IBM Plex Mono"', 'monospace'],
+        },
+        colors: {
+          brand:      { DEFAULT:'#E83A00', h:'#C03200', light:'#fff5f0', mid:'#ffc9a8', pale:'#fff8f4' },
+          navy:       '#100800',
+          app:        '#F4F2EF',
+          card:       '#FFFFFF',
+          'app-text': { DEFAULT:'#18120E', 2:'#6b6560', 3:'#a89e99' },
+          border:     '#EBEBEB',
+        },
+      }
+    }
+  }
+</script>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="app"></div>
+
+<!-- ตั้งค่า API, ตัวแปรหลัก และสิทธิ์ใช้งาน -->
+<script src="config.js"></script>
+
+<!-- รวมฟังก์ชันช่วยจัดการหน้าจอและแจ้งเตือน -->
+<script src="utils.js"></script>
+
+<!-- ตัวดักจับการคลิกและส่งคำสั่งจัดการหน้าเว็บ -->
+<script src="events.js"></script>
+
+<!-- ระบบ Login และจัดการเซสชันผู้ใช้ -->
+<script src="auth.js"></script>
+
+<!-- หน้าสรุปผลและรายการงานล่าสุด -->
+<script src="dashboard.js"></script>
+
+<!-- ตารางรายการเอกสารและการค้นหา -->
+<script src="docList.js"></script>
+
+<!-- ฟอร์มสร้าง/แก้ไขเอกสารและอัปโหลดไฟล์ -->
+<script src="docForm.js"></script>
+
+<!-- ระบบอนุมัติ ตีกลับ และส่งต่อเอกสาร -->
+<script src="workflow.js"></script>
+
+<!-- ประวัติเอกสารและดาวน์โหลดรายงาน CSV -->
+<script src="report.js"></script>
+
+<!-- หน้าแสดงรายละเอียดเอกสารและส่งอีเมล -->
+<script src="docDetail.js"></script>
+
+<!-- หน้าต่างเปิดดูไฟล์ PDF และรูปภาพ -->
+<script src="viewer.js"></script>
+
+<!-- เครื่องมือแก้ไข PDF และใส่ลายเซ็น -->
+<script src="editor.js"></script>
+
+<!-- กราฟสถิติและติดตามงานค้าง -->
+<script src="stats.js"></script>
+
+<!-- จัดการผู้ใช้งานและตั้งค่าระบบ (Admin) -->
+<script src="admin.js"></script>
+
+<!-- จัดการโครงสร้างเมนูและหน้าตาเว็บหลัก -->
+<script src="layout.js"></script>
+
+<!-- ตัวเริ่มรันระบบ (เรียกหน้า Login เมื่อโหลด) -->
+<script src="boot.js"></script>
+
+</body>
+</html>

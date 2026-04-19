@@ -1,0 +1,42 @@
+============================================================
+       บัญชีผู้ใช้งานระบบ กนค. (User Accounts List)
+============================================================
+
+[1] ผู้ดูแลระบบ (Admin)
+    Username: admin
+    Password: admin2568
+    Role: Admin (จัดการระบบ)
+
+[2] ผู้ลงนาม (President)
+    Username: president@gnk.ac.th
+    Password: gnk1234
+    Role: ROLE-SGN (ลงนาม/อนุมัติ)
+
+[3] รองหัวหน้า (Vice President)
+    Username: vicepresident@gnk.ac.th
+    Password: gnk1234
+    Role: ROLE-SGN (ลงนาม/อนุมัติ)
+
+[4] ประธานฝ่าย (Academic)
+    Username: academic@gnk.ac.th
+    Password: gnk1234
+    Role: ROLE-REV (ผู้ตรวจสอบ)
+
+[5] ฝ่ายสนับสนุน (Treasurer)
+    Username: treasurer@gnk.ac.th
+    Password: gnk1234
+    Role: ROLE-CRT (ผู้จัดทำ)
+
+[6] อาจารย์ที่ปรึกษา (Advisor)
+    Username: advisor@gnk.ac.th
+    Password: advisor1234
+    Role: ROLE-ADV (ที่ปรึกษา)
+
+[7] เจ้าหน้าที่ (Staff)
+    Username: staff@gnk.ac.th
+    Password: staff1234
+    Role: ROLE-STF (เจ้าหน้าที่)
+
+------------------------------------------------------------
+หมายเหตุ: SGN=ลงนาม, REV=ตรวจสอบ, CRT=จัดทำ, ADV=ที่ปรึกษา, STF=เจ้าหน้าที่
+============================================================
