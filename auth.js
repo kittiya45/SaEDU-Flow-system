@@ -98,6 +98,7 @@ async function doLogin(){
           alert('Session หมดอายุ กรุณาเข้าสู่ระบบใหม่');
         }
       },60000);
+      await loadDocTypes();
       await nav('dash');
       sendOverdueNotifs(); return
     }

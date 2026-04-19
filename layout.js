@@ -79,6 +79,7 @@ async function nav(view, id) {
     else if (view==='new'||view==='edit') content = await vForm(id);
     else if (view==='det')                content = await vDet(id);
     else if (view==='adm')                content = await vAdm();
+    else if (view==='sys')                content = await vSys();
     else if (view==='stat')               content = await vStat();
   } catch(e) {
     content = '<div style="padding:32px;color:#DC2626;font-size:14px">เกิดข้อผิดพลาด: '+esc(String(e.message||e))+'</div>';
@@ -88,7 +89,7 @@ async function nav(view, id) {
   var titles = {
     dash:'ภาพรวม', docs:'เอกสารทั้งหมด', todo:'งานของฉัน',
     new:'สร้างเอกสารใหม่', edit:'แก้ไขเอกสาร', det:'รายละเอียดเอกสาร',
-    adm:'จัดการผู้ใช้งาน', stat:'สถิติ & รายงาน'
+    adm:'จัดการผู้ใช้งาน', sys:'จัดการระบบ', stat:'สถิติ & รายงาน'
   };
 
   var ni = [
@@ -99,6 +100,7 @@ async function nav(view, id) {
   if (CAN.cr(CU.role_code))                  ni.push({k:'new',  i:'plus',  l:'สร้างเอกสาร'});
   if (isAdm || CU.role_code==='ROLE-STF')    ni.push({k:'stat', i:'chart', l:'สถิติ'});
   if (isAdm || CU.role_code==='ROLE-STF')    ni.push({k:'adm',  i:'users', l:'จัดการผู้ใช้'});
+  if (isAdm)                                  ni.push({k:'sys',  i:'gear',  l:'จัดการระบบ'});
 
   var sidebarItems = ni.map(function(n){ return _navItem(n, CV===n.k); }).join('');
 

@@ -65,6 +65,9 @@ document.addEventListener('click', function(e){
   else if(a==='saveAddAdvisor') saveAddAdvisor();
   else if(a==='showDocNumModal') showDocNumModal();
   else if(a==='saveDocNumSetting') saveDocNumSetting();
+  else if(a==='showDocTypeModal') showDocTypeModal(id);
+  else if(a==='saveDocType') saveDocType();
+  else if(a==='deleteDocType') deleteDocType(id, el.dataset.code);
   else if(a==='pedTool') pedTool(type);
   else if(a==='sigTab') sigTab(tab);
   else if(a==='pedAddSig') pedAddSig();

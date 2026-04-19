@@ -30,12 +30,6 @@ async function vDet(docId){
   var _curStep=wf.filter(function(s){return s.status==='active'})[0];
   var canAct=(_curStep&&(_curStep.assigned_to===CU.id || _curStep.rejected_by===CU.id))&&doc.status==='pending';
 
-  // Debug
-  console.log('Debug - _curStep:', _curStep);
-  console.log('Debug - canAct:', canAct);
-  console.log('Debug - CU.id:', CU.id);
-  console.log('Debug - doc.status:', doc.status);
-
   // ตรวจสอบว่ามีการส่งคืนแก้ไขในอดีตหรือไม่
   var hasRejectedHistory=wf.some(function(s){return s.status==='rejected'});
 
@@ -99,7 +93,7 @@ async function vDet(docId){
   var _histFiles=files.filter(function(f){return f.version<_maxVer});
   var _verCount=files.filter(function(f){return f.version>1}).length;
 
-  html.push('<div class="card"><div class="card-head">'+_ico('folder','#EFF6FF','#2563EB')+'<span class="card-head-title">ไฟล์แนบ</span>');
+  html.push('<div class="card"><div class="card-head">'+_ico('folder','#FFF3EE','#E83A00')+'<span class="card-head-title">ไฟล์แนบ</span>');
   html.push('<span class="ml-auto text-xs text-[#a89e99]">'+files.length+' ไฟล์');
   if(_verCount>0) html.push(' · <span class="text-[#2563EB] font-semibold">'+_verCount+' เวอร์ชันแก้ไข</span>');
   html.push('</span></div>');
@@ -145,7 +139,7 @@ async function vDet(docId){
 
   // Notification log card — admin only
   if(CU.role_code==='ROLE-SYS'){
-    html.push('<div class="card"><div class="card-head">'+_ico('bell','#F5F3FF','#7C3AED')+'<span class="card-head-title">บันทึกการแจ้งเตือนอีเมล</span></div><div class="card-body" id="d-notif-list">');
+    html.push('<div class="card"><div class="card-head">'+_ico('bell','#FFF3EE','#E83A00')+'<span class="card-head-title">บันทึกการแจ้งเตือนอีเมล</span></div><div class="card-body" id="d-notif-list">');
     html.push('<div class="al al-in text-xs"><span class="al-icon">ℹ</span><span>ระบบส่งอีเมลแจ้งเตือนอัตโนมัติเมื่อมีการเปลี่ยนขั้นตอน</span></div>');
     html.push('<div id="notif-loading" class="text-[#a89e99] text-[13px]">กำลังโหลด...</div>');
     html.push('</div></div>');
@@ -153,7 +147,7 @@ async function vDet(docId){
   html.push('</div>');
 
   // Right: Workflow
-  html.push('<div><div class="card"><div class="card-head">'+_ico('ok','#D1FAE5','#16A34A')+'<span class="card-head-title">ติดตามสถานะงาน</span><span class="ml-auto text-[11px] text-[#a89e99]">'+wf.filter(function(s){return s.status==="done"}).length+'/'+wf.length+' ขั้นตอน</span></div><div class="card-body">');
+  html.push('<div><div class="card"><div class="card-head">'+_ico('ok','#FFF3EE','#E83A00')+'<span class="card-head-title">ติดตามสถานะงาน</span><span class="ml-auto text-[11px] text-[#a89e99]">'+wf.filter(function(s){return s.status==="done"}).length+'/'+wf.length+' ขั้นตอน</span></div><div class="card-body">');
   if(wf.length){
     html.push('<div class="timeline">');
     wf.forEach(function(s,i){
@@ -197,7 +191,7 @@ async function vDet(docId){
     if(a.indexOf('สร้าง')>=0||a.indexOf('ส่งเอกสาร')>=0) return {ic:'doc',bg:'#FFF3EE',cl:'#E83A00'};
     return {ic:'doc',bg:'#F5F5F5',cl:'#6b6560'};
   };
-  html.push('<div class="card"><div class="card-head">'+_ico('cal','#FEF3C7','#D97706')+'<span class="card-head-title">ประวัติการดำเนินการ</span></div><div class="card-body">');
+  html.push('<div class="card"><div class="card-head">'+_ico('cal','#FFF3EE','#E83A00')+'<span class="card-head-title">ประวัติการดำเนินการ</span></div><div class="card-body">');
   if(hist.length){
     hist.forEach(function(h){
       var _hi=_histIcon(h.action);

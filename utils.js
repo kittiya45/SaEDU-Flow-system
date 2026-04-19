@@ -67,6 +67,7 @@ function svg(n,s){
     doc:'<path d="M4 2h7l4 4v11H4V2z"/><path d="M11 2v4h4"/><line x1="7" y1="9" x2="11" y2="9"/><line x1="7" y1="12" x2="11" y2="12"/>',
     plus:'<circle cx="8" cy="8" r="6"/><line x1="8" y1="5" x2="8" y2="11"/><line x1="5" y1="8" x2="11" y2="8"/>',
     users:'<circle cx="6" cy="6" r="3"/><path d="M0 18c0-3 2.7-5 6-5"/><circle cx="13" cy="6" r="3"/><path d="M9 18c0-3 2.7-5 6-5"/>',
+    user:'<circle cx="8" cy="5.5" r="3"/><path d="M2 15c0-3.5 2.7-5.5 6-5.5s6 2 6 5.5"/>',
     sign:'<path d="M3 12l2-2 6-6 2 2-6 6-2 1z"/><line x1="2" y1="15" x2="12" y2="15"/>',
     up:'<path d="M4 14v3h8v-3"/><polyline points="8,3 8,11"/><polyline points="5,6 8,3 11,6"/>',
     dn:'<path d="M4 12v3h8v-3"/><polyline points="8,5 8,13"/><polyline points="5,10 8,13 11,10"/>',
@@ -100,7 +101,8 @@ function svg(n,s){
     folder:'<path d="M1 4.5a1 1 0 011-1h4l1.5 1.5H14a1 1 0 011 1v6a1 1 0 01-1 1H2a1 1 0 01-1-1V4.5z"/>',
     refresh:'<path d="M13.5 3.5a7 7 0 11-1.8 7.7"/><polyline points="13.5,1 13.5,5.5 9,5.5"/>',
     pen:'<path d="M11.5 2l2.5 2.5-8 8H3.5v-2.5L11.5 2z"/><line x1="9.5" y1="4" x2="12" y2="6.5"/>',
-    dots:'<circle cx="4" cy="8" r="1.5" fill="currentColor" stroke="none"/><circle cx="8" cy="8" r="1.5" fill="currentColor" stroke="none"/><circle cx="12" cy="8" r="1.5" fill="currentColor" stroke="none"/>'
+    dots:'<circle cx="4" cy="8" r="1.5" fill="currentColor" stroke="none"/><circle cx="8" cy="8" r="1.5" fill="currentColor" stroke="none"/><circle cx="12" cy="8" r="1.5" fill="currentColor" stroke="none"/>',
+    gear:'<circle cx="8" cy="8" r="2.5"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.1 3.1l1.4 1.4M11.5 11.5l1.4 1.4M3.1 12.9l1.4-1.4M11.5 4.5l1.4-1.4"/>'
   };
   return '<svg width="'+s+'" height="'+s+'" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">'+(P[n]||'')+'</svg>'
 }

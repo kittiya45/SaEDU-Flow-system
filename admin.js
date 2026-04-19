@@ -1,8 +1,6 @@
 /* ─── ADMIN ─── */
 async function vAdm(){
   AUSERS=await dg('users','?email=neq.admin&order=created_at.desc');
-  var _docNumCfgs=[];
-  try{_docNumCfgs=await dg('doc_number_settings','?order=year.desc');}catch(e){}
   var cnt={
     total:AUSERS.length,
     pnd:AUSERS.filter(function(u){return u.approval_status==='pending'}).length,
@@ -62,7 +60,6 @@ async function vAdm(){
   html.push('</div>');
 
   /* ── Doc number settings card (SYS only) ── */
-  if(CU.role_code==='ROLE-SYS') html.push(rDocNumCard(_docNumCfgs));
 
   /* ── Pending warning ── */
   if(cnt.pnd>0){
@@ -695,150 +692,4 @@ async function doImport(){
   setTimeout(function(){gnkClose('imp');setTimeout(function(){nav('adm')},220)},1500);
 }
 
-/* ─── DOC NUMBER SETTINGS ─── */
-function rDocNumCard(cfgs){
-  cfgs=Array.isArray(cfgs)?cfgs:[];
-  var thYear=new Date().getFullYear()+543;
-  var cur=(cfgs||[]).find(function(c){return c.year===thYear});
-  var curPrefix=cur?cur.prefix:'GNK';
-  var h=[];
-  
-  h.push(
-    '<div class="card mb-5" style="border: 1px solid #F0EBE6; box-shadow: 0 2px 4px rgba(0,0,0,0.02); padding: 24px;">'+
-      '<div class="flex items-center justify-between mb-5">'+
-        '<div class="flex items-center gap-4">'+
-          '<div class="w-11 h-11 rounded-[12px] bg-[#FFF3EE] flex items-center justify-center text-[#C42800] shrink-0">'+
-            svg('edit', 20)+
-          '</div>'+
-          '<div>'+
-            '<div class="font-bold text-[16px] text-[#18120E] leading-tight">ตั้งค่าเลขที่เอกสาร</div>'+
-            '<div class="text-[12px] text-[#A89E99] mt-1">กำหนดตัวอักษรนำหน้าสำหรับปี '+thYear+'</div>'+
-          '</div>'+
-        '</div>'+
-        '<button class="flex items-center gap-2 bg-[#18120E] hover:bg-[#333] text-white px-5 py-2 rounded-lg font-bold text-sm transition-all active:scale-95" data-action="showDocNumModal">'+
-          svg('edit', 14)+' ตั้งค่าปี '+thYear+
-        '</button>'+
-      '</div>'+
-      
-      // Preview Section: ปรับความกว้างพอดีเนื้อหา + ไล่เฉดสีเหลือง
-      '<div class="inline-flex items-center gap-6 px-6 py-4 rounded-2xl border border-[#FDE68A] mb-2" style="background: linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%); box-shadow: 0 4px 12px rgba(251, 191, 36, 0.08);">'+
-        '<div>'+
-          '<div class="text-[11px] text-[#92400E] uppercase font-bold tracking-wider mb-1">รูปแบบปัจจุบัน ('+thYear+')</div>'+
-          '<div class="font-bold text-[20px] font-mono tracking-wider" style="color:#C42800; text-shadow: 0 1px 0 rgba(255,255,255,0.5);">'+esc(curPrefix)+'-'+thYear+'-001</div>'+
-        '</div>'+
-        '<div class="h-10 w-px bg-[#FDE68A]"></div>'+ // เส้นคั่นเพิ่มความโปร
-        '<div class="text-[11px] text-[#92400E] leading-tight font-medium">'+
-          'รหัสตั้งต้น<br>สำหรับปีนี้'+
-        '</div>'+
-      '</div>'
-  );
-
-  if(cfgs&&cfgs.length){
-    h.push(
-      '<div class="mt-6 pt-5 border-t border-[#F5F3F0]">'+
-        '<div class="text-[11px] font-bold text-[#A89E99] mb-3 uppercase tracking-wider">ประวัติการตั้งค่าย้อนหลัง</div>'+
-        '<div class="tbl-wrap">'+
-          '<table class="w-full text-[13px]">'+
-            '<thead>'+
-              '<tr class="border-b border-[#F5F3F0]">'+
-                '<th class="py-2 text-left text-[#6b6560]">ปี พ.ศ.</th>'+
-                '<th class="py-2 text-left text-[#6b6560]">Prefix</th>'+
-                '<th class="py-2 text-left text-[#6b6560]">ตัวอย่าง</th>'+
-                '<th class="py-2 text-right text-[#6b6560]">วันที่แก้ไข</th>'+
-              '</tr>'+
-            '</thead>'+
-            '<tbody>'
-    );
-    cfgs.forEach(function(c){
-      h.push(
-        '<tr class="border-b border-[#FAF9F8] last:border-0">'+
-          '<td class="py-2.5 font-bold">'+c.year+'</td>'+
-          '<td class="py-2.5"><span class="bg-white border border-[#EEE] px-2 py-0.5 rounded text-[12px] font-mono">'+esc(c.prefix)+'</span></td>'+
-          '<td class="py-2.5 font-mono text-[#C42800]">'+esc(c.prefix)+'-'+c.year+'-001</td>'+
-          '<td class="py-2.5 text-right text-[#a89e99] text-[12px]">'+fd(c.created_at)+'</td>'+
-        '</tr>'
-      );
-    });
-    h.push('</tbody></table></div></div>');
-  }
-  h.push('</div>');
-  return h.join('');
-}
-
-
-
-async function showDocNumModal(){
-  var thYear=new Date().getFullYear()+543;
-  var curPrefix='GNK';
-  try{
-    var cfg=await dg('doc_number_settings','?year=eq.'+thYear+'&select=prefix&limit=1');
-    if(cfg&&cfg.length&&cfg[0].prefix) curPrefix=cfg[0].prefix;
-  }catch(e){}
-
-  var box=[
-    '<div class="gnk-box" style="max-width:440px" onclick="event.stopPropagation()">',
-      '<div class="gnk-pop-head">',
-        '<div class="gnk-eyebrow">การตั้งค่าระบบ</div>',
-        '<div class="gnk-pop-title">ตั้งค่าเลขที่เอกสาร</div>',
-        '<div class="gnk-pop-sub">ปีงบประมาณ <strong style="color:#C42800">'+thYear+'</strong> (พ.ศ.)</div>',
-        '<button class="gnk-xbtn" onclick="gnkClose(\'docnum\')">'+_XSVG+'</button>',
-      '</div>',
-      '<div class="gnk-divider"></div>',
-      '<div class="gnk-pop-body">',
-        '<div class="gnk-info">'+_ISVG+
-          '<div>รูปแบบเลขที่จะเป็น <strong>[Prefix]-'+thYear+'-[ลำดับ]</strong><br>'+
-          'เช่น ถ้าตั้ง Prefix เป็น <strong>กนค</strong> จะได้ <strong>กนค-'+thYear+'-001</strong></div>'+
-        '</div>',
-        '<div class="gnk-inp-grp">',
-          '<label>Prefix (รหัสองค์กร / คณะ)</label>',
-          '<input type="text" id="dn-prefix" class="gnk-inp" value="'+esc(curPrefix)+'" placeholder="เช่น GNK หรือ กนค" maxlength="20" oninput="updateDNPreview()">',
-        '</div>',
-        '<div class="gnk-prev-box">',
-          '<div>',
-            '<div style="font-size:12px;color:#a89e99;margin-bottom:4px">ตัวอย่างเลขที่เอกสาร</div>',
-            '<div id="dn-preview" class="gnk-prev-val">'+esc(curPrefix)+'-'+thYear+'-001</div>',
-          '</div>',
-          '<div class="gnk-prev-tag">ตัวอย่าง</div>',
-        '</div>',
-      '</div>',
-      '<div class="gnk-pop-foot">',
-        '<button class="gnk-btn-c" onclick="gnkClose(\'docnum\')">ยกเลิก</button>',
-        '<button class="gnk-btn-p" id="dn-save-btn" onclick="saveDocNumSetting()">'+_OKSVG+'บันทึกการตั้งค่า</button>',
-      '</div>',
-    '</div>'
-  ].join('');
-
-  _gnkOpen('docnum',box);
-}
-
-function updateDNPreview(){
-  var thYear=new Date().getFullYear()+543;
-  var prefix=(($e('dn-prefix')||{}).value||'GNK').trim()||'GNK';
-  var el=$e('dn-preview');
-  if(el) el.textContent=prefix+'-'+thYear+'-001';
-}
-
-async function saveDocNumSetting(){
-  var thYear=new Date().getFullYear()+543;
-  var prefix=(($e('dn-prefix')||{}).value||'').trim();
-  if(!prefix){
-    var inp=$e('dn-prefix');
-    if(inp){inp.style.borderColor='#C42800';inp.focus();setTimeout(function(){inp.style.borderColor='';},1800);}
-    return;
-  }
-  var btn=$e('dn-save-btn');
-  if(btn){btn.disabled=true;btn.innerHTML=_SPINSVG+'กำลังบันทึก...';}
-  try{
-    var ex=await dg('doc_number_settings','?year=eq.'+thYear+'&select=id&limit=1');
-    if(ex&&ex.length){
-      await dpa('doc_number_settings',ex[0].id,{prefix:prefix});
-    }else{
-      await dp('doc_number_settings',{year:thYear,prefix:prefix,created_by:CU.id});
-    }
-    gnkClose('docnum');
-    setTimeout(function(){nav('adm')},220);
-  }catch(e){
-    if(btn){btn.disabled=false;btn.innerHTML=_OKSVG+'บันทึกการตั้งค่า';}
-    alert('เกิดข้อผิดพลาด: '+(e.message||e));
-  }
-}
+/* Doc number + doc type management functions → sysAdmin.js / docTypeAdmin.js */

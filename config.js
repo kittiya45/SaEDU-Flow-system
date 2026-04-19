@@ -64,6 +64,28 @@ var DTYPE_CFG={
     eventLabel:'วันที่ต้องการ (ถ้ามี)',eventRequired:false}
 };
 
+/* โหลดประเภทเอกสารจาก DB แทนค่าที่ hardcode ไว้ */
+async function loadDocTypes(){
+  try{
+    var rows=await dg('doc_types','?is_active=eq.true&order=sort_order,created_at');
+    if(!rows||!rows.length) return;
+    var newDT={}, newCFG={};
+    rows.forEach(function(r){
+      newDT[r.code]=r.label;
+      newCFG[r.code]={label:r.label,icon:r.icon||'doc',
+        showFrom:r.show_from,fromLabel:r.from_label||'',
+        showTo:r.show_to,toLabel:r.to_label||'',
+        showRef:r.show_ref,refLabel:r.ref_label||'',
+        showDocDate:r.show_doc_date,docDateLabel:r.doc_date_label||'',
+        eventLabel:r.event_label||'วันกำหนดส่ง',eventRequired:!!r.event_required};
+    });
+    Object.keys(DTYPES).forEach(function(k){delete DTYPES[k]});
+    Object.assign(DTYPES,newDT);
+    Object.keys(DTYPE_CFG).forEach(function(k){delete DTYPE_CFG[k]});
+    Object.assign(DTYPE_CFG,newCFG);
+  }catch(e){console.warn('loadDocTypes failed, using defaults',e)}
+}
+
 /* ─── STATE ─── */
 var CU=null, CV='', CDI=null;
 var ADOCS=[], AUSERS=[], DTAB='all', PC=0;

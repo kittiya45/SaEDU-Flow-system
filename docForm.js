@@ -85,7 +85,7 @@ html.push('<div id="fprog"></div></div></div>');
   // Right col
   html.push('<div>');
   if(!editId){
-    html.push('<div class="card"><div class="card-head">'+_ico('users','#FFF3EE','#E83A00')+'<span class="card-head-title">ผู้ดำเนินการตามลำดับ</span></div>');
+    html.push('<div class="card"><div class="card-head">'+_ico('user','#FFF3EE','#E83A00')+'<span class="card-head-title">ผู้ดำเนินการตามลำดับ</span></div>');
     html.push('<div class="card-body">');
     html.push('<div class="al al-in text-xs mb-3"><span class="al-icon">'+svg('info',13)+'</span><span>เลือกผู้ที่ต้องอนุมัติ / ตรวจสอบเอกสารตามลำดับ</span></div>');
     html.push('<div class="flex gap-[7px] mb-2.5">');
