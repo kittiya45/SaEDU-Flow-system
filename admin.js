@@ -626,7 +626,7 @@ function showImport(){
         '<span>ยกเลิก</span>',
       '</button>',
       
-      '<button id="imp-btn" class="hidden items-center gap-2 bg-slate-800 hover:bg-orange-600 text-white px-8 py-2.5 rounded-xl font-bold transition-all shadow-xl shadow-slate-200 active:scale-95" onclick="doImport()">' + _DNSVG + ' ยืนยันนำเข้า</button>',
+      '<button id="imp-btn" class="hidden items-center gap-2 bg-slate-800 hover:bg-orange-600 text-white px-8 py-2.5 rounded-xl font-bold transition-all shadow-xl shadow-slate-200 active:scale-95" data-action="doImport">' + _DNSVG + ' ยืนยันนำเข้า</button>',
     '</div>',
   '</div>'
 ].join('');
@@ -704,69 +704,67 @@ function rDocNumCard(cfgs){
   var h=[];
   
   h.push(
-    '<div class="card mb-5" style="border:none; border-radius:20px; box-shadow: 0 10px 30px rgba(0,0,0,0.04); background:#fff; overflow:hidden;">'+
-      '<div class="card-body p-5">'+
-        // Header
-        '<div class="flex items-center justify-between mb-6">'+
-          '<div class="flex items-center gap-4">'+
-            '<div style="width:48px; height:48px; border-radius:14px; background:linear-gradient(135deg, #FFF3EE 0%, #FFDED0 100%); color:#C42800; display:flex; align-items:center; justify-content:center; box-shadow: 0 4px 12px rgba(196,40,0,0.12);">'+
-              svg('edit',22)+
-            '</div>'+
-            '<div>'+
-              '<div class="font-bold text-[18px] text-[#18120E] tracking-tight">เลขที่เอกสาร</div>'+
-              '<div class="text-[12px] text-[#A89E99]">ตั้งค่ารูปแบบการรันเลขที่ (Prefix) รายปี</div>'+
-            '</div>'+
+    '<div class="card mb-5" style="border: 1px solid #F0EBE6; box-shadow: 0 2px 4px rgba(0,0,0,0.02); padding: 24px;">'+
+      '<div class="flex items-center justify-between mb-5">'+
+        '<div class="flex items-center gap-4">'+
+          '<div class="w-11 h-11 rounded-[12px] bg-[#FFF3EE] flex items-center justify-center text-[#C42800] shrink-0">'+
+            svg('edit', 20)+
           '</div>'+
-          '<button class="btn" data-action="showDocNumModal" style="background:#18120E; color:#fff; border-radius:10px; padding:8px 18px; font-size:13px; font-weight:600; transition:all 0.2s; display:flex; align-items:center; gap:8px;" onmouseover="this.style.opacity=0.8" onmouseout="this.style.opacity=1">'+
-            svg('edit',14)+' ตั้งค่าปี '+thYear+
-          '</button>'+
-        '</div>'+
-        
-        // Preview Section (ปรับให้ดูนูนและเด่น)
-        '<div style="background:#FAF9F8; border-radius:16px; padding:24px; border:1px solid #F0EBE6; display:flex; align-items:center; justify-content:space-between; position:relative; overflow:hidden;">'+
-          '<div style="position:absolute; left:0; top:0; bottom:0; width:4px; background:#C42800;"></div>'+
           '<div>'+
-            '<div class="text-[11px] font-bold text-[#A89E99] uppercase tracking-widest mb-1">Current Format</div>'+
-            '<div class="font-mono font-black text-[24px] tracking-[2px]" style="color:#C42800;">'+esc(curPrefix)+'-'+thYear+'-<span style="color:#E5E1DE">001</span></div>'+
+            '<div class="font-bold text-[16px] text-[#18120E] leading-tight">ตั้งค่าเลขที่เอกสาร</div>'+
+            '<div class="text-[12px] text-[#A89E99] mt-1">กำหนดตัวอักษรนำหน้าสำหรับปี '+thYear+'</div>'+
           '</div>'+
-          '<div style="text-align:right">'+
-            '<div class="text-[12px] text-[#6b6560] font-medium mb-1">ปีงบประมาณ</div>'+
-            '<div class="text-[14px] font-bold text-[#18120E]">พ.ศ. '+thYear+'</div>'+
-          '</div>'+
-        '</div>'
+        '</div>'+
+        '<button class="flex items-center gap-2 bg-[#18120E] hover:bg-[#333] text-white px-5 py-2 rounded-lg font-bold text-sm transition-all active:scale-95" data-action="showDocNumModal">'+
+          svg('edit', 14)+' ตั้งค่าปี '+thYear+
+        '</button>'+
+      '</div>'+
+      
+      // Preview Section: ปรับความกว้างพอดีเนื้อหา + ไล่เฉดสีเหลือง
+      '<div class="inline-flex items-center gap-6 px-6 py-4 rounded-2xl border border-[#FDE68A] mb-2" style="background: linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%); box-shadow: 0 4px 12px rgba(251, 191, 36, 0.08);">'+
+        '<div>'+
+          '<div class="text-[11px] text-[#92400E] uppercase font-bold tracking-wider mb-1">รูปแบบปัจจุบัน ('+thYear+')</div>'+
+          '<div class="font-bold text-[20px] font-mono tracking-wider" style="color:#C42800; text-shadow: 0 1px 0 rgba(255,255,255,0.5);">'+esc(curPrefix)+'-'+thYear+'-001</div>'+
+        '</div>'+
+        '<div class="h-10 w-px bg-[#FDE68A]"></div>'+ // เส้นคั่นเพิ่มความโปร
+        '<div class="text-[11px] text-[#92400E] leading-tight font-medium">'+
+          'รหัสตั้งต้น<br>สำหรับปีนี้'+
+        '</div>'+
+      '</div>'
   );
 
   if(cfgs&&cfgs.length){
     h.push(
-      '<div class="mt-8">'+
-        '<div class="flex items-center gap-2 mb-4">'+
-          '<div class="text-[12px] font-bold text-[#18120E]">ประวัติการตั้งค่า</div>'+
-          '<div class="flex-1 h-px bg-[#F0EBE6]"></div>'+
-        '</div>'+
-        '<div class="tbl-wrap" style="border:none;">'+
-          '<table style="width:100%; border-spacing: 0 8px; border-collapse: separate;">'+
+      '<div class="mt-6 pt-5 border-t border-[#F5F3F0]">'+
+        '<div class="text-[11px] font-bold text-[#A89E99] mb-3 uppercase tracking-wider">ประวัติการตั้งค่าย้อนหลัง</div>'+
+        '<div class="tbl-wrap">'+
+          '<table class="w-full text-[13px]">'+
             '<thead>'+
-              '<tr style="color:#A89E99; font-size:11px; text-transform:uppercase; letter-spacing:1px;">'+
-                '<th style="padding:0 12px">ปี พ.ศ.</th><th>Prefix</th><th>ตัวอย่างรหัส</th><th style="text-align:right; padding:0 12px">วันที่แก้ไข</th>'+
+              '<tr class="border-b border-[#F5F3F0]">'+
+                '<th class="py-2 text-left text-[#6b6560]">ปี พ.ศ.</th>'+
+                '<th class="py-2 text-left text-[#6b6560]">Prefix</th>'+
+                '<th class="py-2 text-left text-[#6b6560]">ตัวอย่าง</th>'+
+                '<th class="py-2 text-right text-[#6b6560]">วันที่แก้ไข</th>'+
               '</tr>'+
             '</thead>'+
             '<tbody>'
     );
     cfgs.forEach(function(c){
       h.push(
-        '<tr style="background:#fff; transition:transform 0.2s;">'+
-          '<td style="padding:12px; border-radius:10px 0 0 10px; border:1px solid #F0EBE6; border-right:none; font-weight:700;">'+c.year+'</td>'+
-          '<td style="padding:12px; border-top:1px solid #F0EBE6; border-bottom:1px solid #F0EBE6; font-family:monospace; color:#6b6560;">'+esc(c.prefix)+'</td>'+
-          '<td style="padding:12px; border-top:1px solid #F0EBE6; border-bottom:1px solid #F0EBE6; font-family:monospace; font-weight:600; color:#C42800;">'+esc(c.prefix)+'-'+c.year+'-001</td>'+
-          '<td style="padding:12px; border-radius:0 10px 10px 0; border:1px solid #F0EBE6; border-left:none; text-align:right; color:#a89e99; font-size:12px;">'+fd(c.created_at)+'</td>'+
+        '<tr class="border-b border-[#FAF9F8] last:border-0">'+
+          '<td class="py-2.5 font-bold">'+c.year+'</td>'+
+          '<td class="py-2.5"><span class="bg-white border border-[#EEE] px-2 py-0.5 rounded text-[12px] font-mono">'+esc(c.prefix)+'</span></td>'+
+          '<td class="py-2.5 font-mono text-[#C42800]">'+esc(c.prefix)+'-'+c.year+'-001</td>'+
+          '<td class="py-2.5 text-right text-[#a89e99] text-[12px]">'+fd(c.created_at)+'</td>'+
         '</tr>'
       );
     });
     h.push('</tbody></table></div></div>');
   }
-  h.push('</div></div>');
+  h.push('</div>');
   return h.join('');
 }
+
 
 
 async function showDocNumModal(){

@@ -28,12 +28,22 @@ async function vDet(docId){
     }
   })
   var _curStep=wf.filter(function(s){return s.status==='active'})[0];
-  var canAct=(CAN.sg(CU.role_code)||CAN.rv(CU.role_code)||(_curStep&&_curStep.assigned_to===CU.id))&&doc.status==='pending';
+  var canAct=(_curStep&&(_curStep.assigned_to===CU.id || _curStep.rejected_by===CU.id))&&doc.status==='pending';
+
+  // Debug
+  console.log('Debug - _curStep:', _curStep);
+  console.log('Debug - canAct:', canAct);
+  console.log('Debug - CU.id:', CU.id);
+  console.log('Debug - doc.status:', doc.status);
+
+  // ตรวจสอบว่ามีการส่งคืนแก้ไขในอดีตหรือไม่
+  var hasRejectedHistory=wf.some(function(s){return s.status==='rejected'});
 
   var html=['<div class="flex items-center gap-2.5 mb-[18px] flex-wrap">'];
   html.push('<button class="btn btn-soft sm" data-action="nav" data-view="docs">'+svg('back',13)+' กลับรายการ</button>');
   html.push(sBadge(doc.status));
   if(doc.status==='completed') html.push('<div class="al al-ok !m-0 !py-2 !px-3.5 text-xs !rounded-[20px]"><span class="al-icon">✓</span><span>เอกสารผ่านการอนุมัติทุกขั้นตอนเรียบร้อยแล้ว</span></div>');
+  if(hasRejectedHistory && doc.status==='pending') html.push('<div class="al al-wa !m-0 !py-2 !px-3.5 text-xs !rounded-[20px]"><span class="al-icon">↩</span><span>เอกสารที่แก้ไขแล้วหลังการส่งคืน - รอการอนุมัติตามขั้นตอน</span></div>');
   html.push('<div class="ml-auto flex gap-2 flex-wrap">');
   if(CAN.up(CU.role_code)){
     html.push('<button class="btn btn-soft sm" data-action="detUp">'+svg('up',13)+' อัปโหลดไฟล์</button>');
@@ -58,7 +68,8 @@ async function vDet(docId){
   html.push('<div class="two-col"><div>');
 
   // Info
-  html.push('<div class="card"><div class="card-head">'+svg('doc',15)+'<span class="card-head-title">ข้อมูลเอกสาร</span></div><div class="card-body"><div class="detail-list">');
+  var _ico=function(i,bg,cl){return '<div style="width:26px;height:26px;border-radius:7px;background:'+bg+';display:flex;align-items:center;justify-content:center;color:'+cl+'">'+svg(i,13)+'</div>'};
+  html.push('<div class="card"><div class="card-head">'+_ico('doc','#FFF3EE','#E83A00')+'<span class="card-head-title">ข้อมูลเอกสาร</span></div><div class="card-body"><div class="detail-list">');
   [['เลขที่','<span class="mono">'+esc(doc.doc_number||'—')+'</span>'],
    ['ชื่อเรื่อง',esc(doc.title)],
    ['เรียน (ถึง)','<strong style="color:var(--orange)">'+esc(doc.addressed_to||'—')+'</strong>'],
@@ -88,7 +99,7 @@ async function vDet(docId){
   var _histFiles=files.filter(function(f){return f.version<_maxVer});
   var _verCount=files.filter(function(f){return f.version>1}).length;
 
-  html.push('<div class="card"><div class="card-head">'+svg('save',15)+'<span class="card-head-title">ไฟล์แนบ</span>');
+  html.push('<div class="card"><div class="card-head">'+_ico('folder','#EFF6FF','#2563EB')+'<span class="card-head-title">ไฟล์แนบ</span>');
   html.push('<span class="ml-auto text-xs text-[#a89e99]">'+files.length+' ไฟล์');
   if(_verCount>0) html.push(' · <span class="text-[#2563EB] font-semibold">'+_verCount+' เวอร์ชันแก้ไข</span>');
   html.push('</span></div>');
@@ -125,64 +136,31 @@ async function vDet(docId){
 
     // ── ประวัติเวอร์ชันก่อนหน้า ──
     if(_histFiles.length){
-      html.push('<details class="mt-3"><summary class="cursor-pointer text-xs font-semibold text-[#2563EB] py-2 border-t border-dashed border-[#EBEBEB] list-none">');
-      html.push('▶ ประวัติเวอร์ชันก่อนหน้า ('+_histFiles.length+' ไฟล์)</summary>');
-      html.push('<div class="mt-2">');
-      _histFiles.forEach(function(f){
-        var isImg=f.file_type&&f.file_type.includes('image');
-        var isSigned=f.file_name.indexOf('[ลงนาม]')>=0||f.file_name.indexOf('signed_')>=0;
-        var isEdited=f.file_name.indexOf('[แก้ไข]')>=0||f.file_name.indexOf('edited_')>=0;
-        var dtStr=f.uploaded_at?new Date(f.uploaded_at).toLocaleString('th-TH',{day:'numeric',month:'short',year:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
-        html.push('<div class="file-item opacity-80 bg-[#FAFAFA]">');
-        html.push('<span class="file-icon opacity-60">'+svg(isImg?'img2':'pdf_ico',18)+'</span>');
-        html.push('<div class="file-info">');
-        html.push('<div class="file-name text-[#6b6560] text-xs">'+esc(f.file_name)+'</div>');
-        html.push('<div class="flex gap-[5px] items-center mt-[3px] flex-wrap">');
-        html.push('<span class="badge b-draft text-[10px] px-1.5 py-px">v'+f.version+'</span>');
-        if(isSigned) html.push('<span class="badge b-signed text-[10px] px-1.5 py-px">ลงนาม</span>');
-        if(isEdited) html.push('<span class="badge text-[10px] px-1.5 py-px bg-[#f5f5f5] text-[#888]">แก้ไข</span>');
-        html.push('<span class="file-meta">'+fsz(f.file_size)+' · '+dtStr+'</span></div>');
-        html.push('</div><div class="file-actions">');
-        html.push('<button class="btn btn-ghost xs" data-action="openViewer" data-url="'+furl(f.file_path)+'" data-name="'+esc(f.file_name)+'">'+svg('eye',12)+' ดู</button>');
-        html.push('<a class="btn btn-soft xs" href="'+furl(f.file_path)+'" target="_blank" download>'+svg('dn',12)+' โหลด</a>');
-        html.push('</div></div>');
-      });
-      html.push('</div></details>');
+      html.push('<button class="cursor-pointer text-xs font-semibold text-[#2563EB] py-2 mt-2 border-t border-dashed border-[#EBEBEB] w-full text-left bg-transparent border-x-0 border-b-0" data-action="showVerHist" data-id="'+docId+'">▶ ประวัติเวอร์ชันก่อนหน้า ('+_histFiles.length+' ไฟล์)</button>');
     }
   } else {
     html.push('<div class="card-empty py-6"><div class="card-empty-icon">📂</div><div class="card-empty-text">ยังไม่มีไฟล์แนบ</div></div>')
   }
   html.push('</div></div>');
 
-  // History
-  html.push('<div class="card"><div class="card-head">'+svg('bell',15)+'<span class="card-head-title">ประวัติการดำเนินการ</span></div><div class="card-body">');
-  if(hist.length){
-    hist.forEach(function(h){
-      html.push('<div class="flex gap-3 py-2.5 border-b border-[#F5F5F5]">');
-      html.push('<div class="w-[30px] h-[30px] rounded-full bg-[#fff5f0] flex items-center justify-center shrink-0">'+svg('doc',16)+'</div>');
-      html.push('<div><div class="text-[13px] font-semibold">'+esc(h.action)+'</div>');
-      if(h.note) html.push('<div class="text-xs text-[#a89e99] italic">"'+esc(h.note)+'"</div>');
-      html.push('<div class="text-[11px] text-[#a89e99]">'+fd(h.performed_at)+'</div></div></div>');
-    })
-  } else {
-    html.push('<p class="text-[#a89e99] text-[13px]">ยังไม่มีประวัติการดำเนินการ</p>')
+  // Notification log card — admin only
+  if(CU.role_code==='ROLE-SYS'){
+    html.push('<div class="card"><div class="card-head">'+_ico('bell','#F5F3FF','#7C3AED')+'<span class="card-head-title">บันทึกการแจ้งเตือนอีเมล</span></div><div class="card-body" id="d-notif-list">');
+    html.push('<div class="al al-in text-xs"><span class="al-icon">ℹ</span><span>ระบบส่งอีเมลแจ้งเตือนอัตโนมัติเมื่อมีการเปลี่ยนขั้นตอน</span></div>');
+    html.push('<div id="notif-loading" class="text-[#a89e99] text-[13px]">กำลังโหลด...</div>');
+    html.push('</div></div>');
   }
-  html.push('</div></div>');
-  // Notification log card
-  html.push('<div class="card"><div class="card-head">'+svg('bell',15)+'<span class="card-head-title">บันทึกการแจ้งเตือนอีเมล</span></div><div class="card-body" id="d-notif-list">');
-  html.push('<div class="al al-in text-xs"><span class="al-icon">ℹ</span><span>ระบบส่งอีเมลแจ้งเตือนอัตโนมัติเมื่อมีการเปลี่ยนขั้นตอน</span></div>');
-  html.push('<div id="notif-loading" class="text-[#a89e99] text-[13px]">กำลังโหลด...</div>');
-  html.push('</div></div></div>');
+  html.push('</div>');
 
   // Right: Workflow
-  html.push('<div><div class="card"><div class="card-head">'+svg('sign',15)+'<span class="card-head-title">ติดตามสถานะงาน</span><span class="ml-auto text-[11px] text-[#a89e99]">'+wf.filter(function(s){return s.status==="done"}).length+'/'+wf.length+' ขั้นตอน</span></div><div class="card-body">');
+  html.push('<div><div class="card"><div class="card-head">'+_ico('ok','#D1FAE5','#16A34A')+'<span class="card-head-title">ติดตามสถานะงาน</span><span class="ml-auto text-[11px] text-[#a89e99]">'+wf.filter(function(s){return s.status==="done"}).length+'/'+wf.length+' ขั้นตอน</span></div><div class="card-body">');
   if(wf.length){
     html.push('<div class="timeline">');
     wf.forEach(function(s,i){
-      var done=s.status==='done', act=s.status==='active', last=i===wf.length-1;
+      var done=s.status==='done', act=s.status==='active', wait=s.status==='waiting', rej=s.status==='rejected', last=i===wf.length-1;
       html.push('<div class="tl-item">');
-      html.push('<div class="tl-spine"><div class="tl-dot '+(done?'tl-dot-done':act?'tl-dot-active':'tl-dot-wait')+'">'+(done?svg('ok',11):i+1)+'</div>'+(!last?'<div class="tl-line '+(done?'tl-line-done':'tl-line-wait')+'"></div>':'')+'</div>');
-      html.push('<div class="tl-body"><div class="tl-title '+(act?'text-[#D97706]':'')+'">'+esc(s.step_name)+'</div>');
+      html.push('<div class="tl-spine"><div class="tl-dot '+(done?'tl-dot-done':act?'tl-dot-active':rej?'tl-dot-rejected':'tl-dot-wait')+'">'+(done?svg('ok',11):rej?svg('x',11):i+1)+'</div>'+(!last?'<div class="tl-line '+(done?'tl-line-done':'tl-line-wait')+'"></div>':'')+'</div>');
+      html.push('<div class="tl-body"><div class="tl-title '+(act?'text-[#D97706]':rej?'text-[#DC2626]':'')+'">'+esc(s.step_name)+'</div>');
       html.push('<div class="tl-sub">'+(RTH[s.role_required]||s.role_required)+(s._assigneeName?' · <strong>'+esc(s._assigneeName)+'</strong>':'')+'</div>');
       if(s.action_at){
         var _adt=new Date(s.action_at);
@@ -204,12 +182,42 @@ async function vDet(docId){
   } else {
     html.push('<div class="card-empty py-6"><div class="card-empty-icon">📋</div><div class="card-empty-text">ยังไม่ได้กำหนดขั้นตอน</div></div>')
   }
-  html.push('</div></div></div></div>');
+  html.push('</div></div>');
+
+  // History — right column, below workflow
+  var _histIcon=function(action){
+    var a=action||'';
+    if(a.indexOf('อนุมัติ')>=0||a.indexOf('ลงนาม')>=0) return {ic:'ok',  bg:'#D1FAE5',cl:'#16A34A'};
+    if(a.indexOf('ส่งคืน')>=0)                          return {ic:'x',   bg:'#FEE2E2',cl:'#DC2626'};
+    if(a.indexOf('ส่งใหม่')>=0||a.indexOf('ส่งอีกครั้ง')>=0) return {ic:'undo',bg:'#DBEAFE',cl:'#2563EB'};
+    if(a.indexOf('อัปโหลด')>=0)                         return {ic:'up',  bg:'#EDE9FE',cl:'#7C3AED'};
+    if(a.indexOf('ฝังลายเซ็น')>=0)                      return {ic:'pen', bg:'#D1FAE5',cl:'#16A34A'};
+    if(a.indexOf('แก้ไข')>=0)                           return {ic:'edit',bg:'#FEF3C7',cl:'#D97706'};
+    if(a.indexOf('ส่งต่อ')>=0)                          return {ic:'sign',bg:'#FFF3EE',cl:'#E83A00'};
+    if(a.indexOf('สร้าง')>=0||a.indexOf('ส่งเอกสาร')>=0) return {ic:'doc',bg:'#FFF3EE',cl:'#E83A00'};
+    return {ic:'doc',bg:'#F5F5F5',cl:'#6b6560'};
+  };
+  html.push('<div class="card"><div class="card-head">'+_ico('cal','#FEF3C7','#D97706')+'<span class="card-head-title">ประวัติการดำเนินการ</span></div><div class="card-body">');
+  if(hist.length){
+    hist.forEach(function(h){
+      var _hi=_histIcon(h.action);
+      html.push('<div class="flex gap-3 py-2.5 border-b border-[#F5F5F5] last:border-0">');
+      html.push('<div class="w-[32px] h-[32px] rounded-[9px] flex items-center justify-center shrink-0" style="background:'+_hi.bg+';color:'+_hi.cl+'">'+svg(_hi.ic,15)+'</div>');
+      html.push('<div class="flex-1 min-w-0"><div class="text-[13px] font-semibold leading-tight">'+esc(h.action)+'</div>');
+      if(h.note) html.push('<div class="text-xs text-[#a89e99] italic mt-0.5 truncate">"'+esc(h.note)+'"</div>');
+      html.push('<div class="text-[11px] text-[#a89e99] mt-0.5">'+fd(h.performed_at)+'</div></div></div>');
+    })
+  } else {
+    html.push('<p class="text-[#a89e99] text-[13px]">ยังไม่มีประวัติการดำเนินการ</p>')
+  }
+  html.push('</div></div>');
+
+  html.push('</div></div>');
 
   setTimeout(function(){
     var dup=$e('dup');
     if(dup) dup.onchange=function(){detUp(Array.from(dup.files),docId)};
-    loadNotifLog(docId)
+    if(CU.role_code==='ROLE-SYS') loadNotifLog(docId)
   },80);
 
   return html.join('')
@@ -255,6 +263,41 @@ async function detUp(files,docId){
       df.appendChild(div)
     })
   }
+}
+
+async function showVerHist(docId){
+  var w=$e('mwrap'); if(!w)return;
+  var files=await dg('document_files','?document_id=eq.'+docId+'&order=version.desc,uploaded_at.desc');
+  var _maxVer=files.reduce(function(m,f){return Math.max(m,f.version||1)},0);
+  var _histFiles=files.filter(function(f){return f.version<_maxVer});
+  if(!_histFiles.length){w.innerHTML='';return}
+  var rows=_histFiles.map(function(f){
+    var isImg=f.file_type&&f.file_type.includes('image');
+    var isSigned=f.file_name.indexOf('[ลงนาม]')>=0||f.file_name.indexOf('signed_')>=0;
+    var isEdited=f.file_name.indexOf('[แก้ไข]')>=0||f.file_name.indexOf('edited_')>=0;
+    var dtStr=f.uploaded_at?new Date(f.uploaded_at).toLocaleString('th-TH',{day:'numeric',month:'short',year:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
+    return '<div class="file-item bg-[#FAFAFA]">'+
+      '<span class="file-icon opacity-60">'+svg(isImg?'img2':'pdf_ico',18)+'</span>'+
+      '<div class="file-info">'+
+        '<div class="file-name text-[#6b6560] text-xs">'+esc(f.file_name)+'</div>'+
+        '<div class="flex gap-[5px] items-center mt-[3px] flex-wrap">'+
+          '<span class="badge b-draft text-[10px] px-1.5 py-px">v'+f.version+'</span>'+
+          (isSigned?'<span class="badge b-signed text-[10px] px-1.5 py-px">ลงนาม</span>':'')+
+          (isEdited?'<span class="badge text-[10px] px-1.5 py-px bg-[#f5f5f5] text-[#888]">แก้ไข</span>':'')+
+          '<span class="file-meta">'+fsz(f.file_size)+' · '+dtStr+'</span>'+
+        '</div>'+
+      '</div>'+
+      '<div class="file-actions">'+
+        '<button class="btn btn-ghost xs" data-action="openViewer" data-url="'+furl(f.file_path)+'" data-name="'+esc(f.file_name)+'">'+svg('eye',12)+' ดู</button>'+
+        '<a class="btn btn-soft xs" href="'+furl(f.file_path)+'" target="_blank" download>'+svg('dn',12)+' โหลด</a>'+
+      '</div>'+
+    '</div>'
+  }).join('');
+  w.innerHTML='<div class="mo"><div class="modal">'+
+    '<div class="modal-head"><span class="modal-title">'+svg('save',15)+' ประวัติเวอร์ชันก่อนหน้า</span>'+
+    '<button class="btn btn-ghost xs ml-auto" data-action="closeModal">✕</button></div>'+
+    '<div class="modal-body" style="max-height:60vh;overflow-y:auto">'+rows+'</div>'+
+  '</div></div>'
 }
 
 async function showFwdModal(docId){
@@ -440,8 +483,12 @@ async function doAct(action,docId){
   var wf=await dg('workflow_steps','?document_id=eq.'+docId+'&order=step_number');
   var cur=wf.filter(function(s){return s.status==='active'})[0]||wf[0];
   if(cur){
-    await dpa('workflow_steps',cur.id,{status:action==='approve'?'done':'rejected',action_taken:action,note:note,revision_section:revSection||null,action_at:new Date().toISOString(),completed_at:action==='approve'?new Date().toISOString():null});
-    if(action==='approve'){var nx=wf.filter(function(s){return s.step_number===cur.step_number+1})[0];if(nx)await dpa('workflow_steps',nx.id,{status:'active'})}
+    await dpa('workflow_steps',cur.id,{status:action==='approve'?'done':'rejected',action_taken:action,note:note,revision_section:revSection||null,action_at:new Date().toISOString(),completed_at:action==='approve'?new Date().toISOString():null,rejected_by:action==='reject'?CU.id:null});
+    if(action==='approve'){
+      // หาขั้นตอนถัดไปที่ยังไม่เสร็จ (ไม่ใช่ done หรือ rejected)
+      var nx=wf.find(function(s){return s.step_number>cur.step_number && s.status!=='done' && s.status!=='rejected'});
+      if(nx)await dpa('workflow_steps',nx.id,{status:'active'});
+    }
   }
   var ns=Math.min((doc.current_step||1)+1,doc.total_steps||1);
   var allDone=action==='approve'&&cur.step_number>=(doc.total_steps||1);
@@ -500,9 +547,20 @@ async function doReSubmit(docId){
   var wf=await dg('workflow_steps','?document_id=eq.'+docId+'&order=step_number');
   var rejStep=wf.find(function(s){return s.status==='rejected'});
   if(!rejStep){alert('ไม่พบขั้นตอนที่ถูกส่งคืน');return}
+
+  // รีเซ็ตขั้นตอนที่ถูก reject กลับเป็น active โดยเก็บ assigned_to เดิมไว้
   await dpa('workflow_steps',rejStep.id,{status:'active',action_taken:null,note:null,revision_section:null,action_at:null,completed_at:null});
+
+  // ตั้งขั้นตอนอื่นๆ ที่อาจ active อยู่เป็น waiting หรือ pending
+  for(var i=0;i<wf.length;i++){
+    var step=wf[i];
+    if(step.id !== rejStep.id && step.status === 'active'){
+      await dpa('workflow_steps',step.id,{status:'waiting'});
+    }
+  }
+
   await dpa('documents',docId,{status:'pending',updated_at:new Date().toISOString()});
-  await dp('document_history',{document_id:docId,action:'ส่งใหม่อีกครั้ง',performed_by:CU.id,note:'ผู้จัดทำส่งเอกสารใหม่หลังแก้ไขแล้ว'});
+  await dp('document_history',{document_id:docId,action:'ส่งใหม่อีกครั้ง',performed_by:CU.id,note:'ผู้จัดทำส่งเอกสารใหม่หลังแก้ไขแล้ว - รอการอนุมัติจากผู้ส่งคืน'});
   try{await sendNotifEmail(docId,'resubmit','pending','')}catch(ne){console.warn('Email notif failed:',ne)}
   nav('det',docId);
 }
@@ -521,27 +579,25 @@ async function sendNotifEmail(docId, action, newStatus, note){
 
   // ── สร้าง recipient list ──
   var recipients=[];
+  function _okEmail(em){return em&&em.includes('@')&&!em.includes('@gnk.student')}
   if(newStatus==='completed'){
-    var allIds=wfSteps.filter(function(s){return s.assigned_to}).map(function(s){return s.assigned_to});
-    if(doc.created_by) allIds.push(doc.created_by);
-    if(doc.final_recipient_id) allIds.push(doc.final_recipient_id);
-    var uniqueIds=[...new Set(allIds)];
-    if(uniqueIds.length){
-      var allUsers=await dg('users','?id=in.('+uniqueIds.join(',')+')');
-      allUsers.forEach(function(u){
-        var em=u.contact_email||u.email;
-        if(em&&em.includes('@')&&!em.includes('@gnk.student')) recipients.push({user:u,email:em})
-      })
+    // แจ้งเตือนเฉพาะผู้จัดทำเมื่อเอกสารเสร็จสิ้น
+    if(doc.created_by){
+      var creatorUser=await dg('users','?id=eq.'+doc.created_by);
+      if(creatorUser[0]){
+        var em=creatorUser[0].contact_email||creatorUser[0].email;
+        if(_okEmail(em)) recipients.push({user:creatorUser[0],email:em});
+      }
     }
   } else if(action==='approve'&&nextStep&&nextStep.assigned_to){
     var ru=await dg('users','?id=eq.'+nextStep.assigned_to);
-    if(ru[0]){var em=ru[0].contact_email||ru[0].email;if(em&&em.includes('@'))recipients.push({user:ru[0],email:em})}
+    if(ru[0]){var em=ru[0].contact_email||ru[0].email;if(_okEmail(em))recipients.push({user:ru[0],email:em})}
   } else if(action==='reject'&&doc.created_by){
     var cu2=await dg('users','?id=eq.'+doc.created_by);
-    if(cu2[0]){var em2=cu2[0].contact_email||cu2[0].email;if(em2&&em2.includes('@'))recipients.push({user:cu2[0],email:em2})}
+    if(cu2[0]){var em2=cu2[0].contact_email||cu2[0].email;if(_okEmail(em2))recipients.push({user:cu2[0],email:em2})}
   } else if((action==='create'||action==='resubmit')&&nextStep&&nextStep.assigned_to){
     var ru3=await dg('users','?id=eq.'+nextStep.assigned_to);
-    if(ru3[0]){var em3=ru3[0].contact_email||ru3[0].email;if(em3&&em3.includes('@'))recipients.push({user:ru3[0],email:em3})}
+    if(ru3[0]){var em3=ru3[0].contact_email||ru3[0].email;if(_okEmail(em3))recipients.push({user:ru3[0],email:em3})}
   } else if(action==='overdue'){
     var overdueIds=[];
     if(nextStep&&nextStep.assigned_to) overdueIds.push(nextStep.assigned_to);
@@ -551,7 +607,7 @@ async function sendNotifEmail(docId, action, newStatus, note){
       var overdueUsers=await dg('users','?id=in.('+uniqueOIds.join(',')+')'+'&select=id,full_name,email,contact_email');
       overdueUsers.forEach(function(u){
         var em=u.contact_email||u.email;
-        if(em&&em.includes('@')&&!em.includes('@gnk.student')) recipients.push({user:u,email:em})
+        if(_okEmail(em)) recipients.push({user:u,email:em})
       })
     }
   }
@@ -690,11 +746,11 @@ function buildEmailHtml(o){
     '</body></html>'
 }
 
-/* ── ตรวจและส่ง Overdue notification (เรียก 1 ครั้งต่อ session) ── */
+/* ── ตรวจและส่ง Overdue notification (เรียก 1 ครั้งต่อวัน) ── */
 async function sendOverdueNotifs(){
-  if(window._overdueChecked) return;
-  window._overdueChecked=true;
   var today=new Date().toISOString().substring(0,10);
+  if(localStorage.getItem('_overdueCk')===today) return;
+  localStorage.setItem('_overdueCk',today);
   var overdueDocs=await dg('documents','?status=eq.pending&due_date=lt.'+today+'&notify_overdue=eq.true&select=id');
   if(!overdueDocs.length) return;
   var since=new Date(Date.now()-24*60*60*1000).toISOString();

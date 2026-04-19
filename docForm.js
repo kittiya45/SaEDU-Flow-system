@@ -20,6 +20,8 @@ async function vForm(editId){
     return '<option value="'+u.id+'">'+esc(u.full_name)+' · '+(RTH[u.role_code]||u.role_code)+'</option>'
   }).join('');
 
+  var _ico=function(i,bg,cl){return '<div style="width:26px;height:26px;border-radius:7px;background:'+bg+';display:flex;align-items:center;justify-content:center;color:'+cl+'">'+svg(i,13)+'</div>'};
+
   var html=[
     '<div class="flex items-center gap-2.5 mb-[18px]">',
     '<button class="btn btn-soft sm" data-action="nav" data-view="docs">'+svg('back',13)+' ย้อนกลับ</button>',
@@ -32,7 +34,7 @@ async function vForm(editId){
   var dtOpts='<option value="">— กรุณาเลือกประเภทเอกสาร —</option>'+Object.entries(DTYPES).map(function(e){
     return '<option value="'+e[0]+'"'+(editId&&doc.doc_type===e[0]?' selected':'')+'>'+e[1]+'</option>';
   }).join('');
-  html.push('<div class="card" style="margin-bottom:16px"><div class="card-head">'+svg('doc',15)+'<span class="card-head-title">ประเภทเอกสาร <span class="req">*</span></span></div><div class="card-body">');
+  html.push('<div class="card" style="margin-bottom:16px"><div class="card-head">'+_ico('doc','#FFF3EE','#E83A00')+'<span class="card-head-title">ประเภทเอกสาร <span class="req">*</span></span></div><div class="card-body">');
   html.push('<div class="fg" style="margin-bottom:0">');
   html.push('<label class="fl">เลือกประเภทเอกสาร <span class="req">*</span></label>');
   html.push('<select class="fi" id="ftype-sel" onchange="selectDocType(this.value)">'+dtOpts+'</select>');
@@ -46,14 +48,14 @@ async function vForm(editId){
   html.push('<div class="two-col"><div>');
 
   // Info card
-  html.push('<div class="card"><div class="card-head">'+svg('doc',15)+'<span class="card-head-title">ข้อมูลเอกสาร</span></div><div class="card-body">');
+  html.push('<div class="card"><div class="card-head">'+_ico('doc','#FFF3EE','#E83A00')+'<span class="card-head-title">ข้อมูลเอกสาร</span></div><div class="card-body">');
   html.push('<div class="fg"><label class="fl">ความเร่งด่วน</label><select class="fi" id="furg">'+uOpts+'</select></div>');
   html.push('<div class="fg"><label class="fl">ชื่อเรื่อง / หัวข้อ <span class="req">*</span></label><input class="fi" id="ftit" value="'+esc(doc.title||'')+'" placeholder="ระบุชื่อเรื่องเอกสาร"></div>');
   html.push('<div id="dtype-fields">'+(editId?renderTypeFields(doc.doc_type||'outgoing',doc):'')+'</div>');
   html.push('</div></div>');
 
 // Files card
-html.push('<div class="card"><div class="card-head">'+svg('save',15)+'<span class="card-head-title">ไฟล์เอกสาร</span></div><div class="card-body">');
+html.push('<div class="card"><div class="card-head">'+_ico('folder','#FFF3EE','#E83A00')+'<span class="card-head-title">ไฟล์เอกสาร</span></div><div class="card-body">');
 
 html.push('<div id="fflist">'+buildFileList(FF, editId||'')+'</div>');
 
@@ -83,7 +85,7 @@ html.push('<div id="fprog"></div></div></div>');
   // Right col
   html.push('<div>');
   if(!editId){
-    html.push('<div class="card"><div class="card-head">'+svg('users',15)+'<span class="card-head-title">ผู้ดำเนินการตามลำดับ</span></div>');
+    html.push('<div class="card"><div class="card-head">'+_ico('users','#FFF3EE','#E83A00')+'<span class="card-head-title">ผู้ดำเนินการตามลำดับ</span></div>');
     html.push('<div class="card-body">');
     html.push('<div class="al al-in text-xs mb-3"><span class="al-icon">'+svg('info',13)+'</span><span>เลือกผู้ที่ต้องอนุมัติ / ตรวจสอบเอกสารตามลำดับ</span></div>');
     html.push('<div class="flex gap-[7px] mb-2.5">');
@@ -93,7 +95,7 @@ html.push('<div id="fprog"></div></div></div>');
     html.push('<div id="wfwrap"></div>');
     html.push('</div></div>');
   }
-  html.push('<div class="card"><div class="card-head">'+svg('bell',15)+'<span class="card-head-title">การแจ้งเตือน</span></div>');
+  html.push('<div class="card"><div class="card-head">'+_ico('bell','#FFF3EE','#E83A00')+'<span class="card-head-title">การแจ้งเตือน</span></div>');
   html.push('<div class="card-body flex flex-col gap-[11px]">');
   var _ns=doc&&doc.notify_step===false?'':'checked';
   var _no=doc&&doc.notify_overdue===false?'':'checked';
@@ -103,7 +105,7 @@ html.push('<div id="fprog"></div></div></div>');
   var _staffOpts='<option value="">— ส่งคืนผู้จัดทำเอกสาร (ค่าเริ่มต้น) —</option>'+(FU||[]).filter(function(u){return u.id!==CU.id}).map(function(u){
     return '<option value="'+u.id+'"'+(doc.final_recipient_id===u.id?' selected':'')+'>'+esc(u.full_name)+' ('+RTH[u.role_code]+')</option>'
   }).join('');
-  html.push('<div class="card"><div class="card-head">'+svg('sign',15)+'<span class="card-head-title">ผู้รับเอกสารเมื่อเสร็จสิ้น</span></div>');
+  html.push('<div class="card"><div class="card-head">'+_ico('sign','#FFF3EE','#E83A00')+'<span class="card-head-title">ผู้รับเอกสารเมื่อเสร็จสิ้น</span></div>');
   html.push('<div class="card-body">');
   html.push('<div class="al al-in text-xs mb-3"><span class="al-icon">'+svg('info',13)+'</span><span>เมื่อทุกขั้นตอนอนุมัติครบ ระบบจะส่งเอกสารกลับให้บุคคลนี้ พร้อมแจ้งเตือนทางอีเมล</span></div>');
   html.push('<div class="fg"><label class="fl">ส่งเอกสารเสร็จสิ้นถึง</label><select class="fi" id="ffinalrec">'+_staffOpts+'</select></div>');
@@ -290,10 +292,15 @@ async function saveDoc(status){
     var _ns=$e('fnotifystep'); var _no=$e('fnotifyoverdue');
     var body={title:title,doc_type:gv('ftype'),urgency:gv('furg'),description:gv('fdsc'),doc_date:gv('fdate')||new Date().toISOString().slice(0,10),due_date:eventDate,from_department:fromdept,addressed_to:addrto,subject_line:subj||title,final_recipient_id:finalRec,final_recipient_note:finalNote,status:status,notify_step:_ns?_ns.checked:true,notify_overdue:_no?_no.checked:true};
     if(FDI){
-      await dpa('documents',FDI,Object.assign({},body,{updated_at:new Date().toISOString()}));
-      await dp('document_history',{document_id:FDI,action:'แก้ไขเอกสาร',performed_by:CU.id});
-      a.innerHTML=alrtH('ok','บันทึกเรียบร้อยแล้ว');
-      setTimeout(function(){nav('det',FDI)},900)
+  await dpa('documents',FDI,Object.assign({},body,{updated_at:new Date().toISOString()}));
+  if(status==='pending'){
+    var _wfRej=await dg('workflow_steps','?document_id=eq.'+FDI+'&status=eq.rejected&order=step_number&limit=1');
+    if(_wfRej.length) await dpa('workflow_steps',_wfRej[0].id,{status:'active',action_taken:null,note:null,revision_section:null,action_at:null,completed_at:null});
+  }
+  await dp('document_history',{document_id:FDI,action:'แก้ไขเอกสาร',performed_by:CU.id});
+  a.innerHTML=alrtH('ok','บันทึกเรียบร้อยแล้ว');
+  setTimeout(function(){nav('det',FDI)},900)
+
     } else {
       var docNum=await genDocNumber();
       var now=new Date().toISOString();

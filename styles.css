@@ -256,6 +256,7 @@ tbody tr:hover{background:#FDFBF9}
 .tl-dot-done{background:var(--ok-bg);color:var(--ok);border:2px solid #C8E6C9}
 .tl-dot-active{background:var(--wa-bg);color:var(--wa);border:2px solid #FFE0B2}
 .tl-dot-wait{background:#F5F5F5;color:#bbb;border:2px solid var(--border)}
+.tl-dot-rejected{background:var(--er-bg);color:var(--er);border:2px solid #FECACA}
 .tl-line{width:2px;flex:1;min-height:16px;margin:4px 0;border-radius:2px}
 .tl-line-done{background:var(--ok)}.tl-line-wait{background:var(--border)}
 .tl-body{padding-bottom:20px;flex:1}

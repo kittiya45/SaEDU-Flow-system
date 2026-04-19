@@ -44,6 +44,7 @@ document.addEventListener('click', function(e){
   else if(a==='showActModal') showActModal(action, id);
   else if(a==='doAct') doAct(action, id);
   else if(a==='closeModal'){var mw=$e('mwrap');if(mw)mw.innerHTML=''}
+  else if(a==='showVerHist') showVerHist(id);
   else if(a==='showFwdModal') showFwdModal(id);
   else if(a==='doForward') doForward(id);
   else if(a==='admApv') admApv(id);
@@ -60,6 +61,7 @@ document.addEventListener('click', function(e){
   else if(a==='saveEU') saveEU(el.dataset.uid, el.dataset.utype);
   else if(a==='showAddAdvisor') showAddAdvisor();
   else if(a==='showImport') showImport();
+  else if(a==='doImport') doImport();
   else if(a==='saveAddAdvisor') saveAddAdvisor();
   else if(a==='showDocNumModal') showDocNumModal();
   else if(a==='saveDocNumSetting') saveDocNumSetting();

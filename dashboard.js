@@ -1,61 +1,3 @@
-/* ─── THAI PUBLIC HOLIDAYS ─── */
-var _HOLIDAYS={
-  /* ── 2025 (2568) ── */
-  '2025-01-01':'วันขึ้นปีใหม่',
-  '2025-02-12':'วันมาฆบูชา',
-  '2025-04-06':'วันจักรี',
-  '2025-04-13':'วันสงกรานต์',
-  '2025-04-14':'วันสงกรานต์',
-  '2025-04-15':'วันสงกรานต์',
-  '2025-05-01':'วันแรงงานแห่งชาติ',
-  '2025-05-12':'วันวิสาขบูชา',
-  '2025-07-10':'วันอาสาฬหบูชา',
-  '2025-07-11':'วันเข้าพรรษา',
-  '2025-07-28':'วันเฉลิมพระชนมพรรษา ร.10',
-  '2025-08-12':'วันแม่แห่งชาติ',
-  '2025-10-13':'วันคล้ายวันสวรรคต ร.9',
-  '2025-10-23':'วันปิยมหาราช',
-  '2025-12-05':'วันพ่อแห่งชาติ',
-  '2025-12-10':'วันรัฐธรรมนูญ',
-  '2025-12-31':'วันสิ้นปี',
-  /* ── 2026 (2569) ── */
-  '2026-01-01':'วันขึ้นปีใหม่',
-  '2026-03-01':'วันมาฆบูชา',
-  '2026-04-06':'วันจักรี',
-  '2026-04-13':'วันสงกรานต์',
-  '2026-04-14':'วันสงกรานต์',
-  '2026-04-15':'วันสงกรานต์',
-  '2026-05-01':'วันแรงงานแห่งชาติ',
-  '2026-05-31':'วันวิสาขบูชา',
-  '2026-07-28':'วันเฉลิมพระชนมพรรษา ร.10',
-  '2026-07-29':'วันอาสาฬหบูชา',
-  '2026-07-30':'วันเข้าพรรษา',
-  '2026-08-12':'วันแม่แห่งชาติ',
-  '2026-10-13':'วันคล้ายวันสวรรคต ร.9',
-  '2026-10-23':'วันปิยมหาราช',
-  '2026-12-05':'วันพ่อแห่งชาติ',
-  '2026-12-10':'วันรัฐธรรมนูญ',
-  '2026-12-31':'วันสิ้นปี',
-  /* ── 2027 (2570) ── */
-  '2027-01-01':'วันขึ้นปีใหม่',
-  '2027-02-18':'วันมาฆบูชา',
-  '2027-04-06':'วันจักรี',
-  '2027-04-13':'วันสงกรานต์',
-  '2027-04-14':'วันสงกรานต์',
-  '2027-04-15':'วันสงกรานต์',
-  '2027-05-01':'วันแรงงานแห่งชาติ',
-  '2027-05-19':'วันวิสาขบูชา',
-  '2027-07-18':'วันอาสาฬหบูชา',
-  '2027-07-19':'วันเข้าพรรษา',
-  '2027-07-28':'วันเฉลิมพระชนมพรรษา ร.10',
-  '2027-08-12':'วันแม่แห่งชาติ',
-  '2027-10-13':'วันคล้ายวันสวรรคต ร.9',
-  '2027-10-23':'วันปิยมหาราช',
-  '2027-12-05':'วันพ่อแห่งชาติ',
-  '2027-12-10':'วันรัฐธรรมนูญ',
-  '2027-12-31':'วันสิ้นปี'
-};
-
 /* ─── CALENDAR STATE ─── */
 var _calY=new Date().getFullYear();
 var _calM=new Date().getMonth();
@@ -174,16 +116,14 @@ function _buildCal(docs){
     var evts=eMap[p]||[];
     var hasDoc=evts.some(function(e){return e.type==='doc'});
     var hasCust=evts.some(function(e){return e.type==='cust'});
-    var isHol=!!_HOLIDAYS[p];
     var isWknd=(firstDay+d-1)%7===0||(firstDay+d-1)%7===6;
-    var bg=isSel?'#E83A00':isTod?'#fff5f0':isHol?'#F0FDF4':'transparent';
-    var tc=isSel?'#fff':isTod?'#E83A00':(isHol||isWknd)?'#16A34A':'#18120E';
+    var bg=isSel?'#E83A00':isTod?'#fff5f0':'transparent';
+    var tc=isSel?'#fff':isTod?'#E83A00':isWknd?'#16A34A':'#18120E';
     h.push(
-      '<div onclick="_calPick(\''+p+'\')" title="'+(isHol?_HOLIDAYS[p]:'')+'" style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:5px 1px;border-radius:8px;cursor:pointer;background:'+bg+'" '+
+      '<div onclick="_calPick(\''+p+'\')" style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:5px 1px;border-radius:8px;cursor:pointer;background:'+bg+'" '+
       (!isSel?'onmouseover="this.style.background=\'#F5F3F0\'" onmouseout="this.style.background=\''+bg+'\'"':'')+'>'+
         '<span style="font-size:12px;font-weight:'+(isTod||isSel?'800':'400')+';color:'+tc+';line-height:1.2">'+d+'</span>'+
         '<div style="display:flex;gap:2px;height:5px;align-items:center;margin-top:1px">'+
-          (isHol?'<div style="width:4px;height:4px;border-radius:50%;background:'+(isSel?'rgba(255,255,255,.7)':'#16A34A')+'"></div>':'')+
           (hasDoc?'<div style="width:4px;height:4px;border-radius:50%;background:'+(isSel?'rgba(255,255,255,.85)':'#E83A00')+'"></div>':'')+
           (hasCust?'<div style="width:4px;height:4px;border-radius:50%;background:'+(isSel?'rgba(255,255,255,.65)':'#3B82F6')+'"></div>':'')+
         '</div>'+
@@ -195,7 +135,6 @@ function _buildCal(docs){
   /* legend */
   h.push(
     '<div style="padding:0 18px 12px;display:flex;gap:10px;flex-wrap:wrap">'+
-    '<div style="display:flex;align-items:center;gap:4px"><div style="width:6px;height:6px;border-radius:50%;background:#16A34A"></div><span style="font-size:10px;color:#a89e99">วันหยุดราชการ</span></div>'+
     '<div style="display:flex;align-items:center;gap:4px"><div style="width:6px;height:6px;border-radius:50%;background:#E83A00"></div><span style="font-size:10px;color:#a89e99">กำหนดส่งเอกสาร</span></div>'+
     '<div style="display:flex;align-items:center;gap:4px"><div style="width:6px;height:6px;border-radius:50%;background:#3B82F6"></div><span style="font-size:10px;color:#a89e99">กิจกรรม</span></div>'+
     '</div>'
@@ -204,22 +143,11 @@ function _buildCal(docs){
   /* selected date panel */
   if(_calSel){
     var selEvts=eMap[_calSel]||[];
-    var selHol=_HOLIDAYS[_calSel]||'';
     h.push('<div style="border-top:1px solid #EBEBEB;padding:12px 18px">');
     var selD=new Date(_calSel+'T12:00:00');
     h.push('<div style="font-size:11px;font-weight:700;color:#6b6560;margin-bottom:8px">'+selD.toLocaleDateString('th-TH',{weekday:'long',day:'numeric',month:'long',year:'numeric'})+'</div>');
-    /* holiday banner */
-    if(selHol){
-      h.push(
-        '<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:#F0FDF4;border-radius:8px;margin-bottom:5px;border-left:3px solid #16A34A">'+
-          '<div style="font-size:11px;font-weight:700;color:#15803D">'+selHol+'</div>'+
-        '</div>'
-      );
-    }
-    if(!selEvts.length&&!selHol){
+    if(!selEvts.length){
       h.push('<div style="font-size:11px;color:#a89e99;padding:6px 0">ไม่มีกิจกรรมในวันนี้ กด "+ เพิ่มกิจกรรม" เพื่อเพิ่ม</div>');
-    } else if(!selEvts.length&&selHol){
-      h.push('<div style="font-size:11px;color:#a89e99;padding:4px 0">กด "+ เพิ่มกิจกรรม" เพื่อเพิ่มกิจกรรม</div>');
     } else {
       selEvts.forEach(function(e){
         if(e.type==='doc'){
@@ -337,7 +265,7 @@ async function vDash(){
     '</div>'
   );
 
-  var recent=docs.slice(0,7);
+  var recent=docs.slice(0,5);
   html.push('<div style="background:#fff;border-radius:16px;border:1px solid rgba(0,0,0,.055);overflow:hidden;box-shadow:var(--sh-card)">');
   if(recent.length){
     recent.forEach(function(d,idx){
