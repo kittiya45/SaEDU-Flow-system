@@ -291,6 +291,10 @@ async function saveDoc(status){
     var body={title:title,doc_type:gv('ftype'),urgency:gv('furg'),description:gv('fdsc'),doc_date:gv('fdate')||new Date().toISOString().slice(0,10),due_date:eventDate,from_department:fromdept,addressed_to:addrto,subject_line:subj||title,final_recipient_id:finalRec,final_recipient_note:finalNote,status:status,notify_step:_ns?_ns.checked:true,notify_overdue:_no?_no.checked:true};
     if(FDI){
       await dpa('documents',FDI,Object.assign({},body,{updated_at:new Date().toISOString()}));
+      if(status==='pending'){
+        var _wfRej=await dg('workflow_steps','?document_id=eq.'+FDI+'&status=eq.rejected&order=step_number&limit=1');
+        if(_wfRej.length) await dpa('workflow_steps',_wfRej[0].id,{status:'active',action_taken:null,note:null,revision_section:null,action_at:null,completed_at:null});
+      }
       await dp('document_history',{document_id:FDI,action:'แก้ไขเอกสาร',performed_by:CU.id});
       a.innerHTML=alrtH('ok','บันทึกเรียบร้อยแล้ว');
       setTimeout(function(){nav('det',FDI)},900)
