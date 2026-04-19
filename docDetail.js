@@ -28,6 +28,14 @@ async function vDet(docId){
     }
   })
   var _curStep=wf.filter(function(s){return s.status==='active'})[0];
+  if(!_curStep&&doc.status==='pending'){
+    var _autoFixStep=wf.find(function(s){return s.status==='rejected'});
+    if(_autoFixStep){
+      await dpa('workflow_steps',_autoFixStep.id,{status:'active',action_taken:null,note:null,revision_section:null,action_at:null,completed_at:null});
+      _autoFixStep.status='active';_autoFixStep.action_taken=null;_autoFixStep.note=null;_autoFixStep.revision_section=null;_autoFixStep.action_at=null;
+      _curStep=_autoFixStep;
+    }
+  }
   var canAct=(CAN.sg(CU.role_code)||CAN.rv(CU.role_code)||(_curStep&&_curStep.assigned_to===CU.id))&&doc.status==='pending';
 
   var html=['<div class="flex items-center gap-2.5 mb-[18px] flex-wrap">'];
