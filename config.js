@@ -69,15 +69,27 @@ async function loadDocTypes(){
   try{
     var rows=await dg('doc_types','?is_active=eq.true&order=sort_order,created_at');
     if(!rows||!rows.length) return;
+    var typeIds=rows.map(function(r){return r.id});
+    var allFields=[];
+    try{allFields=await dg('doc_type_fields','?doc_type_id=in.('+typeIds.join(',')+')'+'&order=sort_order');}catch(e){}
+    var fieldsByType={};
+    allFields.forEach(function(f){
+      if(!fieldsByType[f.doc_type_id]) fieldsByType[f.doc_type_id]=[];
+      fieldsByType[f.doc_type_id].push(f);
+    });
     var newDT={}, newCFG={};
     rows.forEach(function(r){
       newDT[r.code]=r.label;
-      newCFG[r.code]={label:r.label,icon:r.icon||'doc',
-        showFrom:r.show_from,fromLabel:r.from_label||'',
-        showTo:r.show_to,toLabel:r.to_label||'',
-        showRef:r.show_ref,refLabel:r.ref_label||'',
-        showDocDate:r.show_doc_date,docDateLabel:r.doc_date_label||'',
-        eventLabel:r.event_label||'วันกำหนดส่ง',eventRequired:!!r.event_required};
+      newCFG[r.code]={
+        label:r.label, icon:r.icon||'doc',
+        showFrom:r.show_from, fromLabel:r.from_label||'',
+        showTo:r.show_to, toLabel:r.to_label||'',
+        showRef:r.show_ref, refLabel:r.ref_label||'',
+        showDocDate:r.show_doc_date, docDateLabel:r.doc_date_label||'',
+        eventLabel:r.event_label||'วันกำหนดส่ง', eventRequired:!!r.event_required,
+        minDays:r.min_days||0, enableDeadline:r.enable_deadline!==false,
+        fields:fieldsByType[r.id]||[]
+      };
     });
     Object.keys(DTYPES).forEach(function(k){delete DTYPES[k]});
     Object.assign(DTYPES,newDT);

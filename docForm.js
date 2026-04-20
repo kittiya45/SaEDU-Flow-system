@@ -121,43 +121,67 @@ html.push('<div id="fprog"></div></div></div>');
 
 /* ─── TYPE-SPECIFIC FIELDS ─── */
 function renderTypeFields(type, doc){
-  var cfg=DTYPE_CFG[type]||DTYPE_CFG.outgoing;
+  var cfg=DTYPE_CFG[type]||DTYPE_CFG.outgoing||{};
   var html=[];
 
-  if(cfg.showFrom){
-    html.push('<div class="fg"><label class="fl">'+esc(cfg.fromLabel)+' <span class="req">*</span></label>');
-    html.push('<input class="fi" id="ffromdept" value="'+esc((doc&&doc.from_department)||CU.department||'')+'" placeholder="เช่น ฝ่ายวิชาการ, กนค."></div>');
-  } else {
-    html.push('<input type="hidden" id="ffromdept" value="'+esc((doc&&doc.from_department)||CU.department||'')+'">');
+  var _colToId={from_department:'ffromdept',addressed_to:'fto',subject_line:'fsubject',doc_date:'fdate',description:'fdsc'};
+  var _colToVal={
+    from_department:(doc&&doc.from_department)||CU.department||'',
+    addressed_to:(doc&&doc.addressed_to)||'',
+    subject_line:(doc&&doc.subject_line)||'',
+    doc_date:(doc&&doc.doc_date)||new Date().toISOString().slice(0,10),
+    description:(doc&&doc.description)||''
+  };
+
+  if(cfg.fields&&cfg.fields.length){
+    var shownCols={};
+    cfg.fields.forEach(function(f){
+      var fid=_colToId[f.db_column]||f.db_column;
+      var val=_colToVal[f.db_column]||'';
+      shownCols[f.db_column]=true;
+      if(f.field_type==='date'){
+        html.push('<div class="fg"><label class="fl">'+esc(f.label)+(f.required?' <span class="req">*</span>':'')+'</label>');
+        html.push('<input type="date" class="fi" id="'+fid+'" value="'+esc(val||new Date().toISOString().slice(0,10))+'"></div>');
+      }else if(f.field_type==='textarea'){
+        html.push('<div class="fg"><label class="fl">'+esc(f.label)+(f.required?' <span class="req">*</span>':'')+'</label>');
+        html.push('<textarea class="fi" id="'+fid+'" rows="3" placeholder="'+esc(f.placeholder||'')+'">'+esc(val)+'</textarea></div>');
+      }else{
+        html.push('<div class="fg"><label class="fl">'+esc(f.label)+(f.required?' <span class="req">*</span>':'')+'</label>');
+        html.push('<input class="fi" id="'+fid+'" value="'+esc(val)+'" placeholder="'+esc(f.placeholder||'')+'"></div>');
+      }
+    });
+    Object.keys(_colToId).forEach(function(col){
+      if(!shownCols[col]) html.push('<input type="hidden" id="'+_colToId[col]+'" value="'+esc(_colToVal[col])+'">');
+    });
+  }else{
+    // Legacy fallback
+    if(cfg.showFrom){
+      html.push('<div class="fg"><label class="fl">'+esc(cfg.fromLabel)+' <span class="req">*</span></label>');
+      html.push('<input class="fi" id="ffromdept" value="'+esc(_colToVal.from_department)+'" placeholder="เช่น ฝ่ายวิชาการ, กนค."></div>');
+    }else{html.push('<input type="hidden" id="ffromdept" value="'+esc(_colToVal.from_department)+'">');}
+    if(cfg.showTo){
+      html.push('<div class="fg"><label class="fl">'+esc(cfg.toLabel)+' <span class="req">*</span></label>');
+      html.push('<input class="fi" id="fto" value="'+esc(_colToVal.addressed_to)+'" placeholder="ระบุผู้รับเอกสาร"></div>');
+    }else{html.push('<input type="hidden" id="fto" value="'+esc(_colToVal.addressed_to)+'">');}
+    if(cfg.showRef){
+      html.push('<div class="fg"><label class="fl">'+esc(cfg.refLabel)+'</label>');
+      html.push('<input class="fi" id="fsubject" value="'+esc(_colToVal.subject_line)+'" placeholder="—"></div>');
+    }else{html.push('<input type="hidden" id="fsubject" value="'+esc(_colToVal.subject_line)+'">');}
+    if(cfg.showDocDate){
+      html.push('<div class="fg"><label class="fl">'+esc(cfg.docDateLabel)+'</label>');
+      html.push('<input type="date" class="fi" id="fdate" value="'+esc(_colToVal.doc_date)+'"></div>');
+    }else{html.push('<input type="hidden" id="fdate" value="'+esc(_colToVal.doc_date)+'">');}
+    html.push('<div class="fg"><label class="fl">รายละเอียดเพิ่มเติม</label>');
+    html.push('<textarea class="fi" id="fdsc" rows="3" placeholder="รายละเอียด...">'+esc(_colToVal.description)+'</textarea></div>');
   }
 
-  if(cfg.showTo){
-    html.push('<div class="fg"><label class="fl">'+esc(cfg.toLabel)+' <span class="req">*</span></label>');
-    html.push('<input class="fi" id="fto" value="'+esc((doc&&doc.addressed_to)||'')+'" placeholder="ระบุผู้รับเอกสาร"></div>');
-  } else {
-    html.push('<input type="hidden" id="fto" value="'+esc((doc&&doc.addressed_to)||'')+'">');
+  if(cfg.enableDeadline!==false){
+    html.push('<div class="fg"><label class="fl">'+esc(cfg.eventLabel||'วันกำหนดส่ง')+(cfg.eventRequired?' <span class="req">*</span>':'')+'</label>');
+    html.push('<input type="date" class="fi" id="feventdate" value="'+esc((doc&&doc.due_date)||'')+'" oninput="calcDeadline()"></div>');
+  }else{
+    html.push('<input type="hidden" id="feventdate" value="'+esc((doc&&doc.due_date)||'')+'">');
   }
-
-  if(cfg.showRef){
-    html.push('<div class="fg"><label class="fl">'+esc(cfg.refLabel)+'</label>');
-    html.push('<input class="fi" id="fsubject" value="'+esc((doc&&doc.subject_line)||'')+'" placeholder="—"></div>');
-  } else {
-    html.push('<input type="hidden" id="fsubject" value="'+esc((doc&&doc.subject_line)||'')+'">');
-  }
-
-  if(cfg.showDocDate){
-    html.push('<div class="fg"><label class="fl">'+esc(cfg.docDateLabel)+'</label>');
-    html.push('<input type="date" class="fi" id="fdate" value="'+((doc&&doc.doc_date)||new Date().toISOString().slice(0,10))+'"></div>');
-  } else {
-    html.push('<input type="hidden" id="fdate" value="'+new Date().toISOString().slice(0,10)+'">');
-  }
-
-  html.push('<div class="fg"><label class="fl">'+esc(cfg.eventLabel)+(cfg.eventRequired?' <span class="req">*</span>':'')+'</label>');
-  html.push('<input type="date" class="fi" id="feventdate" value="'+((doc&&doc.due_date)||'')+'" oninput="calcDeadline()"></div>');
   html.push('<div id="deadline-info"></div>');
-
-  html.push('<div class="fg"><label class="fl">รายละเอียดเพิ่มเติม</label>');
-  html.push('<textarea class="fi" id="fdsc" rows="3" placeholder="รายละเอียด...">'+esc((doc&&doc.description)||'')+'</textarea></div>');
 
   return html.join('')
 }
@@ -197,7 +221,10 @@ function calcDeadline(){
   var ev=gv('feventdate'), di=$e('deadline-info');
   if(!di) return;
   if(!ev){di.innerHTML='';return}
-  var totalDays=FS.reduce(function(s,step){return s+(step.deadline_days||1)},0);
+  var type=gv('ftype')||'outgoing';
+  var cfg=DTYPE_CFG[type]||{};
+  if(cfg.enableDeadline===false){di.innerHTML='';return}
+  var totalDays=FS.reduce(function(s,step){return s+(step.deadline_days||1)},0)+(cfg.minDays||0);
   var eventDate=new Date(ev+' 00:00:00');
   var startBy=new Date(ev+' 00:00:00');
   startBy.setDate(startBy.getDate()-totalDays);
