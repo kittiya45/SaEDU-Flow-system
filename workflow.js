@@ -13,7 +13,7 @@ function rWfPeople(){
         '<span class="text-[11px] font-semibold '+roleColorCls+'">'+esc(roleLabel)+'</span>'+
       '</div>'+
       '<div class="flex items-center gap-[5px] shrink-0">'+
-        (i>0?'<button class="btn btn-danger xs btn-icon" data-action="rmWfPerson" data-id="'+i+'" title="ลบ">✕</button>':'<span class="w-7"></span>')+
+        (i>0?'<button class="btn btn-danger xs btn-icon" data-action="rmWfPerson" data-id="'+i+'" title="ลบ">'+svg('x',12)+'</button>':'<span class="w-7"></span>')+
       '</div>'+
     '</div>'
   }).join('')
@@ -33,7 +33,7 @@ function addWfPerson(){
   if(!u) return;
   if(FS.some(function(s){return s.assigned_to===uid})){
     var w=$e('wfwrap');
-    if(w) w.innerHTML=rWfPeople()+'<div class="al al-wa" style="margin-top:6px;font-size:12px"><span class="al-icon">⚠</span><span>บุคคลนี้มีอยู่ในรายการแล้ว</span></div>';
+    if(w) w.innerHTML=rWfPeople()+'<div class="al al-wa" style="margin-top:6px;font-size:12px"><span class="al-icon">'+svg('warn',13)+'</span><span>บุคคลนี้มีอยู่ในรายการแล้ว</span></div>';
     return
   }
   var role=u.role_code||'ROLE-CRT';

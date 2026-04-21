@@ -27,7 +27,7 @@ function showAuth(){
     '<div class="auth-header">',
     '<div class="auth-orb"></div>',
     '<div class="auth-logo-ring">',
-    '<div class="auth-logo-wrap"><img src="img/logo.png" alt="Logo กนค." class="auth-logo" onerror="this.style.display=\'none\';this.nextSibling.style.display=\'flex\'"><div class="auth-badge hidden">กนค</div></div>',
+    '<div class="auth-logo-wrap"><img src="img/Logo.png" alt="Logo กนค." class="auth-logo" onerror="this.style.display=\'none\';this.nextSibling.style.display=\'flex\'"><div class="auth-badge hidden">กนค</div></div>',
     '</div>',
     '<div class="auth-title">SAEDU Flow</div>',
     '<div class="auth-sub">ระบบเสนอเอกสาร คณะกรรมการนิสิต</div>',
@@ -36,6 +36,9 @@ function showAuth(){
     loginB,
     '</div></div>',
     '<p class="text-[11px] text-[#a89e99] mt-5">SAEDUFLOW © 2569</p>',
+    '<a href="manual.html?from=login" style="margin-top:10px;font-size:12px;color:#C42E00;text-decoration:none;display:inline-flex;align-items:center;gap:5px;opacity:.8;transition:opacity .15s" onmouseover="this.style.opacity=\'1\'" onmouseout="this.style.opacity=\'.8\'">',
+    '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>',
+    'คู่มือการใช้งาน</a>',
     '</div>'
   ].join(''));
 
@@ -100,7 +103,7 @@ async function doLogin(){
       },60000);
       await loadDocTypes();
       await nav('dash');
-      sendOverdueNotifs(); return
+      try{await sendOverdueNotifs();}catch(e){console.warn('Overdue check failed:',e)} return
     }
     a.innerHTML=alrtH('er','ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง')
   } catch(e){a.innerHTML=alrtH('er','เกิดข้อผิดพลาด กรุณาลองใหม่')}
@@ -146,39 +149,70 @@ async function doRegS(){
 /* ─── CHANGE PW POPUP (login page) ─── */
 function showRegGnkPopup(){
   if(document.getElementById('regpopup')) return;
-  var pOpts=POSS.map(function(p){return '<option value="'+p+'">'+p+' — '+PTH[p]+'</option>'}).join('');
-  var el=document.createElement('div');
-  el.id='regpopup'; el.className='cpopup-overlay';
-  el.innerHTML=
-    '<div class="cpopup-box max-w-[480px] max-h-[90vh] overflow-y-auto">'+
-      '<div class="cpopup-head">'+
-        '<div class="flex-1"><div class="cpopup-head-title">สมัครสมาชิก กนค.</div>'+
-        '<div class="cpopup-head-sub">ต้องรอ Admin อนุมัติก่อนเข้าใช้งาน</div></div>'+
-        '<button class="cpopup-close" data-action="closeRegPopup">'+svg('x',14)+'</button>'+
-      '</div>'+
-      '<div class="cpopup-body">'+
-        '<div id="lal"></div>'+
-        '<div class="fr">'+
-        '<div class="fg"><label class="fl">ชื่อ <span class="req">*</span></label><input id="gfn" class="fi" placeholder="ชื่อ"></div>'+
-        '<div class="fg"><label class="fl">นามสกุล <span class="req">*</span></label><input id="gln" class="fi" placeholder="นามสกุล"></div>'+
-        '</div>'+
-        '<div class="fg"><label class="fl">รหัสนิสิต <span class="req">*</span></label>'+
-        '<input id="gsid" class="fi" placeholder="เช่น 6601012327" maxlength="10" oninput="chkSid()">'+
-        '<p class="hint muted" id="sidh">รหัสนิสิต 10 หลัก</p></div>'+
-        '<div class="fg"><label class="fl">อีเมลติดต่อ <span class="req">*</span></label>'+
-        '<input id="gemail" class="fi" type="email" placeholder="ใช้สำหรับรับการแจ้งเตือน"></div>'+
-        '<div class="fg"><label class="fl">ตำแหน่งใน กนค. <span class="req">*</span></label>'+
-        '<select id="gpos" class="fi"><option value="">— เลือกตำแหน่ง —</option>'+pOpts+'</select></div>'+
-        '<div class="fr">'+
-        '<div class="fg"><label class="fl">รหัสผ่าน <span class="req">*</span></label><input id="gpw" class="fi" type="password" placeholder="อย่างน้อย 6 ตัว"></div>'+
-        '<div class="fg"><label class="fl">ยืนยันรหัสผ่าน <span class="req">*</span></label><input id="gpw2" class="fi" type="password" placeholder="ยืนยัน"></div>'+
-        '</div>'+
-        '<button class="btn btn-primary fw py-[13px]" data-action="regG">สมัครสมาชิก กนค.</button>'+
-      '</div>'+
+  var pOpts = POSS.map(function(p){
+    return '<option value="'+p+'">'+p+' — '+PTH[p]+'</option>'
+  }).join('');
+  
+  var el = document.createElement('div');
+  el.id = 'regpopup'; 
+  el.className = 'cpopup-overlay flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm fixed inset-0 z-[1000]';
+  
+  el.innerHTML =
+    '<div class="cpopup-box bg-white w-full max-w-[480px] rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">' +
+      '' +
+      '<div class="p-6 border-b border-gray-100 flex items-center justify-between">' +
+        '<div>' +
+          '<div class="text-xl font-bold text-gray-800">สมัครสมาชิก กนค.</div>' +
+          '<div class="text-sm text-gray-500 mt-0.5">ต้องรอ Admin อนุมัติก่อนเข้าใช้งาน</div>' +
+        '</div>' +
+        '<button class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors text-gray-400" data-action="closeRegPopup">' +
+          svg('x', 14) +
+        '</button>' +
+      '</div>' +
+      
+      '' +
+      '<div class="p-6 max-h-[70vh] overflow-y-auto">' +
+        '<div id="lal"></div>' +
+        
+        '<div class="grid grid-cols-2 gap-4 mb-4">' +
+          '<div><label class="block text-sm font-medium text-gray-700 mb-1">ชื่อ <span class="text-red-500">*</span></label>' +
+          '<input id="gfn" class="fi w-full px-4 py-2 rounded-lg border border-gray-200 outline-none focus:border-orange-500" placeholder="ชื่อ"></div>' +
+          '<div><label class="block text-sm font-medium text-gray-700 mb-1">นามสกุล <span class="text-red-500">*</span></label>' +
+          '<input id="gln" class="fi w-full px-4 py-2 rounded-lg border border-gray-200 outline-none focus:border-orange-500" placeholder="นามสกุล"></div>' +
+        '</div>' +
+
+        '<div class="mb-4">' +
+          '<label class="block text-sm font-medium text-gray-700 mb-1">รหัสนิสิต <span class="text-red-500">*</span></label>' +
+          '<input id="gsid" class="fi w-full px-4 py-2 rounded-lg border border-gray-200 outline-none focus:border-orange-500" placeholder="เช่น 6601012327" maxlength="10" oninput="chkSid()">' +
+          '<p class="text-[11px] text-gray-400 mt-1" id="sidh">รหัสนิสิต 10 หลัก</p>' +
+        '</div>' +
+
+        '<div class="mb-4">' +
+          '<label class="block text-sm font-medium text-gray-700 mb-1">อีเมลติดต่อ <span class="text-red-500">*</span></label>' +
+          '<input id="gemail" class="fi w-full px-4 py-2 rounded-lg border border-gray-200 outline-none focus:border-orange-500" type="email" placeholder="ใช้สำหรับรับการแจ้งเตือน">' +
+        '</div>' +
+
+        '<div class="mb-4">' +
+          '<label class="block text-sm font-medium text-gray-700 mb-1">ตำแหน่งใน กนค. <span class="text-red-500">*</span></label>' +
+          '<select id="gpos" class="fi w-full px-4 py-2 rounded-lg border border-gray-200 bg-white outline-none cursor-pointer"><option value="">— เลือกตำแหน่ง —</option>'+pOpts+'</select>' +
+        '</div>' +
+
+        '<div class="grid grid-cols-2 gap-4 mb-6">' +
+          '<div><label class="block text-sm font-medium text-gray-700 mb-1">รหัสผ่าน <span class="text-red-500">*</span></label>' +
+          '<input id="gpw" class="fi w-full px-4 py-2 rounded-lg border border-gray-200 outline-none focus:border-orange-500" type="password" placeholder="อย่างน้อย 6 ตัว"></div>' +
+          '<div><label class="block text-sm font-medium text-gray-700 mb-1">ยืนยันรหัสผ่าน <span class="text-red-500">*</span></label>' +
+          '<input id="gpw2" class="fi w-full px-4 py-2 rounded-lg border border-gray-200 outline-none focus:border-orange-500" type="password" placeholder="ยืนยัน"></div>' +
+        '</div>' +
+
+        '' +
+        '<button class="btn btn-primary fw py-[13px] w-full" data-action="regG">สมัครสมาชิก กนค.</button>' +
+      '</div>' +
     '</div>';
-  el.addEventListener('click',function(ev){if(ev.target===el) closeRegPopup()});
+
+  el.addEventListener('click', function(ev){ if(ev.target === el) closeRegPopup() });
   document.body.appendChild(el);
 }
+
 
 function showRegStaffPopup(){
   if(document.getElementById('regpopup')) return;
@@ -195,7 +229,7 @@ function showRegStaffPopup(){
         '<div id="lal"></div>'+
         '<div class="fr">'+
         '<div class="fg"><label class="fl">ชื่อ-นามสกุล <span class="req">*</span></label><input id="snm" class="fi" placeholder="ชื่อ นามสกุล"></div>'+
-        '<div class="fg"><label class="fl">ประเภท <span class="req">*</span></label><select id="stp" class="fi"><option value="advisor">อาจารย์กิจการนิสิต</option><option value="staff">เจ้าหน้าที่กิจกรรม</option></select></div>'+
+        '<div class="fg"><label class="fl">ประเภท <span class="req">*</span></label><select id="stp" class="fi"><option value="advisor">อาจารย์กิจการนิสิต</option><option value="staff">เจ้าหน้ากิจการ</option></select></div>'+
         '</div>'+
         '<div class="fg"><label class="fl">อีเมล <span class="req">*</span></label><input id="sem" class="fi" type="email" placeholder="email@university.ac.th"></div>'+
         '<div class="fg"><label class="fl">ฝ่าย / หน่วยงาน</label><input id="sdp" class="fi" placeholder="เช่น สำนักกิจการนิสิต"></div>'+

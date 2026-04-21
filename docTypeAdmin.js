@@ -48,7 +48,7 @@ function _renderDtFieldsList(){
         '<div style="display:flex;gap:3px;flex-shrink:0">'+
           '<button style="'+btnBase+(isFirst?'#EBEBEB;background:#FAFAF8;color:#D0CBCA;cursor:default':'#EBEBEB;background:#F5F3F0;color:#6b6560')+'" '+(isFirst?'disabled':'')+' onclick="_dtFieldMove('+i+',-1)">↑</button>'+
           '<button style="'+btnBase+(isLast?'#EBEBEB;background:#FAFAF8;color:#D0CBCA;cursor:default':'#EBEBEB;background:#F5F3F0;color:#6b6560')+'" '+(isLast?'disabled':'')+' onclick="_dtFieldMove('+i+',1)">↓</button>'+
-          '<button style="'+btnBase+'#FECACA;background:#FEF2F2;color:#DC2626" onclick="_dtFieldDel('+i+')">×</button>'+
+          '<button style="'+btnBase+'#FECACA;background:#FEF2F2;color:#DC2626;display:inline-flex;align-items:center;justify-content:center" onclick="_dtFieldDel('+i+')">'+svg('x',12)+'</button>'+
         '</div>'+
       '</div>';
     }).join('');

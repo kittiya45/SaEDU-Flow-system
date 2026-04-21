@@ -66,12 +66,12 @@ function svg(n,s){
     home:'<path d="M2 8L8 2l6 6v8h-4v-5H6v5H2V8z"/>',
     doc:'<path d="M4 2h7l4 4v11H4V2z"/><path d="M11 2v4h4"/><line x1="7" y1="9" x2="11" y2="9"/><line x1="7" y1="12" x2="11" y2="12"/>',
     plus:'<circle cx="8" cy="8" r="6"/><line x1="8" y1="5" x2="8" y2="11"/><line x1="5" y1="8" x2="11" y2="8"/>',
-    users:'<circle cx="6" cy="6" r="3"/><path d="M0 18c0-3 2.7-5 6-5"/><circle cx="13" cy="6" r="3"/><path d="M9 18c0-3 2.7-5 6-5"/>',
+    users:'<circle cx="5.5" cy="5" r="2.5"/><path d="M1 14.5c0-2.8 2-4.5 4.5-4.5"/><circle cx="11.5" cy="5" r="2.5"/><path d="M9 14.5c0-2.8 2-4.5 4.5-4.5"/>',
     user:'<circle cx="8" cy="5.5" r="3"/><path d="M2 15c0-3.5 2.7-5.5 6-5.5s6 2 6 5.5"/>',
-    sign:'<path d="M3 12l2-2 6-6 2 2-6 6-2 1z"/><line x1="2" y1="15" x2="12" y2="15"/>',
+    sign:'<path d="M2.5 11c1-2.5 2.5-4 4-2.5 1 .9.5 3.5-1.5 3 1.5-.5 2.5-4 4.5-3s-.5 3.5 0 3c1.5-1.5 3-2.5 4.5-1.5" stroke-linecap="round"/><line x1="2" y1="14.5" x2="14" y2="14.5"/>',
     up:'<path d="M4 14v3h8v-3"/><polyline points="8,3 8,11"/><polyline points="5,6 8,3 11,6"/>',
     dn:'<path d="M4 12v3h8v-3"/><polyline points="8,5 8,13"/><polyline points="5,10 8,13 11,10"/>',
-    edit:'<path d="M11 2l3 3L5 14H2v-3z"/>',
+    edit:'<path d="M11.5 2.5a1 1 0 011.5 1.5L4.5 12.5l-2.5.5.5-2.5L11.5 2.5z"/><line x1="9.5" y1="4.5" x2="11.5" y2="6.5"/><line x1="2" y1="12.5" x2="4.5" y2="13"/>',
     trash:'<polyline points="3,5 5,5 13,5"/><path d="M12 5l-1 10H5L4 5"/><path d="M6 5V3h4v2"/>',
     ok:'<polyline points="2,8 6,12 14,4"/>',
     x:'<line x1="3" y1="3" x2="13" y2="13"/><line x1="13" y1="3" x2="3" y2="13"/>',
@@ -88,8 +88,8 @@ function svg(n,s){
     bold:'<path d="M5 4h4a2.5 2.5 0 010 5H5z"/><path d="M5 9h4.5a3 3 0 010 6H5z"/>',
     italic:'<line x1="10" y1="3" x2="6" y2="13"/><line x1="7" y1="3" x2="13" y2="3"/><line x1="3" y1="13" x2="9" y2="13"/>',
     underline:'<path d="M4 3v5a4 4 0 008 0V3"/><line x1="2" y1="14" x2="14" y2="14"/>',
-    word_ico:'<rect x="2" y="1" width="12" height="14" rx="1"/><path d="M5 6l1.5 5L8 8l1.5 3L11 6" stroke-width="1.3"/>',
-    pdf_ico:'<rect x="2" y="1" width="12" height="14" rx="1"/><path d="M5 9h1.5a1.5 1.5 0 000-3H5v6"/><path d="M10 6h1a2 2 0 010 4h-1V6"/>',
+    word_ico:'<path d="M3 1h7l4 4v10H3V1z"/><path d="M10 1v4h4"/><path d="M5 7.5l1 4 2-3 2 3 1-4" stroke-width="1.3"/>',
+    pdf_ico:'<path d="M3 1h7l4 4v10H3V1z"/><path d="M10 1v4h4"/><line x1="5.5" y1="8" x2="10.5" y2="8"/><line x1="5.5" y1="10.5" x2="10.5" y2="10.5"/><line x1="5.5" y1="13" x2="8" y2="13"/>',
     lock:'<rect x="3" y="7" width="10" height="8" rx="2"/><path d="M5 7V5a3 3 0 016 0v2"/>',
     unlock:'<rect x="3" y="7" width="10" height="8" rx="2"/><path d="M5 7V4.5A3 3 0 0111 4.5"/>',
     key:'<circle cx="5.5" cy="8" r="3.5"/><path d="M8.5 8H14"/><line x1="12" y1="6" x2="12" y2="10"/><line x1="14" y1="7" x2="14" y2="9"/>',
@@ -102,7 +102,10 @@ function svg(n,s){
     refresh:'<path d="M13.5 3.5a7 7 0 11-1.8 7.7"/><polyline points="13.5,1 13.5,5.5 9,5.5"/>',
     pen:'<path d="M11.5 2l2.5 2.5-8 8H3.5v-2.5L11.5 2z"/><line x1="9.5" y1="4" x2="12" y2="6.5"/>',
     dots:'<circle cx="4" cy="8" r="1.5" fill="currentColor" stroke="none"/><circle cx="8" cy="8" r="1.5" fill="currentColor" stroke="none"/><circle cx="12" cy="8" r="1.5" fill="currentColor" stroke="none"/>',
-    gear:'<circle cx="8" cy="8" r="2.5"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.1 3.1l1.4 1.4M11.5 11.5l1.4 1.4M3.1 12.9l1.4-1.4M11.5 4.5l1.4-1.4"/>'
+    gear:'<line x1="3" y1="5" x2="13" y2="5"/><circle cx="7" cy="5" r="2" fill="white" stroke="currentColor"/><line x1="3" y1="11" x2="13" y2="11"/><circle cx="10" cy="11" r="2" fill="white" stroke="currentColor"/>',
+    clock:'<circle cx="8" cy="8" r="6"/><polyline points="8,5 8,8 10.5,10.5"/>',
+    tri:'<polygon points="5,4 12,8 5,12" fill="currentColor" stroke="none"/>',
+    tasks:'<rect x="2" y="2" width="12" height="12" rx="1.5"/><polyline points="5,8 7,10.5 11,6"/>'
   };
   return '<svg width="'+s+'" height="'+s+'" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">'+(P[n]||'')+'</svg>'
 }

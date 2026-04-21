@@ -307,6 +307,16 @@ async function genDocNumber(){
 async function saveDoc(status){
   var a=$e('fal'), title=gv('ftit').trim();
   if(!title){a.innerHTML=alrtH('er','กรุณาระบุชื่อเรื่องเอกสาร');return}
+  var _dtype=gv('ftype'), _dcfg=DTYPE_CFG[_dtype]||{};
+  if(_dcfg.fields&&_dcfg.fields.length){
+    var _fmap={from_department:'ffromdept',addressed_to:'fto',subject_line:'fsubject',doc_date:'fdate',description:'fdsc'};
+    for(var _fi=0;_fi<_dcfg.fields.length;_fi++){
+      var _rf=_dcfg.fields[_fi];
+      if(_rf.required&&!( gv(_fmap[_rf.db_column]||_rf.db_column)||'' ).trim()){
+        a.innerHTML=alrtH('er','กรุณากรอก: '+_rf.label);return;
+      }
+    }
+  }
   var btn=$e('fsub');
   if(btn){btn.disabled=true;btn.innerHTML='<span class="sp"></span> กำลังบันทึก...'}
   try{
@@ -330,17 +340,14 @@ async function saveDoc(status){
 
     } else {
       var docNum=await genDocNumber();
-      var now=new Date().toISOString();
-      var autoSkip=status==='pending';
-      var finalStatus=autoSkip&&FS.length===1?'completed':status;
-      var initStep=autoSkip?Math.min(2,FS.length):1;
-      var res=await dp('documents',Object.assign({},body,{status:finalStatus,created_by:CU.id,current_step:initStep,total_steps:FS.length,doc_number:docNum}));
+      var finalStatus=status;
+      var res=await dp('documents',Object.assign({},body,{status:finalStatus,created_by:CU.id,current_step:1,total_steps:FS.length,doc_number:docNum}));
       var did=Array.isArray(res)?res[0].id:res.id;
       if(!did) throw new Error('ไม่สามารถสร้างเอกสารได้');
       try{
         for(var i=0;i<FS.length;i++){
-          var stepSt=autoSkip?(i===0?'done':i===1?'active':'pending'):(i===0?'active':'pending');
-          var stepExtra=autoSkip&&i===0?{action_taken:'approve',completed_at:now,note:'ผู้จัดทำส่งเอกสาร'}:{};
+          var stepSt=i===0?'active':'pending';
+          var stepExtra={};
           await dp('workflow_steps',Object.assign({},FS[i],stepExtra,{document_id:did,step_number:i+1,status:stepSt}));
         }
         for(var j=0;j<PF.length;j++) await dp('document_files',Object.assign({},PF[j],{document_id:did}));

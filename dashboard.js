@@ -167,7 +167,7 @@ function _buildCal(docs){
             '<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:#EFF6FF;border-radius:8px;margin-bottom:5px">'+
               '<div style="width:6px;height:6px;border-radius:50%;background:#3B82F6;flex-shrink:0"></div>'+
               '<div style="flex:1;min-width:0;font-size:11px;font-weight:600;color:#18120E;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(e.title)+'</div>'+
-              '<button onclick="_calDelEvt(\''+e.eid+'\')" style="background:none;border:none;color:#a89e99;cursor:pointer;font-size:17px;padding:0;line-height:1;flex-shrink:0" title="ลบ">×</button>'+
+              '<button onclick="_calDelEvt(\''+e.eid+'\')" style="background:none;border:none;color:#a89e99;cursor:pointer;padding:2px;line-height:1;flex-shrink:0;display:inline-flex;align-items:center" title="ลบ">'+svg('x',14)+'</button>'+
             '</div>'
           );
         }
@@ -331,15 +331,15 @@ async function vTodo(){
   var docMap={};
   docs.forEach(function(d){docMap[d.id]=d});
 
-  var now=Date.now();
+  var todayMidnight=new Date(); todayMidnight.setHours(0,0,0,0);
   var overdue=[], todayList=[], soon=[], normal=[];
   mySteps.forEach(function(s){
     var d=docMap[s.document_id];
     if(!d) return;
     s._doc=d;
     if(d.due_date){
-      var diff=new Date(d.due_date)-now;
-      var days=Math.ceil(diff/86400000);
+      var diff=new Date(d.due_date+'T00:00:00')-todayMidnight;
+      var days=Math.round(diff/86400000);
       if(days<0) overdue.push(s);
       else if(days===0) todayList.push(s);
       else if(days<=3) soon.push(s);
@@ -380,7 +380,7 @@ async function vTodo(){
     if(!steps.length) return '';
     var rows=steps.map(function(s,idx){
       var d=s._doc;
-      var diff=d.due_date?new Date(d.due_date)-now:null;
+      var diff=d.due_date?new Date(d.due_date+'T00:00:00')-todayMidnight:null;
       var daysLeft=diff!==null?Math.ceil(diff/86400000):null;
       var daysTxt=daysLeft===null?'—':daysLeft<0?'เกิน '+Math.abs(daysLeft)+' วัน':daysLeft===0?'วันนี้':daysLeft===1?'พรุ่งนี้':'อีก '+daysLeft+' วัน';
       var dayColor=daysLeft===null?'var(--text-3)':daysLeft<0?'#DC2626':daysLeft<=1?'#EA580C':daysLeft<=3?'#D97706':'#15803D';

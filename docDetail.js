@@ -36,8 +36,8 @@ async function vDet(docId){
   var html=['<div class="flex items-center gap-2.5 mb-[18px] flex-wrap">'];
   html.push('<button class="btn btn-soft sm" data-action="nav" data-view="docs">'+svg('back',13)+' กลับรายการ</button>');
   html.push(sBadge(doc.status));
-  if(doc.status==='completed') html.push('<div class="al al-ok !m-0 !py-2 !px-3.5 text-xs !rounded-[20px]"><span class="al-icon">✓</span><span>เอกสารผ่านการอนุมัติทุกขั้นตอนเรียบร้อยแล้ว</span></div>');
-  if(hasRejectedHistory && doc.status==='pending') html.push('<div class="al al-wa !m-0 !py-2 !px-3.5 text-xs !rounded-[20px]"><span class="al-icon">↩</span><span>เอกสารที่แก้ไขแล้วหลังการส่งคืน - รอการอนุมัติตามขั้นตอน</span></div>');
+  if(doc.status==='completed') html.push('<div class="al al-ok !m-0 !py-2 !px-3.5 text-xs !rounded-[20px]"><span class="al-icon">'+svg('ok',12)+'</span><span>เอกสารผ่านการอนุมัติทุกขั้นตอนเรียบร้อยแล้ว</span></div>');
+  if(hasRejectedHistory && doc.status==='pending') html.push('<div class="al al-wa !m-0 !py-2 !px-3.5 text-xs !rounded-[20px]"><span class="al-icon">'+svg('undo',12)+'</span><span>เอกสารที่แก้ไขแล้วหลังการส่งคืน - รอการอนุมัติตามขั้นตอน</span></div>');
   html.push('<div class="ml-auto flex gap-2 flex-wrap">');
   if(CAN.up(CU.role_code)){
     html.push('<button class="btn btn-soft sm" data-action="detUp">'+svg('up',13)+' อัปโหลดไฟล์</button>');
@@ -56,7 +56,7 @@ async function vDet(docId){
     html.push('<button class="btn btn-soft sm" data-action="admChgStatus" data-id="'+docId+'">เปลี่ยนสถานะ</button>');
     html.push('<button class="btn btn-danger sm" data-action="admDelDoc" data-id="'+docId+'">ลบเอกสาร</button>');
   }
-  html.push('<button class="btn btn-soft sm" data-action="exportDocPDF" data-id="'+docId+'" title="ส่งออก PDF พร้อมประวัติ">📄 Export PDF</button>');
+  html.push('<button class="btn btn-soft sm" data-action="exportDocPDF" data-id="'+docId+'" title="ส่งออก PDF พร้อมประวัติ">'+svg('pdf_ico',13)+' Export PDF</button>');
   html.push('</div></div>');
   html.push('<div id="dal"></div>');
   html.push('<div class="two-col"><div>');
@@ -130,17 +130,17 @@ async function vDet(docId){
 
     // ── ประวัติเวอร์ชันก่อนหน้า ──
     if(_histFiles.length){
-      html.push('<button class="cursor-pointer text-xs font-semibold text-[#2563EB] py-2 mt-2 border-t border-dashed border-[#EBEBEB] w-full text-left bg-transparent border-x-0 border-b-0" data-action="showVerHist" data-id="'+docId+'">▶ ประวัติเวอร์ชันก่อนหน้า ('+_histFiles.length+' ไฟล์)</button>');
+      html.push('<button class="cursor-pointer text-xs font-semibold text-[#2563EB] py-2 mt-2 border-t border-dashed border-[#EBEBEB] w-full text-left bg-transparent border-x-0 border-b-0 flex items-center gap-1.5" data-action="showVerHist" data-id="'+docId+'">'+svg('tri',10)+' ประวัติเวอร์ชันก่อนหน้า ('+_histFiles.length+' ไฟล์)</button>');
     }
   } else {
-    html.push('<div class="card-empty py-6"><div class="card-empty-icon">📂</div><div class="card-empty-text">ยังไม่มีไฟล์แนบ</div></div>')
+    html.push('<div class="card-empty py-6"><div class="card-empty-icon">'+svg('folder',40)+'</div><div class="card-empty-text">ยังไม่มีไฟล์แนบ</div></div>')
   }
   html.push('</div></div>');
 
   // Notification log card — admin only
   if(CU.role_code==='ROLE-SYS'){
     html.push('<div class="card"><div class="card-head">'+_ico('bell','#FFF3EE','#E83A00')+'<span class="card-head-title">บันทึกการแจ้งเตือนอีเมล</span></div><div class="card-body" id="d-notif-list">');
-    html.push('<div class="al al-in text-xs"><span class="al-icon">ℹ</span><span>ระบบส่งอีเมลแจ้งเตือนอัตโนมัติเมื่อมีการเปลี่ยนขั้นตอน</span></div>');
+    html.push('<div class="al al-in text-xs"><span class="al-icon">'+svg('info',13)+'</span><span>ระบบส่งอีเมลแจ้งเตือนอัตโนมัติเมื่อมีการเปลี่ยนขั้นตอน</span></div>');
     html.push('<div id="notif-loading" class="text-[#a89e99] text-[13px]">กำลังโหลด...</div>');
     html.push('</div></div>');
   }
@@ -165,7 +165,7 @@ async function vDet(docId){
         var _ddl=s.deadline_datetime?new Date(s.deadline_datetime):null;
         var _late=_ddl&&(new Date())>_ddl;
         var _ddlStr=_ddl?(_ddl.toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit'})+' '+_ddl.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})):'';
-        html.push('<div class="tl-time text-[#D97706]">⏳ กำลังดำเนินการ'+(_ddlStr?' · ครบกำหนด: '+_ddlStr+(_late?' <span class="text-[#DC2626] font-bold"> (เกินกำหนด!)</span>':''):'')+'</div>');
+        html.push('<div class="tl-time text-[#D97706] flex items-center gap-1">'+svg('clock',12)+' กำลังดำเนินการ'+(_ddlStr?' · ครบกำหนด: '+_ddlStr+(_late?' <span class="text-[#DC2626] font-bold"> (เกินกำหนด!)</span>':''):'')+'</div>');
         if(!_ddlStr) html.push('<div class="tl-time text-[#a89e99]">กำหนด '+s.deadline_days+' วัน</div>');
       }
       if(s.revision_section) html.push('<div class="tl-note text-[#DC2626]">ส่วนที่ต้องแก้ไข: <strong>'+esc(s.revision_section)+'</strong></div>');
@@ -174,7 +174,7 @@ async function vDet(docId){
     });
     html.push('</div>')
   } else {
-    html.push('<div class="card-empty py-6"><div class="card-empty-icon">📋</div><div class="card-empty-text">ยังไม่ได้กำหนดขั้นตอน</div></div>')
+    html.push('<div class="card-empty py-6"><div class="card-empty-icon">'+svg('doc',40)+'</div><div class="card-empty-text">ยังไม่ได้กำหนดขั้นตอน</div></div>')
   }
   html.push('</div></div>');
 
@@ -211,7 +211,10 @@ async function vDet(docId){
   setTimeout(function(){
     var dup=$e('dup');
     if(dup) dup.onchange=function(){detUp(Array.from(dup.files),docId)};
-    if(CU.role_code==='ROLE-SYS') loadNotifLog(docId)
+    if(CU.role_code==='ROLE-SYS'){
+      loadNotifLog(docId);
+      var _np=setInterval(function(){if(!$e('d-notif-list')){clearInterval(_np);return}loadNotifLog(docId)},60000);
+    }
   },80);
 
   return html.join('')
@@ -247,7 +250,7 @@ async function detUp(files,docId){
     nf.forEach(function(f){
       var isImg=f.file_type&&f.file_type.includes('image');
       var div=document.createElement('div'); div.className='file-item';
-      div.innerHTML='<span class="file-icon">'+(isImg?''+svg('img2',18)+'':'📄')+'</span>'+
+      div.innerHTML='<span class="file-icon">'+(isImg?svg('img2',18):svg('pdf_ico',18))+'</span>'+
         '<div class="file-info"><div class="file-name">'+esc(f.file_name)+'</div><div class="file-meta">'+fsz(f.file_size)+' · v'+f.version+'</div></div>'+
         '<div class="file-actions">'+
         '<button class="btn btn-ghost xs" data-action="openViewer" data-url="'+furl(f.file_path)+'" data-name="'+esc(f.file_name)+'">'+svg('eye',12)+' ดู</button>'+
@@ -289,7 +292,7 @@ async function showVerHist(docId){
   }).join('');
   w.innerHTML='<div class="mo"><div class="modal">'+
     '<div class="modal-head"><span class="modal-title">'+svg('save',15)+' ประวัติเวอร์ชันก่อนหน้า</span>'+
-    '<button class="btn btn-ghost xs ml-auto" data-action="closeModal">✕</button></div>'+
+    '<button class="btn btn-ghost xs btn-icon ml-auto" data-action="closeModal">'+svg('x',14)+'</button></div>'+
     '<div class="modal-body" style="max-height:60vh;overflow-y:auto">'+rows+'</div>'+
   '</div></div>'
 }
@@ -306,7 +309,7 @@ async function showFwdModal(docId){
     '<div class="modal-head"><span class="modal-title">'+svg('sign',15)+' ส่งต่อเอกสาร</span>',
     '<button class="btn btn-soft sm btn-icon" data-action="closeModal">'+svg('x',14)+'</button></div>',
     '<div class="modal-body">',
-    '<div class="al al-in" style="margin-bottom:14px"><span class="al-icon">ℹ</span>',
+    '<div class="al al-in" style="margin-bottom:14px"><span class="al-icon">'+svg('info',13)+'</span>',
     '<span>เลือกบุคคลที่ต้องการส่งเอกสารฉบับสมบูรณ์นี้ไปให้ ระบบจะแจ้งเตือนทางอีเมล</span></div>',
     '<div class="fg"><label class="fl">ส่งเอกสารถึง <span class="req">*</span></label>',
     '<select class="fi" id="fwd-to"><option value="">— เลือกผู้รับ —</option>'+uOpts+'</select></div>',
@@ -350,11 +353,10 @@ async function doForward(docId){
 }
 
 async function loadNotifLog(docId){
-  var el=$e('notif-loading'); if(!el)return;
+  var wrap=$e('d-notif-list'); if(!wrap)return;
   try{
     var logs=await dg('notifications','?document_id=eq.'+docId+'&order=sent_at.desc&limit=10');
-    if(!logs.length){el.textContent='ยังไม่มีการส่งอีเมล';return}
-    el.outerHTML=logs.map(function(n){
+    wrap.innerHTML=logs.length?logs.map(function(n){
       var dt=new Date(n.sent_at);
       var dtStr=dt.toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit'})+' '+dt.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'});
       return '<div class="flex gap-2.5 py-[9px] border-b border-[#F5F5F5] items-start">'+
@@ -362,8 +364,8 @@ async function loadNotifLog(docId){
         '<div><div class="text-xs font-semibold text-[#18120E]">'+esc((n.subject||'').replace(/<[^>]*>/g,''))+'</div>'+
         '<div class="text-[11px] text-[#a89e99]">ถึง: '+esc(n.recipient_email)+'</div>'+
         '<div class="text-[11px] text-[#a89e99]">'+dtStr+'</div></div></div>'
-    }).join('')
-  }catch(e){if(el)el.textContent='โหลดล้มเหลว'}
+    }).join(''):'<div class="text-[#a89e99] text-[13px]">ยังไม่มีการส่งอีเมล</div>';
+  }catch(e){if(wrap)wrap.innerHTML='<div class="text-[#a89e99] text-[13px]">โหลดล้มเหลว</div>'}
 }
 
 function showActModal(action,docId){
@@ -380,7 +382,7 @@ function showActModal(action,docId){
     '</div></div>',
     '<div id="sig-panel-upload" class="hidden">',
     '<div class="border-2 border-dashed border-[#EBEBEB] rounded-[10px] p-3.5 text-center cursor-pointer" id="asig-drop-zone">',
-    '<div class="text-[22px] mb-1">🖊️</div><div class="text-xs font-semibold">คลิกอัปโหลดรูปลายเซ็น</div><div class="text-[10px] text-[#a89e99]">PNG โปร่งใสแนะนำ</div></div>',
+    '<div class="flex justify-center mb-1" style="color:#a89e99">'+svg('pen',24)+'</div><div class="text-xs font-semibold">คลิกอัปโหลดรูปลายเซ็น</div><div class="text-[10px] text-[#a89e99]">PNG โปร่งใสแนะนำ</div></div>',
     '<input type="file" id="asig-file" accept="image/*" class="hidden">',
     '<img id="asig-prev" class="hidden max-h-[70px] mt-2 max-w-full object-contain">',
     '</div></div>'
@@ -389,12 +391,12 @@ function showActModal(action,docId){
   var html=[
     '<div class="mo"><div class="modal">',
     '<div class="modal-head">',
-    '<span class="modal-title">'+(isApprove?'ยืนยันการอนุมัติ':'↩ ยืนยันการส่งคืน')+'</span>',
+    '<span class="modal-title">'+(isApprove?svg('ok',14)+' ยืนยันการอนุมัติ':svg('undo',14)+' ยืนยันการส่งคืน')+'</span>',
     '<button class="btn btn-soft sm btn-icon" data-action="closeModal">'+svg('x',14)+'</button>',
     '</div>',
     '<div class="modal-body">',
     '<div class="al al-'+(isApprove?'ok':'er')+'" style="margin-bottom:14px">',
-    '<span class="al-icon">'+(isApprove?'✓':'⚠')+'</span>',
+    '<span class="al-icon">'+(isApprove?svg('ok',13):svg('warn',13))+'</span>',
     '<span>'+(isApprove?'คุณกำลังจะอนุมัติและลงนามในเอกสารนี้':'คุณกำลังจะส่งคืนเอกสารเพื่อให้แก้ไข')+'</span></div>',
     sigSection,
     (!isApprove?'<div class="fg"><label class="fl">ส่วนที่ต้องแก้ไข <span class="req">*</span></label>'+
@@ -414,7 +416,7 @@ function showActModal(action,docId){
     '<div class="modal-foot">',
     '<button class="btn btn-soft" data-action="closeModal">ยกเลิก</button>',
     '<button class="btn '+(isApprove?'btn-success':'btn-danger')+'" data-action="doAct" data-act="'+action+'" data-id="'+docId+'">',
-    (isApprove?'ยืนยันอนุมัติ':'↩ ยืนยันส่งคืน'),
+    (isApprove?svg('ok',13)+' ยืนยันอนุมัติ':svg('undo',13)+' ยืนยันส่งคืน'),
     '</button></div></div></div>'
   ];
   w.innerHTML=html.join('');
@@ -505,6 +507,8 @@ async function doAct(action,docId){
         var latestFile=files[0];
         var fileUrl2=furl(latestFile.file_path);
         if(!window.PDFLib) await loadSc('https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js');
+        if(latestFile.file_size&&latestFile.file_size>20*1024*1024)
+          throw new Error('ไฟล์ PDF ขนาด '+Math.round(latestFile.file_size/1024/1024)+'MB ใหญ่เกินไป กรุณาใช้ตัวแก้ไข PDF แนบลายเซ็นด้วยตนเอง');
         var pdfResp=await fetch(fileUrl2);
         if(pdfResp.ok){
           var pdfBuf=await pdfResp.arrayBuffer();
@@ -512,7 +516,14 @@ async function doAct(action,docId){
           var lastPg=pdfDoc.getPage(pdfDoc.getPageCount()-1);
           var pw=lastPg.getWidth(),ph=lastPg.getHeight();
           var imgBytes=await fetch(sigSrc).then(function(r){return r.arrayBuffer()});
-          var emb=await pdfDoc.embedPng(imgBytes);
+          var emb;
+          if(sigSrc.startsWith('data:image/jpeg')||sigSrc.startsWith('data:image/jpg')){
+            emb=await pdfDoc.embedJpg(imgBytes);
+          }else if(sigSrc.startsWith('data:image/png')){
+            emb=await pdfDoc.embedPng(imgBytes);
+          }else{
+            throw new Error('รองรับเฉพาะไฟล์ PNG หรือ JPEG สำหรับลายเซ็น กรุณาแปลงไฟล์ก่อน');
+          }
           // Place signature at bottom-right area
           lastPg.drawImage(emb,{x:pw-220,y:40,width:180,height:60});
           var newBytes=await pdfDoc.save();
@@ -524,7 +535,10 @@ async function doAct(action,docId){
           await dp('document_history',{document_id:docId,action:'ฝังลายเซ็นในเอกสาร',performed_by:CU.id})
         }
       }
-    } catch(sigErr){console.warn('Signature embed failed:',sigErr.message)}
+    } catch(sigErr){
+      console.warn('Signature embed failed:',sigErr.message);
+      var _sa=$e('dal');if(_sa)_sa.innerHTML=alrtH('wr','ฝังลายเซ็นไม่สำเร็จ: '+sigErr.message);
+    }
   }
   // Send email notification
   try{ await sendNotifEmail(docId, action, nst, note); }catch(ne){console.warn('Email notif failed:',ne)}

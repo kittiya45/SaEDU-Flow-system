@@ -73,7 +73,7 @@ async function vAdm(){
   }
 
   /* ── Toolbar: search + buttons ── */
-  var _canAddAdv=CU.role_code==='ROLE-SYS'||CU.role_code==='ROLE-STF';
+  var _canAddAdv=CU.role_code==='ROLE-SYS';
   _admTab='all';
   html.push(
     '<div class="flex items-center gap-2.5 mb-3 flex-wrap">'+
@@ -391,6 +391,7 @@ async function doAdmChgStatus(docId,status){
 }
 
 function showAddAdvisor(){
+  if(!CU||CU.role_code!=='ROLE-SYS'){alert('เฉพาะผู้ดูแลระบบเท่านั้น');return}
   var w=$e('mwrap'); if(!w)return;
   var html=[
     '<div class="mo"><div class="modal">',
@@ -571,6 +572,7 @@ function gnkClose(id){
 
 /* ─── IMPORT USERS (CSV) ─── */
 function showImport(){
+  if(!CU||CU.role_code!=='ROLE-SYS'){alert('เฉพาะผู้ดูแลระบบเท่านั้น');return}
   var tmpl='ชื่อ-นามสกุล,อีเมล,รหัสผ่าน,บทบาท,ฝ่าย,ประเภท\n'+
     'สมชาย ใจดี,somchai@gnk.ac.th,pass1234,ROLE-CRT,ฝ่ายวิชาการ,gnk\n'+
     'อาจารย์ A,teacher@uni.ac.th,pass1234,ROLE-ADV,สำนักกิจการนิสิต,advisor';

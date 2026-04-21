@@ -396,7 +396,7 @@ function placeEl(el,layer){
   div.className='ped-el'; div.dataset.id=el.id;
   div.style.cssText='left:'+el.x+'px;top:'+el.y+'px;position:absolute';
   var delBtn=document.createElement('button');
-  delBtn.className='del'; delBtn.textContent='✕';
+  delBtn.className='del'; delBtn.innerHTML=svg('x',13);
   delBtn.onclick=function(e){e.stopPropagation();PED.els=PED.els.filter(function(e2){return e2.id!==el.id});div.remove()};
   if(el.type==='txt'){
     var fFamily=el.font||'Noto Sans Thai';

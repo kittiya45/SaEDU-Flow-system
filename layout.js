@@ -94,7 +94,7 @@ async function nav(view, id) {
 
   var ni = [
     {k:'dash', i:'home', l:'ภาพรวม'},
-    {k:'todo', i:'ok',   l:'งานของฉัน', b: activeSteps || null},
+    {k:'todo', i:'tasks', l:'งานของฉัน', b: activeSteps || null},
     {k:'docs', i:'doc',  l:'เอกสาร',    b: PC || null}
   ];
   if (CAN.cr(CU.role_code))                  ni.push({k:'new',  i:'plus',  l:'สร้างเอกสาร'});
@@ -110,7 +110,7 @@ async function nav(view, id) {
     /* ── Sidebar ── */
     '<aside class="w-[240px] max-[900px]:w-16 max-[600px]:hidden shrink-0 bg-white border-r border-[#EBEBEB] flex flex-col sticky top-0 h-screen overflow-y-auto z-[100]">' +
       '<div class="flex items-center gap-[11px] px-[18px] py-5 pb-4 border-b border-[#EBEBEB] max-[900px]:justify-center max-[900px]:px-0 max-[900px]:py-4">' +
-        '<div class="w-[38px] h-[38px] shrink-0 rounded-[10px] overflow-hidden shadow-[0_2px_8px_rgba(232,58,0,0.25)]">' +
+        '<div class="w-[38px] h-[38px] shrink-0 rounded-[10px] overflow-hidden shadow-[0_1px_4px_rgba(0,0,0,0.10)]">' +
           '<img src="img/logo.png" alt="Logo" class="w-full h-full object-cover">' +
         '</div>' +
         '<div class="max-[900px]:hidden">' +
