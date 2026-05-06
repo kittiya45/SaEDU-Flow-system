@@ -54,12 +54,12 @@ async function nav(view, id) {
   var activeSteps = 0;
   try {
     if (CU.role_code === 'ROLE-SYS') {
-      var pr = await dg('documents', '?status=eq.pending&select=id');
+      var pr = await dg('documents', '?status=in.(pending,rejected)&select=id');
       PC = pr.length || 0;
     } else {
       var results = await Promise.all([
-        dg('documents',      '?status=eq.pending&select=id,created_by'),
-        dg('workflow_steps', '?assigned_to=eq.'+CU.id+'&select=document_id')
+        dg('documents',      '?status=in.(pending,rejected)&select=id,created_by'),
+        dg('workflow_steps', '?assigned_to=eq.'+safeId(CU.id)+'&select=document_id')
       ]);
       var psIds = results[1].map(function(s){ return s.document_id; });
       PC = results[0].filter(function(d){ return d.created_by===CU.id || psIds.indexOf(d.id)!==-1; }).length || 0;
@@ -67,7 +67,7 @@ async function nav(view, id) {
   } catch(e) { PC = 0; }
 
   try {
-    var ms = await dg('workflow_steps', '?assigned_to=eq.'+CU.id+'&status=eq.active&select=id');
+    var ms = await dg('workflow_steps', '?assigned_to=eq.'+safeId(CU.id)+'&status=eq.active&select=id');
     activeSteps = ms.length || 0;
   } catch(e) {}
 
@@ -78,6 +78,7 @@ async function nav(view, id) {
     else if (view==='todo')               content = await vTodo();
     else if (view==='new'||view==='edit') content = await vForm(id);
     else if (view==='det')                content = await vDet(id);
+    else if (view==='tmpl')               content = await vTmpl();
     else if (view==='adm')                content = await vAdm();
     else if (view==='sys')                content = await vSys();
     else if (view==='stat')               content = await vStat();
@@ -89,13 +90,15 @@ async function nav(view, id) {
   var titles = {
     dash:'ภาพรวม', docs:'เอกสารทั้งหมด', todo:'งานของฉัน',
     new:'สร้างเอกสารใหม่', edit:'แก้ไขเอกสาร', det:'รายละเอียดเอกสาร',
+    tmpl:'แบบฟอร์มดาวน์โหลด',
     adm:'จัดการผู้ใช้งาน', sys:'จัดการระบบ', stat:'สถิติ & รายงาน'
   };
 
   var ni = [
     {k:'dash', i:'home', l:'ภาพรวม'},
     {k:'todo', i:'tasks', l:'งานของฉัน', b: activeSteps || null},
-    {k:'docs', i:'doc',  l:'เอกสาร',    b: PC || null}
+    {k:'docs', i:'doc',  l:'เอกสาร',    b: PC || null},
+    {k:'tmpl', i:'folder', l:'แบบฟอร์ม'}
   ];
   if (CAN.cr(CU.role_code))                  ni.push({k:'new',  i:'plus',  l:'สร้างเอกสาร'});
   if (isAdm || CU.role_code==='ROLE-STF')    ni.push({k:'stat', i:'chart', l:'สถิติ'});

@@ -16,11 +16,7 @@ document.addEventListener('click', function(e){
   else if(a==='login') doLogin();
   else if(a==='regG') doRegG();
   else if(a==='regS') doRegS();
-  else if(a==='logout'){
-    if(CU){try{dp('document_history',{action:'logout',performed_by:CU.id,note:'ออกจากระบบ'});}catch(e){}}
-    if(_sesTmr){clearInterval(_sesTmr);_sesTmr=null;}
-    CU=null; showAuth();
-  }
+  else if(a==='logout') doLogout();
   else if(a==='setDT') setDT(tab);
   else if(a==='setAT') setAT(tab);
   else if(a==='exportCSV') exportCSV();
@@ -42,18 +38,24 @@ document.addEventListener('click', function(e){
   else if(a==='openViewer') openViewer(el.dataset.url, el.dataset.name);
   else if(a==='openEditor') openEditor(el.dataset.url, el.dataset.name, el.dataset.fid, el.dataset.did);
   else if(a==='showActModal') showActModal(action, id);
-  else if(a==='doAct') doAct(action, id);
+  else if(a==='doAct') doAct(action, id).catch(function(){_actBusy=false;});
   else if(a==='closeModal'){var mw=$e('mwrap');if(mw)mw.innerHTML=''}
   else if(a==='showVerHist') showVerHist(id);
   else if(a==='showFwdModal') showFwdModal(id);
   else if(a==='doForward') doForward(id);
+  else if(a==='showNumModal') showNumModal(id);
+  else if(a==='doSetDocNumber') doSetDocNumber(id).catch(function(e){console.error('doSetDocNumber error:',e)});
+  else if(a==='showTmplUpload') showTmplUpload();
+  else if(a==='doTmplUpload') doTmplUpload();
+  else if(a==='doTmplDelete') doTmplDelete(id, el.dataset.path);
+  else if(a==='tmplPreview') tmplPreview(el.dataset.url, el.dataset.name, el.dataset.ext);
   else if(a==='admApv') admApv(id);
   else if(a==='admRej') admRej(id);
   else if(a==='admDel') admDel(id);
   else if(a==='admToggle') admToggle(id, el.dataset.active==='1');
   else if(a==='admResetPw') admResetPw(id);
   else if(a==='doAdmResetPw') doAdmResetPw(el.dataset.uid);
-  else if(a==='doReSubmit') doReSubmit(id);
+  else if(a==='doReSubmit') doReSubmit(id).catch(function(e){_resubBusy=false;console.error('doReSubmit error:',e)});
   else if(a==='admDelDoc') admDelDoc(id);
   else if(a==='admChgStatus') admChgStatus(id);
   else if(a==='doAdmChgStatus') doAdmChgStatus(id, el.dataset.status);
@@ -86,6 +88,7 @@ document.addEventListener('click', function(e){
   else if(a==='sigColor'){pedSigColor(el.dataset.color);document.querySelectorAll('#sp-draw .csw').forEach(function(s){s.classList.remove('on')});el.classList.add('on')}
   else if(a==='txtColor'){PED.txtColor=el.dataset.color;document.querySelectorAll('#ps-txt .csw').forEach(function(s){s.classList.remove('on')});el.classList.add('on')}
   else if(a==='uploadLocal') $e('ped-local').click();
+  else if(a==='dlFile') dlFile(el.dataset.url,el.dataset.name);
 });
 
 

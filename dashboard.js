@@ -282,7 +282,7 @@ async function vDash(){
           '</div>'+
           '<div style="flex-shrink:0">'+sBadge(d.status)+'</div>'+
           '<div style="font-size:12px;color:#a89e99;white-space:nowrap;flex-shrink:0;min-width:72px;text-align:right">'+fd(d.created_at)+'</div>'+
-          '<button class="btn btn-soft xs btn-icon" style="flex-shrink:0" data-action="nav" data-view="det" data-id="'+d.id+'">'+svg('eye',13)+'</button>'+
+          '<button style="width:30px;height:30px;border-radius:8px;border:2px solid #3b82f6;background:#eff6ff;color:#3b82f6;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0" data-action="nav" data-view="det" data-id="'+d.id+'">'+svg('eye',13)+'</button>'+
         '</div>'
       );
     });

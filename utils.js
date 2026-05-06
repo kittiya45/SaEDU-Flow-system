@@ -1,4 +1,17 @@
 /* ─── UTILS ─── */
+async function dlFile(url,name){
+  try{
+    var r=await fetch(url);
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    var blob=await r.blob();
+    var a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download=name||'download';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function(){URL.revokeObjectURL(a.href);document.body.removeChild(a);},200);
+  }catch(e){window.open(url,'_blank');}
+}
 function fd(d){
   if(!d)return'—';
   return new Date(d).toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit'})
@@ -41,16 +54,16 @@ async function _hashSha256(pw){
   var buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(pw));
   return Array.from(new Uint8Array(buf)).map(function(b){return b.toString(16).padStart(2,'0')}).join('')
 }
-// ตรวจสอบรหัสผ่าน: รองรับ PBKDF2 ใหม่, SHA-256 เดิม, และ plaintext legacy
+// ตรวจสอบรหัสผ่าน: รองรับ PBKDF2 ใหม่ และ SHA-256 legacy (auto-upgrade ตอน login)
 async function checkPw(input,stored){
   if(!stored||!input) return false;
   if(stored.startsWith('pbkdf2$')) return _verifyPbkdf2(input,stored);
   if(/^[0-9a-f]{64}$/.test(stored)) return (await _hashSha256(input))===stored; // SHA-256 legacy
-  return input===stored // plaintext legacy
+  return false // plaintext ไม่รองรับแล้ว
 }
 function sBadge(s){
-  var cls={draft:'b-draft',pending:'b-pending',signed:'b-signed',rejected:'b-rejected',completed:'b-completed'};
-  var txt={draft:'ร่างเอกสาร',pending:'รอลงนาม',signed:'ลงนามแล้ว',rejected:'ส่งคืนแก้ไข',completed:'เสร็จสิ้น'};
+  var cls={draft:'b-draft',pending:'b-pending',signed:'b-signed',rejected:'b-rejected',numbering:'b-advisor',completed:'b-completed'};
+  var txt={draft:'ร่างเอกสาร',pending:'รอลงนาม',signed:'ลงนามแล้ว',rejected:'ส่งคืนแก้ไข',numbering:'รอออกเลขหนังสือ',completed:'เสร็จสิ้น'};
   return '<span class="badge '+( cls[s]||'b-draft')+'"><span class="bdot"></span>'+esc(txt[s]||s)+'</span>'
 }
 function tBadge(t){
@@ -161,3 +174,4 @@ function svgf(n,s){
 function loadSc(src){
   return new Promise(function(res,rej){var s=document.createElement('script');s.src=src;s.onload=res;s.onerror=rej;document.head.appendChild(s)})
 }
+function debounce(fn,ms){var t=null;return function(){var args=arguments;clearTimeout(t);t=setTimeout(function(){fn.apply(null,args)},ms)}}

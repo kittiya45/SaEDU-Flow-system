@@ -59,8 +59,14 @@
 <!-- ประวัติเอกสารและดาวน์โหลดรายงาน CSV -->
 <script src="report.js"></script>
 
-<!-- หน้าแสดงรายละเอียดเอกสารและส่งอีเมล -->
+<!-- หน้าแสดงรายละเอียดเอกสาร อนุมัติ/ตีกลับ และฝังลายเซ็นใน PDF -->
 <script src="docDetail.js"></script>
+
+<!-- ออกเลขที่หนังสือขาออก (สร้างเลขอัตโนมัติในรูปแบบ SPPTNNN หรือ SPPTNNN-CC) -->
+<script src="docNum.js"></script>
+
+<!-- ส่งอีเมลแจ้งเตือนผ่าน Edge Function และตรวจเอกสารที่เลยกำหนด -->
+<script src="notif.js"></script>
 
 <!-- หน้าต่างเปิดดูไฟล์ PDF และรูปภาพ -->
 <script src="viewer.js"></script>
@@ -77,8 +83,14 @@
 <!-- หน้าจัดการระบบ: ประเภทเอกสาร-->
 <script src="docTypeAdmin.js"></script>
 
-<!-- จัดการผู้ใช้งาน (Admin) -->
+<!-- แบบฟอร์มดาวน์โหลด -->
+<script src="templates.js"></script>
+
+<!-- จัดการผู้ใช้งาน: อนุมัติบัญชี แก้ไขข้อมูล รีเซ็ตรหัสผ่าน เพิ่มอาจารย์ -->
 <script src="admin.js"></script>
+
+<!-- นำเข้าผู้ใช้หลายคนพร้อมกันจากไฟล์ CSV (เฉพาะ ROLE-SYS) -->
+<script src="adminImport.js"></script>
 
 <!-- จัดการโครงสร้างเมนูและหน้าตาเว็บหลัก -->
 <script src="layout.js"></script>

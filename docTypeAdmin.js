@@ -184,7 +184,7 @@ function rDocTypesCard(types){
   return h.join('');
 }
 
-/* ─── DOC TYPE MODAL ─── */
+/* ─── DOC TYPE MODAL (Modern Orange Theme) ─── */
 async function showDocTypeModal(typeId){
   var type=null;
   if(typeId){try{var r=await dg('doc_types','?id=eq.'+typeId);type=r&&r[0]||null;}catch(e){}}
@@ -205,119 +205,126 @@ async function showDocTypeModal(typeId){
   var _ICON_LABELS={dn:'ขาเข้า',up:'ขาออก',doc:'เอกสาร',edit:'แก้ไข',sign:'ลงนาม',bell:'แจ้งเตือน',folder:'แฟ้ม',users:'ทีม',key:'สำคัญ',ok:'เสร็จ'};
   var iconPicker=['dn','up','doc','edit','sign','bell','folder','users','key','ok'].map(function(ic){
     var sel=curIcon===ic;
-    return '<div class="dt-icon-tile" data-ic="'+ic+'" onclick="_dtPickIcon(\''+ic+'\')" style="display:flex;flex-direction:column;align-items:center;gap:3px;padding:7px 8px;border-radius:9px;border:1.5px solid '+(sel?'#E83A00':'transparent')+';background:'+(sel?'#FFF0EB':'#F5F3F0')+';color:'+(sel?'#E83A00':'#6b6560')+';cursor:pointer;min-width:50px;box-shadow:'+(sel?'0 0 0 2px #FFD0BB':'none')+';transition:all .15s">'+
-      svg(ic,18)+'<span style="font-size:9px;font-weight:600">'+esc(_ICON_LABELS[ic])+'</span>'+
+    return '<div class="dt-icon-tile" data-ic="'+ic+'" onclick="_dtPickIcon(\''+ic+'\')" style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 4px;border-radius:14px;border:1.5px solid '+(sel?'#E83A00':'#F1F1F1')+';background:'+(sel?'#FFF5F2':'#FAFAFA')+';color:'+(sel?'#E83A00':'#6b6560')+';cursor:pointer;min-width:54px;transition:all .2s;box-shadow:'+(sel?'0 4px 12px -2px rgba(232, 58, 0, 0.2)':'none')+'">'+
+      svg(ic,18)+'<span style="font-size:9px;font-weight:700">'+esc(_ICON_LABELS[ic])+'</span>'+
     '</div>';
   }).join('');
 
   /* Section header helper */
   var _sec=function(t){
-    return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;margin-top:18px">'+
-      '<div style="width:3px;height:14px;background:#E83A00;border-radius:2px;flex-shrink:0"></div>'+
-      '<span style="font-size:11px;font-weight:700;color:#18120E;text-transform:uppercase;letter-spacing:.6px">'+t+'</span>'+
+    return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;margin-top:24px">'+
+      '<div style="width:10px;height:2px;background:#E83A00;border-radius:2px;flex-shrink:0"></div>'+
+      '<span style="font-size:10px;font-weight:800;color:#E83A00;text-transform:uppercase;letter-spacing:0.1em">'+t+'</span>'+
     '</div>';
   };
 
   var box=[
-    '<div class="gnk-box" style="max-width:580px;max-height:90vh;overflow-y:auto" onclick="event.stopPropagation()">',
-      '<div class="gnk-pop-head">',
-        '<div class="gnk-eyebrow">จัดการระบบ</div>',
-        '<div class="gnk-pop-title">'+(isEdit?'แก้ไขประเภทเอกสาร':'เพิ่มประเภทเอกสารใหม่')+'</div>',
-        '<button class="gnk-xbtn" onclick="gnkClose(\'doctype\')">'+_XSVG+'</button>',
+    '<div class="gnk-box overflow-hidden" style="max-width:580px;max-height:92vh;border-radius:28px;background:#fff;box-shadow: 0 40px 100px -20px rgba(232, 58, 0, 0.15);border: 1px solid rgba(232, 58, 0, 0.05)" onclick="event.stopPropagation()">',
+      
+      // Header
+      '<div class="gnk-pop-head" style="padding: 28px 32px 20px 32px; background: linear-gradient(to bottom, rgba(232, 58, 0, 0.05), #fff); display:flex; justify-content:space-between; align-items:flex-start;">',
+        '<div class="flex flex-col gap-1">',
+          '<div style="color:#E83A00; font-weight:800; font-size:10px; letter-spacing:0.12em; text-transform:uppercase; display:flex; align-items:center; gap:6px;">',
+  '<span style="width:10px; height:2px; background:#E83A00; border-radius:2px;"></span> System Admin',
+'</div>',
+          '<div class="gnk-pop-title" style="font-size:19px; font-weight:850; color:#18120E; letter-spacing:-0.02em;">'+(isEdit?'แก้ไขประเภทเอกสาร':'เพิ่มประเภทเอกสารใหม่')+'</div>',
+        '</div>',
+        '<button class="gnk-xbtn" style="background:rgba(232, 58, 0, 0.08); color:#E83A00; border-radius:12px; width:34px; height:34px; display:flex; align-items:center; justify-content:center; border:none; cursor:pointer;" onclick="gnkClose(\'doctype\')">'+_XSVG+'</button>',
       '</div>',
-      '<div class="gnk-divider"></div>',
-      '<div class="gnk-pop-body">',
+
+      '<div class="gnk-pop-body" style="padding: 0 32px 24px 32px; overflow-y:auto; max-height:calc(92vh - 160px);">',
         '<input type="hidden" id="dt-id" value="'+(type?type.id:'')+'">',
         '<input type="hidden" id="dt-icon" value="'+esc(curIcon)+'">',
 
         /* ── ข้อมูลพื้นฐาน ── */
         _sec('ข้อมูลพื้นฐาน'),
-        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">',
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">',
           '<div class="gnk-inp-grp" style="margin-bottom:0">',
-            '<label>รหัสประเภท (code) <span style="color:#E83A00">*</span></label>',
+            '<label style="display:block; font-size:11.5px; font-weight:700; color:#18120E; margin-bottom:6px;">รหัสประเภท (Code) <span style="color:#E83A00">*</span></label>',
             '<input type="text" id="dt-code" class="gnk-inp" value="'+esc(v('code',''))+'"'+
               ' placeholder="เช่น incoming" maxlength="30"'+
-              (isEdit?' disabled style="background:#F5F3F0;color:#a89e99;font-family:monospace"':' style="font-family:monospace"')+'>',
-            (isEdit?'':'<div style="font-size:10px;color:#a89e99;margin-top:4px">a–z, 0–9, _ เท่านั้น · แก้ไขไม่ได้ภายหลัง</div>'),
+              (isEdit?' disabled style="background:#FAFAFA;color:#a89e99;font-family:monospace;font-size:12.5px;border:1.5px solid #F1F1F1;border-radius:12px;width:100%;height:44px;padding:0 14px"' : ' style="font-family:monospace;font-size:12.5px;background:#FAFAFA;border:1.5px solid #F1F1F1;border-radius:12px;width:100%;height:44px;padding:0 14px"')+'>',
+            (isEdit?'':'<div style="font-size:10px;color:#94A3B8;margin-top:4px;margin-left:2px">a–z, 0–9, _ เท่านั้น · แก้ไขไม่ได้ภายหลัง</div>'),
           '</div>',
           '<div class="gnk-inp-grp" style="margin-bottom:0">',
-            '<label>ลำดับการแสดง</label>',
-            '<input type="number" id="dt-order" class="gnk-inp" value="'+v('sort_order',0)+'" min="0" max="999">',
+            '<label style="display:block; font-size:11.5px; font-weight:700; color:#18120E; margin-bottom:6px;">ลำดับการแสดง</label>',
+            '<input type="number" id="dt-order" class="gnk-inp" value="'+v('sort_order',0)+'" min="0" max="999" style="font-size:12.5px;background:#FAFAFA;border:1.5px solid #F1F1F1;border-radius:12px;width:100%;height:44px;padding:0 14px">',
           '</div>',
         '</div>',
         '<div class="gnk-inp-grp">',
-          '<label>ชื่อประเภทเอกสาร (ภาษาไทย) <span style="color:#E83A00">*</span></label>',
-          '<input type="text" id="dt-label" class="gnk-inp" value="'+esc(v('label',''))+'" placeholder="เช่น หนังสือขาเข้า">',
+          '<label style="display:block; font-size:11.5px; font-weight:700; color:#18120E; margin-bottom:6px;">ชื่อประเภทเอกสาร (ภาษาไทย) <span style="color:#E83A00">*</span></label>',
+          '<input type="text" id="dt-label" class="gnk-inp" value="'+esc(v('label',''))+'" placeholder="เช่น หนังสือขาเข้า" style="font-size:12.5px;background:#FAFAFA;border:1.5px solid #F1F1F1;border-radius:12px;width:100%;height:44px;padding:0 14px">',
         '</div>',
 
         /* ── ไอคอน ── */
-        '<div class="gnk-inp-grp">',
-          '<label>ไอคอน</label>',
-          '<div style="display:flex;flex-wrap:wrap;gap:6px">'+iconPicker+'</div>',
+        '<div class="gnk-inp-grp" style="margin-top:16px">',
+          '<label style="display:block; font-size:11.5px; font-weight:700; color:#18120E; margin-bottom:10px;">เลือกไอคอนสัญลักษณ์</label>',
+          '<div style="display:flex;flex-wrap:wrap;gap:8px;padding:12px;background:#FDFDFD;border-radius:18px;border:1px solid #F1F1F1">'+iconPicker+'</div>',
         '</div>',
 
-        '<div class="gnk-divider" style="margin:16px 0 0"></div>',
-
-        /* ── ช่องข้อมูลในฟอร์ม ── */
-        _sec('ช่องข้อมูลในฟอร์ม'),
-        '<div id="dt-fields-list"></div>',
-        '<div style="display:flex;gap:8px;margin-top:8px;padding:10px 12px;background:#FAFAF8;border-radius:10px;border:1.5px dashed #D9D4D1">',
-          '<input type="text" id="dt-add-col" list="dt-col-datalist" class="gnk-inp" style="flex:1;font-size:12px;margin-bottom:0;background:#fff" placeholder="เลือกหรือพิมพ์ชื่อช่อง...">',
-          '<datalist id="dt-col-datalist"></datalist>',
-          '<button class="btn btn-primary sm" onclick="_dtFieldAdd()" style="white-space:nowrap;flex-shrink:0">'+svg('plus',12)+' เพิ่มช่อง</button>',
-        '</div>',
-
-        '<div class="gnk-divider" style="margin:18px 0 0"></div>',
+        /* ── ช่องข้อมูล ── */
+          _sec('ช่องข้อมูลในฟอร์ม'),
+          '<div id="dt-fields-list"></div>',
+          '<div style="display:flex; gap:10px; margin-top:12px; padding:12px; background:#F8F8F8; border-radius:16px; border:2px dashed #E5E5E5;">',
+            '<input type="text" id="dt-add-col" list="dt-col-datalist" class="gnk-inp" style="flex:1; font-size:12px; margin-bottom:0; background:#fff; border-radius:10px; height:38px; padding:0 12px; border:1px solid #EBEBEB; outline:none;" placeholder="เลือกหรือพิมพ์ชื่อช่อง...">',
+            '<datalist id="dt-col-datalist"></datalist>',
+            '<button class="btn btn-primary" onclick="_dtFieldAdd()" style="white-space:nowrap; flex-shrink:0; background:#E83A00; color:#fff; border:none; border-radius:10px; padding:0 14px; font-size:11px; font-weight:700; display:flex; align-items:center; gap:6px; cursor:pointer; transition:opacity 0.2s;" onmouseover="this.style.opacity=\'0.9\'" onmouseout="this.style.opacity=\'1\'">'+svg('plus',12)+' เพิ่มช่องข้อมูล</button>',
+          '</div>',
 
         /* ── วันกำหนดส่ง ── */
         _sec('วันกำหนดส่ง / Deadline'),
-        '<div style="border:1px solid #EBEBEB;border-radius:12px;overflow:hidden;margin-bottom:14px">',
-          '<label style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:#FAFAF8;cursor:pointer;margin:0">',
+        '<div style="border:1px solid #F1F1F1;border-radius:20px;overflow:hidden;background:#FAFAFA;margin-bottom:14px">',
+          '<label style="display:flex;align-items:center;gap:12px;padding:16px;cursor:pointer;margin:0">',
             '<input type="checkbox" id="dt-enable-deadline" class="accent-[#E83A00] w-4 h-4"'+(enableDl?' checked':'')+
               ' onchange="dtToggleDeadline(this.checked)">',
             '<div style="flex:1">',
-              '<div style="font-size:13px;font-weight:600;color:#18120E">เปิดใช้งาน</div>',
-              '<div style="font-size:11px;color:#a89e99;margin-top:1px">แสดงช่องเลือกวันกำหนดในฟอร์มสร้างเอกสาร</div>',
+              '<div style="font-size:12.5px;font-weight:700;color:#18120E">เปิดใช้งานฟังก์ชัน Deadline</div>',
+              '<div style="font-size:10.5px;color:#94A3B8;margin-top:1px">ระบบจะแสดงตัวเลือกวันที่ต้องดำเนินการให้ในฟอร์ม</div>',
             '</div>',
-            '<span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:20px;background:'+(enableDl?'#DCFCE7':'#F5F3F0')+';color:'+(enableDl?'#16A34A':'#a89e99')+'">'+(enableDl?'เปิด':'ปิด')+'</span>',
+            '<span style="font-size:10px;font-weight:700;padding:4px 10px;border-radius:8px;background:'+(enableDl?'#DCFCE7':'#F1F1F1')+';color:'+(enableDl?'#15803D':'#94A3B8')+'">'+(enableDl?'ACTIVE':'OFF')+'</span>',
           '</label>',
-          '<div id="dt-deadline-detail" style="'+(enableDl?'':'display:none')+';padding:14px;border-top:1px solid #EBEBEB">',
-            '<div style="display:grid;grid-template-columns:1fr auto;gap:10px;margin-bottom:10px;align-items:end">',
+          '<div id="dt-deadline-detail" style="'+(enableDl?'':'display:none')+';padding:20px;border-top:1px solid #F1F1F1;background:#fff">',
+            '<div style="display:grid;grid-template-columns:1fr auto;gap:12px;margin-bottom:14px;align-items:end">',
               '<div class="gnk-inp-grp" style="margin-bottom:0">',
-                '<label>ชื่อฉลาก</label>',
-                '<input type="text" id="dt-event-lbl" class="gnk-inp" value="'+esc(v('event_label','วันกำหนดส่ง'))+'" placeholder="เช่น วันที่ต้องดำเนินการเสร็จ">',
+                '<label style="font-size:11px;font-weight:700;color:#64748B;margin-bottom:6px;display:block">ชื่อป้ายกำกับ (Label)</label>',
+                '<input type="text" id="dt-event-lbl" class="gnk-inp" value="'+esc(v('event_label','วันกำหนดส่ง'))+'" placeholder="เช่น วันที่ต้องดำเนินการเสร็จ" style="font-size:12px;height:40px;border-radius:10px;border:1.5px solid #F1F1F1;width:100%;padding:0 12px">',
               '</div>',
               '<div class="gnk-inp-grp" style="margin-bottom:0;min-width:120px">',
-                '<label>ระยะเวลาขั้นต่ำ <span style="font-size:9px;color:#a89e99;font-weight:400">วัน (หักจากวันกำหนด)</span></label>',
-                '<div style="display:flex;align-items:center;gap:6px">',
-                  '<input type="number" id="dt-min-days" class="gnk-inp" value="'+v('min_days',0)+'" min="0" max="365" placeholder="0" style="text-align:center">',
-                  '<span style="font-size:12px;color:#a89e99;white-space:nowrap">วัน</span>',
+                '<label style="font-size:11px;font-weight:700;color:#64748B;margin-bottom:6px;display:block">ระยะเวลาขั้นต่ำ</label>',
+                '<div style="display:flex;align-items:center;gap:8px">',
+                  '<input type="number" id="dt-min-days" class="gnk-inp" value="'+v('min_days',0)+'" min="0" max="365" style="text-align:center;font-size:12px;height:40px;border-radius:10px;border:1.5px solid #F1F1F1;width:60px">',
+                  '<span style="font-size:11px;color:#94A3B8;font-weight:600">วัน</span>',
                 '</div>',
               '</div>',
             '</div>',
-            '<label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:12px;color:#6b6560;padding:8px 10px;background:#F5F3F0;border-radius:8px">',
+            '<label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:11px;color:#475569;padding:12px;background:#FAFAFA;border-radius:12px;border:1px solid #F1F1F1">',
               '<input type="checkbox" id="dt-event-req" class="accent-[#E83A00] w-3.5 h-3.5"'+(v('event_required',false)?' checked':'')+'>',
-              '<span>บังคับกรอก <span style="color:#a89e99">(required) — ผู้สร้างเอกสารต้องระบุวันก่อนส่ง</span></span>',
+              '<span><b>บังคับระบุวันกำหนดส่ง</b> (Required Field)</span>',
             '</label>',
           '</div>',
         '</div>',
 
         /* ── สถานะ ── */
-        '<label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:12px 14px;border:1px solid #EBEBEB;border-radius:10px;background:#FAFAF8">',
+        '<label style="display:flex;align-items:center;gap:12px;cursor:pointer;padding:16px;border:1px solid #F1F1F1;border-radius:18px;background:#FAFAFA;transition:0.2s">',
           '<input type="checkbox" id="dt-active" class="accent-[#E83A00] w-4 h-4"'+(v('is_active',true)?' checked':'')+'>',
           '<div>',
-            '<div style="font-size:13px;font-weight:600;color:#18120E">เปิดใช้งาน</div>',
-            '<div style="font-size:11px;color:#a89e99;margin-top:1px">แสดงประเภทนี้ในฟอร์มสร้างเอกสาร</div>',
+            '<div style="font-size:12.5px;font-weight:700;color:#18120E">สถานะเปิดใช้งาน</div>',
+            '<div style="font-size:10.5px;color:#94A3B8;margin-top:1px">แสดงประเภทเอกสารนี้ในระบบเพื่อให้พนักงานเลือกใช้งาน</div>',
           '</div>',
         '</label>',
 
       '</div>',
-      '<div class="gnk-pop-foot">',
-        '<button class="gnk-btn-c" onclick="gnkClose(\'doctype\')">ยกเลิก</button>',
-        '<button class="gnk-btn-p" id="dt-save-btn" data-action="saveDocType">'+_OKSVG+(isEdit?'บันทึกการแก้ไข':'เพิ่มประเภทเอกสาร')+'</button>',
+      
+      // Footer
+      '<div class="gnk-pop-foot" style="padding:0 32px 32px 32px;display:flex;gap:12px;background:none;border:none">',
+        '<button class="gnk-btn-c" style="flex:1;height:48px;border-radius:14px;font-weight:600;font-size:12.5px;border:1px solid #EBEBEB;background:#fff;color:#6b6560;cursor:pointer" onclick="gnkClose(\'doctype\')">ยกเลิก</button>',
+        '<button class="gnk-btn-p" id="dt-save-btn" data-action="saveDocType" style="flex:1.8;height:48px;border-radius:14px;font-weight:700;font-size:12.5px;background:#E83A00;color:#fff;display:flex;align-items:center;justify-content:center;gap:8px;border:none;cursor:pointer;box-shadow:0 8px 16px -4px rgba(232, 58, 0, 0.4)">',
+          _OKSVG+(isEdit?'บันทึกการแก้ไข':'เพิ่มประเภทเอกสาร') + 
+        '</button>',
       '</div>',
     '</div>'
   ].join('');
+
   _gnkOpen('doctype',box);
   setTimeout(function(){_renderDtFieldsList();},50);
 }

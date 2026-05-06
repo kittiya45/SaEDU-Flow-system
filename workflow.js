@@ -6,21 +6,24 @@ function rWfPeople(){
     var nm=u?esc(u.full_name):(s.step_name||'—');
     var roleLabel=RTH[s.role_required]||s.role_required||'—';
     var roleColorCls={'ROLE-SGN':'text-[#16A34A]','ROLE-REV':'text-[#D97706]','ROLE-ADV':'text-[#6A1B9A]','ROLE-CRT':'text-[#2563EB]','ROLE-STF':'text-[#a89e99]'}[s.role_required]||'text-[#a89e99]';
-    return '<div class="flex items-center gap-2.5 px-3 py-2.5 border border-[#EBEBEB] rounded-[10px] mb-2 bg-white">'+
+    var rowBg=s.locked?'border-[#FFD9CC] bg-[#FFFBF9]':'border-[#EBEBEB] bg-white';
+    var lockBadge=s.locked?'<span class="text-[10px] font-semibold text-[#E83A00] ml-1 border border-[#FFD9CC] rounded px-1 py-px">บังคับ</span>':'';
+    var actionBtn=i===0?'<span class="w-7"></span>':
+      s.locked?'<span class="w-7 h-6 flex items-center justify-center text-[#a89e99]" title="ขั้นตอนบังคับ — ลบไม่ได้">'+svg('lock',12)+'</span>':
+      '<button class="btn btn-danger xs btn-icon" data-action="rmWfPerson" data-id="'+i+'" title="ลบ">'+svg('x',12)+'</button>';
+    return '<div class="flex items-center gap-2.5 px-3 py-2.5 border rounded-[10px] mb-2 '+rowBg+'">'+
       '<span class="min-w-[24px] h-6 rounded-full bg-[#E83A00] text-white flex items-center justify-center text-[11px] font-bold shrink-0">'+(i+1)+'</span>'+
       '<div class="flex-1 min-w-0">'+
-        '<div class="text-[13px] font-semibold overflow-hidden text-ellipsis whitespace-nowrap">'+nm+'</div>'+
+        '<div class="text-[13px] font-semibold overflow-hidden text-ellipsis whitespace-nowrap">'+nm+lockBadge+'</div>'+
         '<span class="text-[11px] font-semibold '+roleColorCls+'">'+esc(roleLabel)+'</span>'+
       '</div>'+
-      '<div class="flex items-center gap-[5px] shrink-0">'+
-        (i>0?'<button class="btn btn-danger xs btn-icon" data-action="rmWfPerson" data-id="'+i+'" title="ลบ">'+svg('x',12)+'</button>':'<span class="w-7"></span>')+
-      '</div>'+
+      '<div class="flex items-center gap-[5px] shrink-0">'+actionBtn+'</div>'+
     '</div>'
   }).join('')
 }
 
 function rmWfPerson(i){
-  if(i===0) return; // ผู้จัดทำ (ขั้นตอนแรก) ลบไม่ได้
+  if(i===0||(FS[i]&&FS[i].locked)) return;
   FS.splice(i,1);
   var w=$e('wfwrap'); if(w) w.innerHTML=rWfPeople();
   calcDeadline()
@@ -38,7 +41,10 @@ function addWfPerson(){
   }
   var role=u.role_code||'ROLE-CRT';
   var stepName=RTH[role]||u.full_name;
-  FS.push({step_name:stepName,role_required:role,assigned_to:uid,deadline_days:2});
+  var _lockIdx=-1;
+  for(var _k=0;_k<FS.length;_k++){if(FS[_k].locked){_lockIdx=_k;break;}}
+  if(_lockIdx>=0) FS.splice(_lockIdx,0,{step_name:stepName,role_required:role,assigned_to:uid,deadline_days:2});
+  else FS.push({step_name:stepName,role_required:role,assigned_to:uid,deadline_days:2});
   sel.value='';
   var w=$e('wfwrap'); if(w) w.innerHTML=rWfPeople();
   calcDeadline()
@@ -70,7 +76,13 @@ async function doUp(files){
 
 async function delFF(fid,idx){
   await dd('document_files',fid);
-  var fl=$e('fflist'); if(fl){var items=fl.querySelectorAll('.file-item');if(items[idx])items[idx].remove()}
+  var fl=$e('fflist');
+  if(fl){
+    // ใช้ fid ค้นหาแทน index — ป้องกัน NodeList shift เมื่อลบหลายรายการ
+    var btn=fl.querySelector('[data-action="delFF"][data-id="'+fid+'"]');
+    var item=btn&&btn.closest('.file-item');
+    if(item) item.remove();
+  }
 }
 
 

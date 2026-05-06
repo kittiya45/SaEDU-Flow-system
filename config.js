@@ -13,6 +13,7 @@ async function dd(t,id){
   var r=await fetch(SU+'/rest/v1/'+t+'?id=eq.'+id,{method:'DELETE',headers:{apikey:SK,'Authorization':'Bearer '+SK}});
   if(!r.ok){var e=await r.json().catch(function(){return{}});throw new Error(e.message||String(r.status))}
 }
+function safeId(id){return encodeURIComponent(String(id||''))}
 async function upFile(path,file){
   var r=await fetch(SU+'/storage/v1/object/documents/'+encodeURIComponent(path),{method:'POST',headers:{apikey:SK,'Authorization':'Bearer '+SK,'x-upsert':'true'},body:file});
   return r.json()
@@ -22,16 +23,64 @@ function furl(p){return SU+'/storage/v1/object/public/documents/'+encodeURICompo
 /* ─── CONSTANTS ─── */
 var DTYPES={incoming:'หนังสือขาเข้า',outgoing:'หนังสือขาออก',certificate:'หนังสือรับรอง',memo:'บันทึกข้อความ'};
 var URG={normal:'ปกติ',urgent:'เร่งด่วน',very_urgent:'ด่วนมาก'};
-var STTH={draft:'ร่างเอกสาร',pending:'รอลงนาม',signed:'ลงนามแล้ว',rejected:'ส่งคืนแก้ไข',completed:'เสร็จสิ้น'};
+var LETTER_TYPES=['ขออนุมัติ','ขออนุเคราะห์','เบิกเงินรองจ่าย','เบิกเงินค่าใช้จ่าย','ขอคืนเงินสํารองจ่าย','ขอติดประกาศ','ขอเชิญประชุม','แจ้งให้ทราบ/แต่งตั้ง','จดหมายอื่น ๆ'];
+var SENDER_POS=[
+  {name:'หัวหน้านิสิต',code:'01',isClub:false},
+  {name:'ชมรมต้นกล้าคณิตศาสตร์',code:'01',isClub:true},
+  {name:'รองหัวหน้านิสิตคนที่ 1',code:'02',isClub:false},
+  {name:'ชมรมคิดแบบนักวิทย์',code:'02',isClub:true},
+  {name:'รองหัวหน้านิสิตคนที่ 2',code:'03',isClub:false},
+  {name:'ชมรมพลเมืองพลัส',code:'03',isClub:true},
+  {name:'เลขานุการ',code:'04',isClub:false},
+  {name:'ชมรมภาษาและวัฒนธรรมไทย',code:'04',isClub:true},
+  {name:'เหรัญญิก',code:'05',isClub:false},
+  {name:'ชมรมอิงคลิศวิชชหรรษา',code:'05',isClub:true},
+  {name:'ฝ่ายวิชาการ',code:'06',isClub:false},
+  {name:'ชมรมโต้วาที',code:'06',isClub:true},
+  {name:'ฝ่ายนิสิตสัมพันธ์',code:'07',isClub:false},
+  {name:'ชมรมกิจกรรมและสันทนาการ',code:'07',isClub:true},
+  {name:'ฝ่ายกีฬา',code:'08',isClub:false},
+  {name:'ชมรมวอลเลย์บอล',code:'08',isClub:true},
+  {name:'ฝ่ายศิลปะและวัฒนธรรม',code:'09',isClub:false},
+  {name:'ชมรมแบดมินตัน',code:'09',isClub:true},
+  {name:'ฝ่ายพัฒนาสังคมและบำเพ็ญประโยชน์',code:'10',isClub:false},
+  {name:'ชมรมครุศาสตร์นานาศิลป์และศิลปะเพื่อการศึกษาร่วมสมัย',code:'10',isClub:true},
+  {name:'หัวหน้าชั้นปีที่ 1',code:'11',isClub:false},
+  {name:'ชมรมศิลปะการแสดง',code:'11',isClub:true},
+  {name:'หัวหน้าชั้นปีที่ 2',code:'12',isClub:false},
+  {name:'ชมรมสื่อสร้างสรรค์',code:'12',isClub:true},
+  {name:'หัวหน้าชั้นปีที่ 3',code:'13',isClub:false},
+  {name:'ชมรมครุศาสตร์นาฎยสโมสร',code:'13',isClub:true},
+  {name:'หัวหน้าชั้นปีที่ 4',code:'14',isClub:false},
+  {name:'ชมรมดนตรีสากล คณะครุศาสตร์ จุฬาฯ',code:'14',isClub:true},
+  {name:'แผนกทะเบียนและประเมินผล',code:'15',isClub:false},
+  {name:'ชมรมครุศิลป์สู่สังคม',code:'15',isClub:true},
+  {name:'แผนกสวัสดิการและพยาบาล',code:'16',isClub:false},
+  {name:'แผนกหาทุน',code:'17',isClub:false},
+  {name:'แผนกสถานที่',code:'18',isClub:false},
+  {name:'แผนกโสตทัศนูปกรณ์',code:'19',isClub:false},
+  {name:'แผนกพัสดุ',code:'20',isClub:false},
+  {name:'แผนกสื่อประชาสัมพันธ์',code:'22',isClub:false},
+  {name:'แผนกถ่ายภาพ',code:'23',isClub:false},
+  {name:'แผนกศิลป์และออกแบบ',code:'24',isClub:false}
+];
+var STTH={draft:'ร่างเอกสาร',pending:'รอลงนาม',signed:'ลงนามแล้ว',rejected:'ส่งคืนแก้ไข',numbering:'รอออกเลขหนังสือ',completed:'เสร็จสิ้น'};
 var RTH={'ROLE-SYS':'ผู้ดูแลระบบ','ROLE-SGN':'ผู้ลงนาม','ROLE-REV':'ผู้ตรวจทาน','ROLE-CRT':'ผู้จัดทำ','ROLE-STF':'เจ้าหน้าที่','ROLE-ADV':'อาจารย์กิจการ'};
-var POSS=['GNK-PRE','GNK-VPR','GNK-ACA','GNK-STR','GNK-SPT','GNK-SDV','GNK-SUP','GNK-REG','GNK-TRS','GNK-COM','GNK-SEC'];
-var PTH={'GNK-PRE':'หัวหน้านิสิต (President)','GNK-VPR':'รองหัวหน้านิสิต (VP)','GNK-ACA':'ประธานฝ่ายวิชาการ','GNK-STR':'ประธานฝ่ายนิสิตสัมพันธ์','GNK-SPT':'ประธานฝ่ายกีฬา','GNK-SDV':'ประธานฝ่ายพัฒนาสังคมฯ','GNK-SUP':'ฝ่ายพัสดุ','GNK-REG':'ฝ่ายทะเบียน','GNK-TRS':'ฝ่ายเหรัญญิก','GNK-COM':'ฝ่ายสื่อสารองค์กร','GNK-SEC':'เลขานุการ (Secretary)'};
-var PR={'GNK-PRE':'ROLE-SGN','GNK-VPR':'ROLE-SGN','GNK-ACA':'ROLE-REV','GNK-STR':'ROLE-REV','GNK-SPT':'ROLE-REV','GNK-SDV':'ROLE-REV','GNK-SUP':'ROLE-CRT','GNK-REG':'ROLE-CRT','GNK-TRS':'ROLE-CRT','GNK-COM':'ROLE-CRT','GNK-SEC':'ROLE-CRT'};
+var POSS=['GNK-PRE','GNK-VPR','GNK-VPR2','GNK-SEC','GNK-TRS','GNK-ACA','GNK-STR','GNK-SPT','GNK-ART','GNK-SDV','GNK-YR4','GNK-YR3','GNK-YR2','GNK-YR1','GNK-WEL','GNK-CER','GNK-REG','GNK-FAC','GNK-AVT','GNK-SUP','GNK-COM','GNK-PHO','GNK-DES','GNK-IT','GNK-FND'];
+var PTH={'GNK-PRE':'หัวหน้านิสิต','GNK-VPR':'รองหัวหน้านิสิตคนที่ 1','GNK-VPR2':'รองหัวหน้านิสิตคนที่ 2','GNK-SEC':'เลขานุการ','GNK-TRS':'เหรัญญิก','GNK-ACA':'ฝ่ายวิชาการ','GNK-STR':'ฝ่ายนิสิตสัมพันธ์','GNK-SPT':'ฝ่ายกีฬา','GNK-ART':'ฝ่ายศิลปะและวัฒนธรรม','GNK-SDV':'ฝ่ายพัฒนาสังคมและบำเพ็ญประโยชน์','GNK-YR4':'หัวหน้านิสิตชั้นปีที่ 4','GNK-YR3':'หัวหน้านิสิตชั้นปีที่ 3','GNK-YR2':'หัวหน้านิสิตชั้นปีที่ 2','GNK-YR1':'หัวหน้านิสิตชั้นปีที่ 1','GNK-WEL':'สวัสดิการและพยาบาล','GNK-CER':'ปฏิคมและพิธีการ','GNK-REG':'ทะเบียนและประเมินผล','GNK-FAC':'สถานที่','GNK-AVT':'โสตทัศนูปกรณ์','GNK-SUP':'พัสดุ','GNK-COM':'สื่อและประชาสัมพันธ์','GNK-PHO':'ถ่ายภาพ','GNK-DES':'ศิลป์และออกแบบ','GNK-IT':'เทคโนโลยีและสารสนเทศ','GNK-FND':'หาทุน'};
+var PR={'GNK-PRE':'ROLE-SGN','GNK-VPR':'ROLE-CRT','GNK-VPR2':'ROLE-CRT','GNK-SEC':'ROLE-CRT','GNK-TRS':'ROLE-CRT','GNK-ACA':'ROLE-CRT','GNK-STR':'ROLE-CRT','GNK-SPT':'ROLE-CRT','GNK-ART':'ROLE-CRT','GNK-SDV':'ROLE-CRT','GNK-YR4':'ROLE-CRT','GNK-YR3':'ROLE-CRT','GNK-YR2':'ROLE-CRT','GNK-YR1':'ROLE-CRT','GNK-WEL':'ROLE-CRT','GNK-CER':'ROLE-CRT','GNK-REG':'ROLE-CRT','GNK-FAC':'ROLE-CRT','GNK-AVT':'ROLE-CRT','GNK-SUP':'ROLE-CRT','GNK-COM':'ROLE-CRT','GNK-PHO':'ROLE-CRT','GNK-DES':'ROLE-CRT','GNK-IT':'ROLE-CRT','GNK-FND':'ROLE-CRT'};
+/* เลขรหัสตำแหน่ง (หลักที่ 2-3) สำหรับออกเลขหนังสือขาออก */
+var GNK_NUM={'GNK-PRE':'01','GNK-VPR':'02','GNK-VPR2':'03','GNK-SEC':'04','GNK-TRS':'05','GNK-ACA':'06','GNK-STR':'07','GNK-SPT':'08','GNK-ART':'09','GNK-SDV':'10','GNK-YR4':'12','GNK-YR3':'13','GNK-YR2':'14','GNK-YR1':'15','GNK-WEL':'16','GNK-CER':'17','GNK-REG':'18','GNK-FAC':'19','GNK-AVT':'20','GNK-SUP':'21','GNK-COM':'22','GNK-PHO':'23','GNK-DES':'24','GNK-IT':'25','GNK-FND':'26'};
+/* ประเภทจดหมายขาออก (หลักที่ 4) index 1-9 */
+var OUT_LTYPES=['','ขออนุมัติ','ขอความอนุเคราะห์','เบิกเงินรองจ่าย','เบิกเงินค่าใช้จ่าย','ขอคืนเงินสำรองจ่าย','ขอติดประกาศ','เชิญประชุม','แจ้งให้ทราบ / แต่งตั้ง','จดหมายอื่น ๆ'];
+/* ชมรม (หลักที่ 8-9) */
+var CLUBS={'01':'ชมรมต้นกล้าคณิตศาสตร์','03':'ชมรมพลเมืองพลัส','04':'ชมรมภาษาและวัฒนธรรมไทย','05':'ชมรมอิงคลิศวิชชหรรษา','07':'ชมรมเชียร์และสันทนาการ','13':'ชมรมครุศาสตร์นานาศิลป์และศิลปะเพื่อการศึกษาร่วมสมัย','16':'ชมรมศิลปะการแสดง','17':'ชมรมครุศิลป์สู่สังคม','19':'ชมรมเพื่อเด็ก สตรี และสิทธิมนุษยชน','21':'ชมรมโต้วาที','23':'ชมรมดนตรีสากล คณะครุศาสตร์ จุฬาลงกรณ์มหาวิทยาลัย','24':'ชมรมสื่อสร้างสรรค์','25':'ชมรมวอลเลย์บอล','26':'ชมรมแบดมินตัน'};
+/* ภาคการศึกษา (หลักที่ 1) */
+var SEMS={'1':'ภาคการศึกษาต้น','2':'ภาคการศึกษาปลาย'};
 var UTH={gnk:'กนค.',advisor:'อาจารย์',staff:'เจ้าหน้าที่',admin:'ผู้ดูแลระบบ'};
+var _canAnyRole=function(r){return['ROLE-SYS','ROLE-SGN','ROLE-REV','ROLE-CRT','ROLE-STF','ROLE-ADV'].includes(r)};
 var CAN={
-  up:function(r){return['ROLE-SYS','ROLE-SGN','ROLE-REV','ROLE-CRT','ROLE-STF','ROLE-ADV'].includes(r)},
-  cr:function(r){return['ROLE-SYS','ROLE-SGN','ROLE-REV','ROLE-CRT','ROLE-STF','ROLE-ADV'].includes(r)},
-  ed:function(r){return['ROLE-SYS','ROLE-SGN','ROLE-REV','ROLE-CRT','ROLE-STF','ROLE-ADV'].includes(r)},
+  up:_canAnyRole,cr:_canAnyRole,ed:_canAnyRole,
   sg:function(r){return['ROLE-SGN','ROLE-ADV','ROLE-SYS'].includes(r)},
   rv:function(r){return['ROLE-REV','ROLE-SGN','ROLE-ADV','ROLE-SYS'].includes(r)}
 };

@@ -33,7 +33,10 @@ async function vStat(){
   var recentIds=recent.map(function(d){return d.id});
   var allFiles=[];
   if(recentIds.length){
-    try{ allFiles=await dg('document_files','?document_id=in.('+recentIds.join(',')+')'+'&select=id,document_id,file_name,file_path'); }catch(e){}
+    try{
+      var _fr=await dg('document_files','?document_id=in.('+recentIds.join(',')+')'+'&select=id,document_id,file_name,file_path,version&order=version.desc,uploaded_at.desc');
+      if(Array.isArray(_fr)) allFiles=_fr;
+    }catch(e){}
   }
   var fileMap={};
   allFiles.forEach(function(f){
@@ -171,87 +174,113 @@ async function vStat(){
   /* ══ ROW 3 — 2 cols equal height: recent docs | status ══ */
   html.push('<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">');
 
-  /* inject download-all helper (runs once per render) */
-  html.push(
-    '<script>window._sfm='+JSON.stringify(fileMap)+';'+
-    'function _sdl(docId){'+
-      'var fs=window._sfm[docId]||[];'+
-      'if(!fs.length){alert("ไม่มีไฟล์แนบในเอกสารนี้");return}'+
-      'fs.forEach(function(f,i){'+
-        'setTimeout(function(){'+
-          'var a=document.createElement("a");'+
-          'a.href=f.url;a.download=f.name||"file";a.target="_blank";'+
-          'document.body.appendChild(a);a.click();document.body.removeChild(a);'+
-        '},i*400)'+
-      ')'+
-    '}<\/script>'
-  );
-
   /* ── เอกสารล่าสุด ── */
-  /* pre-build fileMap with resolved urls for script injection */
+  /* pre-build fileMap with resolved urls and expose globally */
   var fmForScript={};
   Object.keys(fileMap).forEach(function(docId){
     fmForScript[docId]=fileMap[docId].map(function(f){
       return {url:furl(f.file_path),name:f.file_name};
     });
   });
-  /* re-inject with resolved urls */
-  html[html.length-1]=
-    '<script>window._sfm='+JSON.stringify(fmForScript)+';'+
-    'function _sdl(docId){'+
-      'var fs=window._sfm[docId]||[];'+
-      'if(!fs.length){alert("ไม่มีไฟล์แนบในเอกสารนี้");return}'+
-      'fs.forEach(function(f,i){'+
-        'setTimeout(function(){'+
-          'var a=document.createElement("a");'+
-          'a.href=f.url;a.download=f.name||"file";a.target="_blank";'+
-          'document.body.appendChild(a);a.click();document.body.removeChild(a);'+
-        '},i*400)'+
-      ')'+
-    '}<\/script>';
+  /* set directly on window — script tags injected via innerHTML do not execute */
+  window._sfm=fmForScript;
+  window._sdl=function(docId){
+    var fs=window._sfm[docId]||[];
+    if(!fs.length){alert('ไม่มีไฟล์แนบในเอกสารนี้');return;}
+    var f=fs[0];
+    var a=document.createElement('a');
+    a.href=f.url;a.download=f.name||'file';a.target='_blank';
+    document.body.appendChild(a);a.click();document.body.removeChild(a);
+  };
 
-  /* ROW HEIGHT: each row ~48px × 5 rows = 240px visible, then scroll */
-  html.push('<div style="'+CS+'">'+
-    cardHead('เอกสารล่าสุด','เรียงตามแก้ไขล่าสุด — แสดง '+recent.length+' รายการ')
+/* แสดงแค่ 5 รายการล่าสุด */
+var recentLimited = recent.slice(0,5);
+
+html.push('<div style="'+CS+'">'+
+  cardHead('เอกสารล่าสุด','เรียงตามแก้ไขล่าสุด — แสดง '+recentLimited.length+' รายการ')
+);
+
+if(!recentLimited.length){
+
+  html.push(
+    '<div style="flex:1;display:flex;align-items:center;justify-content:center;padding:32px;color:#a89e99;font-size:12px">'+
+      'ยังไม่มีเอกสาร'+
+    '</div>'
   );
-  if(!recent.length){
-    html.push('<div style="flex:1;display:flex;align-items:center;justify-content:center;padding:32px;color:#a89e99;font-size:12px">ยังไม่มีเอกสาร</div>');
-  } else {
-    /* column headers */
+
+} else {
+
+  /* column headers */
+  html.push(
+    '<div style="display:grid;grid-template-columns:112px 1fr auto auto auto;gap:8px;padding:7px 18px;border-bottom:1px solid #F5F3F0;flex-shrink:0">'+
+      ['เลขที่','ชื่อเอกสาร','สถานะ','',''].map(function(h){
+        return '<div style="font-size:9px;font-weight:700;color:#c0bab4;text-transform:uppercase;letter-spacing:.5px">'+h+'</div>';
+      }).join('')+
+    '</div>'
+  );
+
+  /* rows */
+  recentLimited.forEach(function(d,i){
+
+    var fls = fmForScript[d.id] || [];
+    var hasFls = fls.length > 0;
+    var firstFile = hasFls ? fls[0] : null;
+
     html.push(
-      '<div style="display:grid;grid-template-columns:112px 1fr auto auto auto;gap:8px;padding:7px 18px;border-bottom:1px solid #F5F3F0;flex-shrink:0">'+
-        ['เลขที่','ชื่อเอกสาร','สถานะ','',''].map(function(h){
-          return '<div style="font-size:9px;font-weight:700;color:#c0bab4;text-transform:uppercase;letter-spacing:.5px">'+h+'</div>';
-        }).join('')+
+
+      '<div style="display:grid;grid-template-columns:112px 1fr auto auto auto;gap:8px;padding:10px 18px;align-items:center;cursor:default'+
+      (i>0 ? ';border-top:1px solid #F9F8F7' : '')+
+      '" onmouseover="this.style.background=\'#FDFBF9\'" onmouseout="this.style.background=\'\'">'+
+
+        /* document number */
+        '<div style="font-size:10px;font-family:\'IBM Plex Mono\',monospace;color:#a89e99;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+
+          esc(d.doc_number || '—')+
+        '</div>'+
+
+        /* title */
+        '<div style="font-size:12px;font-weight:600;color:#18120E;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+
+          esc(d.title)+
+        '</div>'+
+
+        /* status */
+        '<div style="flex-shrink:0">'+
+          sBadge(d.status)+
+        '</div>'+
+
+        /* preview */
+        (
+          hasFls
+          ? '<button data-action="openViewer" data-url="'+firstFile.url+'" data-name="'+esc(firstFile.name)+'" title="พรีวิวเอกสาร" '+
+              'style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:8px;border:2px solid #3b82f6;background:#eff6ff;color:#3b82f6;cursor:pointer">'+
+                svg('eye',12)+
+            '</button>'
+          : '<div style="width:28px"></div>'
+        )+
+
+        /* download */
+        '<button onclick="_sdl(\''+d.id+'\')" title="'+
+          (hasFls ? 'ดาวน์โหลดไฟล์ทั้งหมด' : 'ไม่มีไฟล์แนบ')+
+          '" style="display:inline-flex;align-items:center;gap:4px;padding:4px 9px;border-radius:7px;border:1.5px solid '+
+          (hasFls ? '#E83A00' : '#EBEBEB')+
+          ';background:'+
+          (hasFls ? '#fff5f0' : '#F9F9F9')+
+          ';color:'+
+          (hasFls ? '#E83A00' : '#c0bab4')+
+          ';font-size:10px;font-weight:700;cursor:'+
+          (hasFls ? 'pointer' : 'default')+
+          ';white-space:nowrap">'+
+            svg('dn',11)+
+            (hasFls ? ' ดาวน์โหลด' : ' ไม่มีไฟล์')+
+        '</button>'+
+
       '</div>'
     );
-    /* scrollable rows — 5 rows visible (~240px), rest scrollable */
-    html.push('<div style="overflow-y:auto;max-height:240px;flex:1">');
-    recent.forEach(function(d,i){
-      var hasFls=(fileMap[d.id]||[]).length>0;
-      html.push(
-        '<div style="display:grid;grid-template-columns:112px 1fr auto auto auto;gap:8px;padding:10px 18px;align-items:center;cursor:default'+(i>0?';border-top:1px solid #F9F8F7':'')+'" '+
-        'onmouseover="this.style.background=\'#FDFBF9\'" onmouseout="this.style.background=\'\'">'+
-          '<div style="font-size:10px;font-family:\'IBM Plex Mono\',monospace;color:#a89e99;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(d.doc_number||'—')+'</div>'+
-          '<div style="font-size:12px;font-weight:600;color:#18120E;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(d.title)+'</div>'+
-          '<div style="flex-shrink:0">'+sBadge(d.status)+'</div>'+
-          /* download-all button */
-          '<button onclick="_sdl(\''+d.id+'\')" title="'+(hasFls?'ดาวน์โหลดไฟล์ทั้งหมด':'ไม่มีไฟล์แนบ')+'" '+
-            'style="display:inline-flex;align-items:center;gap:4px;padding:4px 9px;border-radius:7px;border:1.5px solid '+(hasFls?'#E83A00':'#EBEBEB')+';background:'+(hasFls?'#fff5f0':'#F9F9F9')+';color:'+(hasFls?'#E83A00':'#c0bab4')+';font-size:10px;font-weight:700;cursor:'+(hasFls?'pointer':'default')+';white-space:nowrap">'+
-            svg('dn',11)+(hasFls?' ดาวน์โหลด':' ไม่มีไฟล์')+
-          '</button>'+
-          /* view detail */
-          '<button onclick="nav(\'det\',\''+d.id+'\')" title="ดูรายละเอียด" '+
-            'style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:7px;border:1.5px solid #EBEBEB;background:#fff;color:#6b6560;cursor:pointer">'+
-            svg('eye',12)+
-          '</button>'+
-        '</div>'
-      );
-    });
-    html.push('</div>'); /* scrollable */
-  }
-  html.push('</div>'); /* recent docs card */
 
+  });
+
+}
+
+html.push('</div>');
   /* ── ภาพรวมสถานะ ── */
   var statusRows=[
     {l:'รอลงนาม',     v:byStatus.pending,   c:'#F59E0B'},

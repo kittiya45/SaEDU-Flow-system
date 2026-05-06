@@ -1,3 +1,35 @@
+/* ─── SESSION MANAGEMENT ─── */
+var _loginAttempts=+(localStorage.getItem('_la')||0);
+var _loginLockedUntil=+(localStorage.getItem('_llu')||0);
+function _actHandler(){_lastAct=Date.now()}
+function _startSessionTimer(){
+  _lastAct=Date.now();
+  document.removeEventListener('click',_actHandler,true);
+  document.removeEventListener('keydown',_actHandler,true);
+  document.addEventListener('click',_actHandler,true);
+  document.addEventListener('keydown',_actHandler,true);
+  if(_sesTmr)clearInterval(_sesTmr);
+  _sesTmr=setInterval(function(){
+    if(CU&&Date.now()-_lastAct>30*60*1000){
+      try{dp('document_history',{action:'session_timeout',performed_by:CU.id,note:'Session หมดอายุอัตโนมัติ'});}catch(e){}
+      _cleanupSession();
+      showAuth();
+      alert('Session หมดอายุ กรุณาเข้าสู่ระบบใหม่');
+    }
+  },60000);
+}
+function _cleanupSession(){
+  if(_sesTmr){clearInterval(_sesTmr);_sesTmr=null;}
+  document.removeEventListener('click',_actHandler,true);
+  document.removeEventListener('keydown',_actHandler,true);
+  CU=null;
+}
+function doLogout(){
+  if(CU){try{dp('document_history',{action:'logout',performed_by:CU.id,note:'ออกจากระบบ'});}catch(e){}}
+  _cleanupSession();
+  showAuth();
+}
+
 /* ─── AUTH ─── */
 function showAuth(){
   var loginB = [
@@ -59,8 +91,12 @@ function chkSid(){
 }
 
 async function doLogin(){
-  var u=gv('lu').trim(), p=gv('lp'), a=$e('lal'); if(!a)return;
+  var u=gv('lu').trim(),p=gv('lp'),a=$e('lal');if(!a)return;
   if(!u||!p){a.innerHTML=alrtH('er','กรุณากรอกข้อมูลให้ครบ');return}
+  if(Date.now()<_loginLockedUntil){
+    var secs=Math.ceil((_loginLockedUntil-Date.now())/1000);
+    a.innerHTML=alrtH('er','โปรดรอ '+secs+' วินาทีก่อนลองใหม่');return
+  }
   a.innerHTML='<div class="al al-in"><span class="sp sp-dark"></span><span> กำลังตรวจสอบ...</span></div>';
   try{
     var row=null;
@@ -79,34 +115,35 @@ async function doLogin(){
       }
     }
     if(row&&await checkPw(p,row.password_hash)){
-      // Auto-upgrade password to PBKDF2 if still SHA-256 or plaintext
       if(!row.password_hash||!row.password_hash.startsWith('pbkdf2$')){
         var _upgraded=await hashPw(p);
         await dpa('users',row.id,{password_hash:_upgraded});
-        row.password_hash=_upgraded;
       }
+      delete row.password_hash; // ไม่เก็บ hash ใน global state
       CU=row;
-      // Audit log: login
+      _loginAttempts=0;
+      localStorage.setItem('_la','0');
+      localStorage.removeItem('_llu');
       try{await dp('document_history',{action:'login',performed_by:CU.id,note:'เข้าสู่ระบบ'});}catch(e){}
-      // Session timeout: 30 minutes of inactivity
-      _lastAct=Date.now();
-      document.addEventListener('click',function(){_lastAct=Date.now();},true);
-      document.addEventListener('keydown',function(){_lastAct=Date.now();},true);
-      if(_sesTmr) clearInterval(_sesTmr);
-      _sesTmr=setInterval(function(){
-        if(CU&&Date.now()-_lastAct>30*60*1000){
-          clearInterval(_sesTmr);_sesTmr=null;
-          try{dp('document_history',{action:'session_timeout',performed_by:CU.id,note:'Session หมดอายุอัตโนมัติ'});}catch(e){}
-          CU=null; showAuth();
-          alert('Session หมดอายุ กรุณาเข้าสู่ระบบใหม่');
-        }
-      },60000);
+      _startSessionTimer();
       await loadDocTypes();
       await nav('dash');
       try{await sendOverdueNotifs();}catch(e){console.warn('Overdue check failed:',e)} return
     }
-    a.innerHTML=alrtH('er','ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง')
-  } catch(e){a.innerHTML=alrtH('er','เกิดข้อผิดพลาด กรุณาลองใหม่')}
+    _loginAttempts++;
+    localStorage.setItem('_la',_loginAttempts);
+    if(_loginAttempts>=5){
+      _loginLockedUntil=Date.now()+15*60*1000;_loginAttempts=0;
+      localStorage.setItem('_llu',_loginLockedUntil);
+      localStorage.setItem('_la','0');
+      a.innerHTML=alrtH('er','พยายามเข้าสู่ระบบผิดพลาดหลายครั้งเกินไป กรุณารอ 15 นาที');
+    } else {
+      a.innerHTML=alrtH('er','ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง');
+    }
+  }catch(e){
+    console.error('doLogin:',e);
+    a.innerHTML=alrtH('er','เกิดข้อผิดพลาด กรุณาลองใหม่')
+  }
 }
 
 function showPend(){
@@ -115,14 +152,14 @@ function showPend(){
 
 async function doRegG(){
   var fn=gv('gfn'),ln=gv('gln'),sid=gv('gsid'),pos=gv('gpos'),pw=gv('gpw'),pw2=gv('gpw2'),gemail=gv('gemail').trim();
-  var a=$e('lal'); if(!a)return;
+  var a=$e('reg-alert'); if(!a)return;
   if(!fn||!ln||!sid||!pos||!pw||!gemail){a.innerHTML=alrtH('er','กรุณากรอกข้อมูลให้ครบทุกช่อง');return}
   if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(gemail)){a.innerHTML=alrtH('er','รูปแบบอีเมลไม่ถูกต้อง');return}
   if(!/^\d{10}$/.test(sid)||sid.slice(-2)!=='27'){a.innerHTML=alrtH('er','รหัสนิสิตไม่ถูกต้อง (10 หลัก ลงท้ายด้วย 27)');return}
   if(pw.length<6){a.innerHTML=alrtH('er','รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร');return}
   if(pw!==pw2){a.innerHTML=alrtH('er','รหัสผ่านทั้งสองช่องไม่ตรงกัน');return}
   a.innerHTML='<div class="al al-in"><span class="sp sp-dark"></span><span> กำลังบันทึก...</span></div>';
-  var ex=await dg('users','?student_id=eq.'+sid);
+  var ex=await dg('users','?student_id=eq.'+encodeURIComponent(sid));
   if(ex&&ex.length){a.innerHTML=alrtH('er','รหัสนิสิตนี้มีการสมัครแล้ว');return}
   var pwHash=await hashPw(pw);
   await dp('users',{email:gemail,full_name:fn+' '+ln,student_id:sid,position_code:pos,role_code:PR[pos]||'ROLE-CRT',department:'กนค.',user_type:'gnk',approval_status:'pending',password_hash:pwHash,is_active:false,contact_email:gemail});
@@ -132,7 +169,7 @@ async function doRegG(){
 
 async function doRegS(){
   var nm=gv('snm'),tp=gv('stp')||'advisor',em=gv('sem'),dp2=gv('sdp'),pw=gv('spw'),pw2=gv('spw2');
-  var a=$e('lal'); if(!a)return;
+  var a=$e('reg-alert'); if(!a)return;
   if(!nm||!em||!pw){a.innerHTML=alrtH('er','กรุณากรอกข้อมูลให้ครบ');return}
   if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)){a.innerHTML=alrtH('er','รูปแบบอีเมลไม่ถูกต้อง');return}
   if(pw.length<6){a.innerHTML=alrtH('er','รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร');return}
@@ -162,7 +199,7 @@ function showRegGnkPopup(){
       '' +
       '<div class="p-6 border-b border-gray-100 flex items-center justify-between">' +
         '<div>' +
-          '<div class="text-xl font-bold text-gray-800">สมัครสมาชิก กนค.</div>' +
+          '<div class="text-xl font-bold text-gray-800 text-red-600">สมัครสมาชิก กนค.</div>' +
           '<div class="text-sm text-gray-500 mt-0.5">ต้องรอ Admin อนุมัติก่อนเข้าใช้งาน</div>' +
         '</div>' +
         '<button class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors text-gray-400" data-action="closeRegPopup">' +
@@ -172,8 +209,8 @@ function showRegGnkPopup(){
       
       '' +
       '<div class="p-6 max-h-[70vh] overflow-y-auto">' +
-        '<div id="lal"></div>' +
-        
+        '<div id="reg-alert"></div>' +
+
         '<div class="grid grid-cols-2 gap-4 mb-4">' +
           '<div><label class="block text-sm font-medium text-gray-700 mb-1">ชื่อ <span class="text-red-500">*</span></label>' +
           '<input id="gfn" class="fi w-full px-4 py-2 rounded-lg border border-gray-200 outline-none focus:border-orange-500" placeholder="ชื่อ"></div>' +
@@ -214,36 +251,76 @@ function showRegGnkPopup(){
 }
 
 
-function showRegStaffPopup(){
-  if(document.getElementById('regpopup')) return;
-  var el=document.createElement('div');
-  el.id='regpopup'; el.className='cpopup-overlay';
-  el.innerHTML=
-    '<div class="cpopup-box max-w-[480px]">'+
-      '<div class="cpopup-head">'+
-        '<div class="flex-1"><div class="cpopup-head-title">สมัครสมาชิก อาจารย์ / เจ้าหน้าที่</div>'+
-        '<div class="cpopup-head-sub">ต้องรอ Admin อนุมัติก่อนเข้าใช้งาน</div></div>'+
-        '<button class="cpopup-close" data-action="closeRegPopup">'+svg('x',14)+'</button>'+
-      '</div>'+
-      '<div class="cpopup-body">'+
-        '<div id="lal"></div>'+
-        '<div class="fr">'+
-        '<div class="fg"><label class="fl">ชื่อ-นามสกุล <span class="req">*</span></label><input id="snm" class="fi" placeholder="ชื่อ นามสกุล"></div>'+
-        '<div class="fg"><label class="fl">ประเภท <span class="req">*</span></label><select id="stp" class="fi"><option value="advisor">อาจารย์กิจการนิสิต</option><option value="staff">เจ้าหน้ากิจการ</option></select></div>'+
-        '</div>'+
-        '<div class="fg"><label class="fl">อีเมล <span class="req">*</span></label><input id="sem" class="fi" type="email" placeholder="email@university.ac.th"></div>'+
-        '<div class="fg"><label class="fl">ฝ่าย / หน่วยงาน</label><input id="sdp" class="fi" placeholder="เช่น สำนักกิจการนิสิต"></div>'+
-        '<div class="fr">'+
-        '<div class="fg"><label class="fl">รหัสผ่าน <span class="req">*</span></label><input id="spw" class="fi" type="password" placeholder="อย่างน้อย 6 ตัว"></div>'+
-        '<div class="fg"><label class="fl">ยืนยันรหัสผ่าน <span class="req">*</span></label><input id="spw2" class="fi" type="password" placeholder="ยืนยัน"></div>'+
-        '</div>'+
-        '<button class="btn btn-primary fw py-[13px]" data-action="regS">สมัครสมาชิก</button>'+
-      '</div>'+
+function showRegStaffPopup() {
+  if (document.getElementById('regpopup')) return;
+  var el = document.createElement('div');
+  el.id = 'regpopup';
+  el.className = 'cpopup-overlay flex items-center justify-center fixed inset-0 z-[1000] bg-black/40 backdrop-blur-sm';
+  
+  el.innerHTML =
+    '<div class="cpopup-box bg-white w-full max-w-[480px] rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">' +
+      /* ── Header ── */
+      '<div class="p-6 border-b border-gray-100 flex items-center justify-between">' +
+        '<div>' +
+          '<div class="text-xl font-bold text-gray-800 text-red-600" >สมัครสมาชิก อาจารย์ / เจ้าหน้าที่</div>' +
+          '<div class="text-sm text-gray-500 mt-0.5">ต้องรอ Admin อนุมัติก่อนเข้าใช้งาน</div>' +
+        '</div>' +
+        '<button class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors text-gray-400" data-action="closeRegPopup">' +
+          svg('x', 14) +
+        '</button>' +
+      '</div>' +
+      
+      /* ── Body ── */
+      '<div class="p-6 max-h-[85vh] overflow-y-auto">' +
+        '<div id="reg-alert"></div>' +
+
+        /* ชื่อ-นามสกุล และ ประเภท */
+        '<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">' +
+          '<div>' +
+            '<label class="block text-sm font-medium text-gray-700 mb-1">ชื่อ-นามสกุล <span class="text-red-500">*</span></label>' +
+            '<input id="snm" class="fi w-full px-4 py-2 rounded-lg border border-gray-200 outline-none focus:border-orange-500" placeholder="ชื่อ นามสกุล">' +
+          '</div>' +
+          '<div>' +
+            '<label class="block text-sm font-medium text-gray-700 mb-1">ประเภท <span class="text-red-500">*</span></label>' +
+            '<select id="stp" class="fi w-full px-4 py-2 rounded-lg border border-gray-200 bg-white outline-none cursor-pointer focus:border-orange-500">' +
+              '<option value="advisor">อาจารย์กิจการนิสิต</option>' +
+              '<option value="staff">เจ้าหน้ากิจการ</option>' +
+            '</select>' +
+          '</div>' +
+        '</div>' +
+
+        /* อีเมล */
+        '<div class="mb-4">' +
+          '<label class="block text-sm font-medium text-gray-700 mb-1">อีเมล <span class="text-red-500">*</span></label>' +
+          '<input id="sem" class="fi w-full px-4 py-2 rounded-lg border border-gray-200 outline-none focus:border-orange-500" type="email" placeholder="email@university.ac.th">' +
+        '</div>' +
+
+        /* ฝ่าย / หน่วยงาน */
+        '<div class="mb-4">' +
+          '<label class="block text-sm font-medium text-gray-700 mb-1">ฝ่าย / หน่วยงาน</label>' +
+          '<input id="sdp" class="fi w-full px-4 py-2 rounded-lg border border-gray-200 outline-none focus:border-orange-500" placeholder="เช่น สำนักกิจการนิสิต">' +
+        '</div>' +
+
+        /* รหัสผ่าน */
+        '<div class="grid grid-cols-2 gap-4 mb-6">' +
+          '<div>' +
+            '<label class="block text-sm font-medium text-gray-700 mb-1">รหัสผ่าน <span class="text-red-500">*</span></label>' +
+            '<input id="spw" class="fi w-full px-4 py-2 rounded-lg border border-gray-200 outline-none focus:border-orange-500" type="password" placeholder="อย่างน้อย 6 ตัว">' +
+          '</div>' +
+          '<div>' +
+            '<label class="block text-sm font-medium text-gray-700 mb-1">ยืนยันรหัสผ่าน <span class="text-red-500">*</span></label>' +
+            '<input id="spw2" class="fi w-full px-4 py-2 rounded-lg border border-gray-200 outline-none focus:border-orange-500" type="password" placeholder="ยืนยัน">' +
+          '</div>' +
+        '</div>' +
+
+        /* ปุ่มกด */
+        '<button class="btn btn-primary fw py-[13px] w-full shadow-lg shadow-orange-200 active:scale-[0.98] transition-transform" data-action="regS">สมัครสมาชิก</button>' +
+      '</div>' +
     '</div>';
-  el.addEventListener('click',function(ev){if(ev.target===el) closeRegPopup()});
+
+  el.addEventListener('click', function(ev) { if (ev.target === el) closeRegPopup() });
   document.body.appendChild(el);
 }
-
 function closeRegPopup(){var e=document.getElementById('regpopup');if(e)e.remove()}
 
 function showChangePwPopup(){
@@ -258,7 +335,7 @@ function showChangePwPopup(){
         '<button class="cpopup-close" data-action="closeChangePwPopup">'+svg('x',14)+'</button>'+
       '</div>'+
       '<div class="cpopup-body">'+
-        '<div id="lal"></div>'+
+        '<div id="cpw-alert"></div>'+
         '<div class="al al-in text-xs mb-3.5"><span class="al-icon">'+svg('info',13)+'</span><span>กรอกข้อมูลเพื่อตั้งรหัสผ่านใหม่ โดยต้องทราบรหัสผ่านเดิมก่อน</span></div>'+
         '<div class="fg"><label class="fl">ชื่อผู้ใช้ / รหัสนิสิต / อีเมล <span class="req">*</span></label>'+
         '<input id="cpuser" class="fi" placeholder="กนค.: รหัสนิสิต | อ./จนท.: อีเมล"></div>'+
@@ -280,7 +357,7 @@ function closeChangePwPopup(){var e=document.getElementById('cpopup');if(e)e.rem
 /* ─── CHANGE PASSWORD (จากหน้า Login — ไม่ต้อง Login ก่อน) ─── */
 async function doChangePwLogin(){
   var u=gv('cpuser').trim(), old=gv('cpold'), nw=gv('cpnew'), nw2=gv('cpnew2');
-  var al=$e('lal'); if(!al) return;
+  var al=$e('cpw-alert'); if(!al) return;
   if(!u||!old||!nw||!nw2){al.innerHTML=alrtH('er','กรุณากรอกข้อมูลให้ครบทุกช่อง');return}
   if(nw.length<6){al.innerHTML=alrtH('er','รหัสผ่านใหม่ต้องมีอย่างน้อย 6 ตัวอักษร');return}
   if(nw!==nw2){al.innerHTML=alrtH('er','รหัสผ่านใหม่ทั้งสองช่องไม่ตรงกัน');return}
@@ -295,7 +372,10 @@ async function doChangePwLogin(){
     await dpa('users',row.id,{password_hash:newHash});
     al.innerHTML=alrtH('ok','เปลี่ยนรหัสผ่านสำเร็จ! กรุณาเข้าสู่ระบบด้วยรหัสผ่านใหม่');
     setTimeout(function(){closeChangePwPopup()},1800)
-  }catch(e){al.innerHTML=alrtH('er','เกิดข้อผิดพลาด: '+e.message)}
+  }catch(e){
+    console.error('doChangePwLogin:',e);
+    al.innerHTML=alrtH('er','เกิดข้อผิดพลาด กรุณาลองใหม่')
+  }
 }
 
 /* ─── CHANGE PASSWORD (Modal — ใช้เมื่อ Login แล้ว) ─── */
@@ -323,17 +403,22 @@ async function doChangePw(){
   var old=gv('cpold'), nw=gv('cpnew'), nw2=gv('cpnew2');
   var al=$e('cpwal'); if(!al) return;
   if(!old||!nw||!nw2){al.innerHTML=alrtH('er','กรุณากรอกข้อมูลให้ครบทุกช่อง');return}
-  if(!await checkPw(old,CU.password_hash)){al.innerHTML=alrtH('er','รหัสผ่านปัจจุบันไม่ถูกต้อง');return}
   if(nw.length<6){al.innerHTML=alrtH('er','รหัสผ่านใหม่ต้องมีอย่างน้อย 6 ตัวอักษร');return}
   if(nw!==nw2){al.innerHTML=alrtH('er','รหัสผ่านใหม่ทั้งสองช่องไม่ตรงกัน');return}
-  al.innerHTML='<div class="al al-in"><span class="sp sp-dark"></span><span> กำลังบันทึก...</span></div>';
+  al.innerHTML='<div class="al al-in"><span class="sp sp-dark"></span><span> กำลังตรวจสอบ...</span></div>';
   try{
+    var userRow=await dg('users','?id=eq.'+safeId(CU.id)+'&select=id,password_hash');
+    if(!userRow[0]){al.innerHTML=alrtH('er','เกิดข้อผิดพลาด กรุณาลองใหม่');return}
+    if(!await checkPw(old,userRow[0].password_hash)){al.innerHTML=alrtH('er','รหัสผ่านปัจจุบันไม่ถูกต้อง');return}
+    al.innerHTML='<div class="al al-in"><span class="sp sp-dark"></span><span> กำลังบันทึก...</span></div>';
     var newHash=await hashPw(nw);
     await dpa('users',CU.id,{password_hash:newHash});
-    CU.password_hash=newHash;
     al.innerHTML=alrtH('ok','เปลี่ยนรหัสผ่านสำเร็จแล้ว!');
     setTimeout(function(){var mw=$e('mwrap');if(mw)mw.innerHTML=''},1500)
-  }catch(e){al.innerHTML=alrtH('er','เกิดข้อผิดพลาด: '+e.message)}
+  }catch(e){
+    console.error('doChangePw:',e);
+    al.innerHTML=alrtH('er','เกิดข้อผิดพลาด กรุณาลองใหม่')
+  }
 }
 
 function _togglePwVis(){

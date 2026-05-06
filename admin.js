@@ -41,9 +41,7 @@ async function vAdm(){
   html.push('<div class="grid grid-cols-3 max-[600px]:grid-cols-1 gap-4 mb-5">');
   uCards.forEach(function(c){
     html.push(
-      '<div style="border-radius:16px;padding:16px 18px;background:'+c.grad+';position:relative;overflow:hidden;box-shadow:0 4px 16px '+c.shadow+';cursor:default;transition:transform .18s,box-shadow .18s" '+
-      'onmouseover="this.style.transform=\'translateY(-3px)\';this.style.boxShadow=\'0 10px 28px '+c.shadow+'\'" '+
-      'onmouseout="this.style.transform=\'\';this.style.boxShadow=\'0 4px 16px '+c.shadow+'\'">'+
+      '<div class="adm-stat-card" style="--card-sh-base:0 4px 16px '+c.shadow+';--card-sh-hover:0 10px 28px '+c.shadow+';border-radius:16px;padding:16px 18px;background:'+c.grad+';position:relative;overflow:hidden;cursor:default">'+
       '<div style="position:absolute;right:-16px;bottom:-16px;width:80px;height:80px;border-radius:50%;background:rgba(255,255,255,.1);pointer-events:none"></div>'+
       '<div style="position:absolute;right:20px;top:-20px;width:56px;height:56px;border-radius:50%;background:rgba(255,255,255,.07);pointer-events:none"></div>'+
       '<div style="position:relative;z-index:1">'+
@@ -73,7 +71,7 @@ async function vAdm(){
   }
 
   /* ── Toolbar: search + buttons ── */
-  var _canAddAdv=CU.role_code==='ROLE-SYS';
+  var _canAddAdv=CU.role_code==='ROLE-SYS'||CU.role_code==='ROLE-STF';
   _admTab='all';
   html.push(
     '<div class="flex items-center gap-2.5 mb-3 flex-wrap">'+
@@ -166,32 +164,24 @@ function rAdmTbl(users){
         : '<span class="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-[#DC2626]"><span class="w-1.5 h-1.5 rounded-full bg-[#DC2626] inline-block"></span>ปิดบัญชี</span>';
     }
 
-    var _isStaffOnly=CU.role_code==='ROLE-STF';
-    var _advPending=_isStaffOnly&&u.user_type==='advisor'&&u.approval_status==='pending';
     var dropItems=[];
-    if(!_advPending){
-      if(u.approval_status==='pending'){
-        dropItems.push('<button class="am-item am-ok" data-action="admApv" data-id="'+u.id+'">'+svg('ok',13)+' อนุมัติบัญชี</button>');
-        dropItems.push('<button class="am-item am-danger" data-action="admRej" data-id="'+u.id+'">'+svg('x',13)+' ปฏิเสธบัญชี</button>');
-      } else if(u.approval_status==='approved'){
-        dropItems.push('<button class="am-item" data-action="showEU" data-id="'+u.id+'">'+svg('edit',13)+' แก้ไขข้อมูล</button>');
-        if(u.is_active){
-          dropItems.push('<button class="am-item" data-action="admToggle" data-id="'+u.id+'" data-active="1">'+svg('lock',13)+' ปิดบัญชี</button>');
-        } else {
-          dropItems.push('<button class="am-item am-ok" data-action="admToggle" data-id="'+u.id+'" data-active="0">'+svg('unlock',13)+' เปิดบัญชี</button>');
-        }
-        if(!_isStaffOnly){
-          dropItems.push('<button class="am-item" data-action="admResetPw" data-id="'+u.id+'">'+svg('key',13)+' รีเซ็ตรหัสผ่าน</button>');
-          dropItems.push('<div class="am-divider"></div>');
-          dropItems.push('<button class="am-item am-danger" data-action="admDel" data-id="'+u.id+'">'+svg('trash',13)+' ลบผู้ใช้งาน</button>');
-        }
+    if(u.approval_status==='pending'){
+      dropItems.push('<button class="am-item am-ok" data-action="admApv" data-id="'+u.id+'">'+svg('ok',13)+' อนุมัติบัญชี</button>');
+      dropItems.push('<button class="am-item am-danger" data-action="admRej" data-id="'+u.id+'">'+svg('x',13)+' ปฏิเสธบัญชี</button>');
+    } else if(u.approval_status==='approved'){
+      dropItems.push('<button class="am-item" data-action="showEU" data-id="'+u.id+'">'+svg('edit',13)+' แก้ไขข้อมูล</button>');
+      if(u.is_active){
+        dropItems.push('<button class="am-item" data-action="admToggle" data-id="'+u.id+'" data-active="1">'+svg('lock',13)+' ปิดบัญชี</button>');
       } else {
-        if(!_isStaffOnly) dropItems.push('<button class="am-item am-danger" data-action="admDel" data-id="'+u.id+'">'+svg('trash',13)+' ลบผู้ใช้งาน</button>');
+        dropItems.push('<button class="am-item am-ok" data-action="admToggle" data-id="'+u.id+'" data-active="0">'+svg('unlock',13)+' เปิดบัญชี</button>');
       }
+      dropItems.push('<button class="am-item" data-action="admResetPw" data-id="'+u.id+'">'+svg('key',13)+' รีเซ็ตรหัสผ่าน</button>');
+      dropItems.push('<div class="am-divider"></div>');
+      dropItems.push('<button class="am-item am-danger" data-action="admDel" data-id="'+u.id+'">'+svg('trash',13)+' ลบผู้ใช้งาน</button>');
+    } else {
+      dropItems.push('<button class="am-item am-danger" data-action="admDel" data-id="'+u.id+'">'+svg('trash',13)+' ลบผู้ใช้งาน</button>');
     }
-    var actB=_advPending
-      ? '<span class="text-[11px] text-[#a89e99]">รอ Admin</span>'
-      : dropItems.length
+    var actB=dropItems.length
         ? '<div class="am-wrap"><button class="btn btn-soft xs btn-icon am-trig" onclick="toggleAM(\''+u.id+'\')" title="จัดการ">'+svg('dots',15)+'</button><div class="am-drop" id="amd-'+u.id+'">'+dropItems.join('')+'</div></div>'
         : '<span class="text-[11px] text-[#a89e99]">—</span>';
 
@@ -225,7 +215,6 @@ function rAdmTbl(users){
 
 async function admApv(uid){
   var u=(AUSERS||[]).filter(function(x){return x.id===uid})[0];
-  if(CU.role_code==='ROLE-STF'&&u&&u.user_type==='advisor'){alert('เจ้าหน้าที่ไม่มีสิทธิ์อนุมัติอาจารย์');return}
   if(!confirm('อนุมัติผู้ใช้งานนี้?'))return;
   await dpa('users',uid,{approval_status:'approved',is_active:true,approved_at:new Date().toISOString()});
   try{await dp('document_history',{action:'อนุมัติบัญชีผู้ใช้',performed_by:CU.id,note:'อนุมัติ: '+(u?u.full_name:uid)});}catch(e){}
@@ -233,7 +222,6 @@ async function admApv(uid){
 }
 async function admRej(uid){
   var u=(AUSERS||[]).filter(function(x){return x.id===uid})[0];
-  if(CU.role_code==='ROLE-STF'&&u&&u.user_type==='advisor'){alert('เจ้าหน้าที่ไม่มีสิทธิ์ปฏิเสธอาจารย์');return}
   var r=prompt('ระบุเหตุผลในการปฏิเสธ (ถ้ามี):');if(r===null)return;
   await dpa('users',uid,{approval_status:'rejected',is_active:false,reject_reason:r||''});
   try{await dp('document_history',{action:'ปฏิเสธบัญชีผู้ใช้',performed_by:CU.id,note:'ปฏิเสธ: '+(u?u.full_name:uid)+(r?' — เหตุผล: '+r:'')});}catch(e){}
@@ -388,26 +376,6 @@ async function doAdmChgStatus(docId,status){
   try{await dp('document_history',{document_id:docId,action:'เปลี่ยนสถานะ (Admin)',performed_by:CU.id,note:'บังคับเปลี่ยนสถานะเป็น: '+(STTH[status]||status)});}catch(e){}
   var mw=$e('mwrap');if(mw)mw.innerHTML='';
   nav('det',docId);
-}
-
-function showAddAdvisor(){
-  if(!CU||CU.role_code!=='ROLE-SYS'){alert('เฉพาะผู้ดูแลระบบเท่านั้น');return}
-  var w=$e('mwrap'); if(!w)return;
-  var html=[
-    '<div class="mo"><div class="modal">',
-    '<div class="modal-head"><span class="modal-title">'+svg('plus',14)+' เพิ่มบัญชีอาจารย์</span><button class="btn btn-soft sm btn-icon" data-action="closeModal">'+svg('x',14)+'</button></div>',
-    '<div class="modal-body">',
-    '<div class="fr"><div class="fg"><label class="fl">ชื่อ-นามสกุล <span class="req">*</span></label><input class="fi" id="aa-name" placeholder="เช่น อ.สมชาย ใจดี"></div>',
-    '<div class="fg"><label class="fl">อีเมลล็อกอิน <span class="req">*</span></label><input class="fi" id="aa-email" placeholder="advisor@example.com"></div></div>',
-    '<div class="fr"><div class="fg"><label class="fl">ฝ่าย / หน่วยงาน</label><input class="fi" id="aa-dept" placeholder="เช่น สำนักกิจการนิสิต" value="สำนักกิจการนิสิต"></div>',
-    '<div class="fg"><label class="fl">รหัสผ่าน <span class="req">*</span></label><input class="fi" id="aa-pw" type="password" placeholder="ตั้งรหัสผ่าน"></div></div>',
-    '<div class="fg"><label class="fl">อีเมลสำหรับรับแจ้งเตือน</label><input class="fi" id="aa-cemail" placeholder="อีเมลจริง (ถ้าต่างจากอีเมลล็อกอิน)"></div>',
-    '</div>',
-    '<div class="modal-foot"><button class="btn btn-soft" data-action="closeModal">ยกเลิก</button>',
-    '<button class="btn btn-primary" data-action="saveAddAdvisor">บันทึก</button></div>',
-    '</div></div>'
-  ];
-  w.innerHTML=html.join('');
 }
 
 async function saveAddAdvisor(){
@@ -568,130 +536,6 @@ function gnkClose(id){
   var bd=$e('gnk-bd-'+id); if(!bd)return;
   bd.classList.add('closing');
   bd.addEventListener('animationend',function(){var w=$e('mwrap');if(w)w.innerHTML='';},{once:true});
-}
-
-/* ─── IMPORT USERS (CSV) ─── */
-function showImport(){
-  if(!CU||CU.role_code!=='ROLE-SYS'){alert('เฉพาะผู้ดูแลระบบเท่านั้น');return}
-  var tmpl='ชื่อ-นามสกุล,อีเมล,รหัสผ่าน,บทบาท,ฝ่าย,ประเภท\n'+
-    'สมชาย ใจดี,somchai@gnk.ac.th,pass1234,ROLE-CRT,ฝ่ายวิชาการ,gnk\n'+
-    'อาจารย์ A,teacher@uni.ac.th,pass1234,ROLE-ADV,สำนักกิจการนิสิต,advisor';
-
-  var box = [
-  '<div class="max-w-[620px] w-full bg-white rounded-2xl shadow-2xl overflow-hidden border border-orange-100 transition-all" onclick="event.stopPropagation()">',
-    // --- Header ---
-    '<div class="relative p-6 border-b border-orange-50">',
-      '<div class="text-[10px] font-bold uppercase tracking-[0.2em] text-orange-500 mb-1">Admin Tools</div>',
-      '<div class="text-2xl font-extrabold text-slate-800 tracking-tight">นำเข้าข้อมูลผู้ใช้</div>',
-      '<div class="text-sm text-slate-400 mt-1">จัดการเพิ่มผู้ใช้ใหม่ผ่านไฟล์ CSV อย่างรวดเร็ว</div>',
-      '<button class="absolute top-6 right-6 p-2 text-slate-300 hover:text-orange-500 hover:bg-orange-50 rounded-full transition-all" onclick="gnkClose(\'imp\')">' + _XSVG + '</button>',
-    '</div>',
-
-    // --- Body ---
-    '<div class="p-6 space-y-6">',
-      // Info Box (Orange Tone)
-      '<div class="flex gap-4 bg-orange-50/50 border border-orange-100 p-4 rounded-2xl text-orange-900 text-sm leading-relaxed">',
-        '<div class="shrink-0 text-orange-500 mt-0.5">' + _ISVG + '</div>',
-        '<div>',
-          '<p class="font-bold text-orange-800 mb-1">ข้อกำหนดไฟล์ CSV ที่ต้องมี:</p>',
-          '<p class="text-orange-700/80 mb-3 italic">ชื่อ-นามสกุล, อีเมล, รหัสผ่าน, บทบาท, ฝ่าย, ประเภท</p>',
-          '<div class="flex flex-col gap-2 font-mono text-[10px]">',
-            '<div><span class="bg-orange-200/50 text-orange-800 px-1.5 py-0.5 rounded mr-2 uppercase font-bold">Roles:</span> ROLE-CRT, ROLE-REV, ROLE-SGN, ROLE-ADV, ROLE-STF</div>',
-            '<div><span class="bg-orange-200/50 text-orange-800 px-1.5 py-0.5 rounded mr-2 uppercase font-bold">Types:</span> gnk, advisor, staff</div>',
-          '</div>',
-        '</div>',
-      '</div>',
-
-      // Action Buttons
-      '<div class="flex flex-wrap gap-3 items-center">',
-        '<label class="flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white px-6 py-2.5 rounded-xl font-bold transition-all cursor-pointer shadow-lg shadow-orange-200 active:scale-95">',
-          svg('dn', 18) + ' เลือกไฟล์ CSV',
-          '<input type="file" id="imp-file" accept=".csv" class="hidden" onchange="parseImportCSV()">',
-        '</label>',
-        '<a class="flex items-center gap-2 bg-white border border-slate-200 hover:border-orange-300 hover:text-orange-600 text-slate-600 px-6 py-2.5 rounded-xl font-bold transition-all active:scale-95" href="data:text/csv;charset=utf-8,\ufeff' + encodeURIComponent(tmpl) + '" download="template_import.csv">',
-          svg('dn', 18) + ' รับไฟล์แม่แบบ',
-        '</a>',
-      '</div>',
-
-      // Preview Container
-      '<div id="imp-preview" class="empty:hidden min-h-[40px] max-h-[250px] overflow-y-auto rounded-xl border border-slate-100 bg-slate-50/50 p-2"></div>',
-    '</div>',
-
-    // --- Footer ---
-    '<div class="bg-slate-50/80 p-4 px-6 flex justify-end items-center gap-4 border-t border-slate-100">',
-      // ปุ่มยกเลิกแบบใหม่ (Soft Elegant Style)
-      '<button class="group flex items-center gap-1 px-4 py-2 text-slate-400 hover:text-rose-500 font-semibold transition-all" onclick="gnkClose(\'imp\')">',
-        '<span class="text-lg opacity-0 group-hover:opacity-100 transition-all transform translate-x-2 group-hover:translate-x-0">←</span>',
-        '<span>ยกเลิก</span>',
-      '</button>',
-      
-      '<button id="imp-btn" class="hidden items-center gap-2 bg-slate-800 hover:bg-orange-600 text-white px-8 py-2.5 rounded-xl font-bold transition-all shadow-xl shadow-slate-200 active:scale-95" data-action="doImport">' + _DNSVG + ' ยืนยันนำเข้า</button>',
-    '</div>',
-  '</div>'
-].join('');
-
-  _gnkOpen('imp',box);
-}
-
-var _impRows=[];
-function parseImportCSV(){
-  var file=$e('imp-file'); if(!file||!file.files[0])return;
-  var reader=new FileReader();
-  reader.onload=function(e){
-    var lines=e.target.result.replace(/\r/g,'').split('\n').filter(function(l){return l.trim()});
-    if(lines.length<2){$e('imp-preview').innerHTML=alrtH('er','ไฟล์ไม่มีข้อมูล');return}
-    var rows=[];
-    var roleOk={'ROLE-CRT':1,'ROLE-REV':1,'ROLE-SGN':1,'ROLE-ADV':1,'ROLE-STF':1};
-    var typeOk={gnk:1,advisor:1,staff:1};
-    for(var i=1;i<lines.length;i++){
-      var cols=lines[i].split(',').map(function(c){return c.trim().replace(/^"|"$/g,'')});
-      if(cols.length<4||!cols[0]||!cols[1])continue;
-      var role=roleOk[cols[3]]?cols[3]:'ROLE-CRT';
-      var utype=typeOk[cols[5]]?cols[5]:'gnk';
-      rows.push({full_name:cols[0],email:cols[1],password:cols[2]||'changeme',role_code:role,department:cols[4]||'กนค.',user_type:utype});
-    }
-    _impRows=rows;
-    if(!rows.length){$e('imp-preview').innerHTML=alrtH('er','ไม่พบข้อมูลที่ถูกต้อง');$e('imp-btn').style.display='none';return}
-    var tbl=[
-      '<div class="gnk-tbl-count">พบ '+rows.length+' รายการที่พร้อมนำเข้า</div>',
-      '<div class="gnk-tbl"><table>',
-        '<thead><tr>',
-          ['ชื่อ-นามสกุล','อีเมล','บทบาท','ฝ่าย','ประเภท'].map(function(h){return '<th>'+h+'</th>'}).join(''),
-        '</tr></thead><tbody>',
-        rows.map(function(r){
-          return '<tr>'+[r.full_name,r.email,r.role_code,r.department,r.user_type].map(function(v){
-            return '<td>'+esc(v)+'</td>';
-          }).join('')+'</tr>';
-        }).join(''),
-        '</tbody></table></div>'
-    ].join('');
-    $e('imp-preview').innerHTML=tbl;
-    $e('imp-btn').style.display='';
-  };
-  reader.readAsText(file.files[0],'UTF-8');
-}
-
-async function doImport(){
-  var btn=$e('imp-btn'); if(!_impRows.length)return;
-  btn.disabled=true;
-  btn.innerHTML=_SPINSVG+'กำลังนำเข้า...';
-  var ok=0,skip=0,fail=0;
-  for(var i=0;i<_impRows.length;i++){
-    var r=_impRows[i];
-    try{
-      var ex=await dg('users','?email=eq.'+encodeURIComponent(r.email)+'&select=id');
-      if(ex.length){skip++;continue}
-      var pwHash=await hashPw(r.password);
-      await dp('users',{full_name:r.full_name,email:r.email,password_hash:pwHash,role_code:r.role_code,
-        department:r.department,user_type:r.user_type,approval_status:'approved',is_active:true,
-        contact_email:r.email,approved_at:new Date().toISOString(),approved_by:CU.full_name});
-      ok++;
-    }catch(e){fail++}
-  }
-  $e('imp-preview').innerHTML=alrtH('ok','นำเข้าสำเร็จ '+ok+' รายการ'+(skip?' · ข้าม '+skip+' (มีแล้ว)':'')+(fail?' · ผิดพลาด '+fail+' รายการ':''));
-  btn.style.display='none';
-  _impRows=[];
-  setTimeout(function(){gnkClose('imp');setTimeout(function(){nav('adm')},220)},1500);
 }
 
 /* Doc number + doc type management functions → sysAdmin.js / docTypeAdmin.js */

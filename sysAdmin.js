@@ -92,50 +92,56 @@ async function showDocNumModal(){
     if(cfg&&cfg.length&&cfg[0].prefix) curPrefix=cfg[0].prefix;
   }catch(e){}
 
-  var box = [
-  '<div class="gnk-box overflow-hidden" style="max-width:460px; border-radius:24px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.15);" onclick="event.stopPropagation()">',
-    // Header: เน้นความโปร่งและสะอาดตา
-    '<div class="gnk-pop-head" style="padding: 32px 32px 20px 32px; background: linear-gradient(to bottom, #fff, #f9fafb);">',
+var box = [
+  '<div class="gnk-box overflow-hidden" style="max-width:440px; border-radius:28px; background:#fff; box-shadow: 0 40px 80px -12px rgba(232, 58, 0, 0.12); border: 1px solid rgba(232, 58, 0, 0.05);" onclick="event.stopPropagation()">',
+    
+    // Header: ใช้สีส้ม #E83A00 เป็นหลัก
+    '<div class="gnk-pop-head" style="padding: 28px 32px 20px 32px; background: linear-gradient(to bottom, rgba(232, 58, 0, 0.05), #fff);">',
       '<div class="flex flex-col gap-1">',
-        '<div class="gnk-eyebrow" style="color:#92400E; font-weight:700; font-size:12px; letter-spacing:0.1em; text-transform:uppercase;">Document System</div>',
-        '<div class="gnk-pop-title" style="font-size:24px; font-weight:800; color:#111827; letter-spacing:-0.02em;">ตั้งค่าเลขที่เอกสาร</div>',
-        '<div class="gnk-pop-sub" style="font-size:14px; color:#6B7280; margin-top:4px;">ปีงบประมาณปัจจุบัน: <span style="color:#111827; font-weight:700; background:#FEF3C7; padding:2px 8px; border-radius:6px; margin-left:4px;">' + thYear + '</span></div>',
+        '<div style="color:#E83A00; font-weight:800; font-size:10px; letter-spacing:0.12em; text-transform:uppercase; display:flex; align-items:center; gap:6px;">',
+          '<span style="width:10px; height:2px; background:#E83A00; border-radius:2px;"></span> Document System',
+        '</div>',
+        '<div class="gnk-pop-title" style="font-size:19px; font-weight:850; color:#18120E; letter-spacing:-0.02em;">ตั้งค่าเลขที่เอกสาร</div>',
+        '<div style="font-size:12px; color:#6b6560; margin-top:4px;">',
+          'ปีงบประมาณปัจจุบัน: <span style="color:#E83A00; font-weight:800; background:rgba(232, 58, 0, 0.1); padding:2px 10px; border-radius:8px; font-size:13px;">' + thYear + '</span>',
+        '</div>',
       '</div>',
-      '<button class="gnk-xbtn" style="top:24px; right:24px; background:#f3f4f6; border-radius:50%; width:36px; height:36px; display:flex; align-items:center; justify-content:center; transition:all 0.2s;" onclick="gnkClose(\'docnum\')">' + _XSVG + '</button>',
+      '<button class="gnk-xbtn" style="top:24px; right:24px; background:rgba(232, 58, 0, 0.08); color:#E83A00; border-radius:14px; width:36px; height:36px; display:flex; align-items:center; justify-content:center; transition:0.2s; border:none; cursor:pointer;" onmouseover="this.style.background=\'rgba(232, 58, 0, 0.15)\'" onmouseout="this.style.background=\'rgba(232, 58, 0, 0.08)\'" onclick="gnkClose(\'docnum\')">' + _XSVG + '</button>',
     '</div>',
 
-    '<div class="gnk-pop-body" style="padding: 0 32px 32px 32px;">',
-      // Info Box: ปรับให้ดูซอฟต์ลง ไม่รกตา
-      '<div class="gnk-info" style="background:#F8FAFC; border:1px dashed #E2E8F0; border-radius:16px; padding:16px; margin-bottom:24px; display:flex; gap:12px; align-items:flex-start;">',
-        '<div style="color:#3B82F6; margin-top:2px;">' + _ISVG + '</div>',
-        '<div style="font-size:13px; color:#475569; line-height:1.6;">ระบบจะสร้างเลขที่อัตโนมัติตามรูปแบบ <span style="font-family:monospace; font-weight:600; color:#1E293B;">[Prefix]-' + thYear + '-[No.]</span></div>',
+    '<div class="gnk-pop-body" style="padding: 0 32px 28px 32px;">',
+      // Info Box: ปรับเป็นขอบประสีส้มจาง
+      '<div style="background:rgba(232, 58, 0, 0.02); border:1px dashed rgba(232, 58, 0, 0.2); border-radius:16px; padding:14px; margin-bottom:24px; display:flex; gap:10px; align-items:flex-start;">',
+        '<div style="color:#E83A00; margin-top:2px;">' + _ISVG + '</div>',
+        '<div style="font-size:11.5px; color:#4a4440; line-height:1.5;">ระบบจะสร้างเลขที่อัตโนมัติตามรูปแบบ <span style="font-family:monospace; font-weight:700; color:#E83A00;">[Prefix]-' + thYear + '-[No.]</span></div>',
       '</div>',
 
-      // Input Group: เน้นความชัดเจน
-      '<div class="gnk-inp-grp" style="margin-bottom:28px;">',
-        '<label style="display:block; font-size:13px; font-weight:600; color:#374151; margin-bottom:10px; margin-left:4px;">ชื่อย่อ/รหัสองค์กร (Prefix)</label>',
+      // Input Group: ปรับตัวหนังสือ Label ให้เล็กลง
+      '<div class="gnk-inp-grp" style="margin-bottom:24px;">',
+        '<label style="display:block; font-size:11.5px; font-weight:700; color:#18120E; margin-bottom:8px; margin-left:2px;">ชื่อย่อ/รหัสองค์กร (Prefix)</label>',
         '<input type="text" id="dn-prefix" class="gnk-inp" value="' + esc(curPrefix) + '" ',
-          'placeholder="เช่น GNK หรือ คณะ..." maxlength="20" oninput="updateDNPreview()" ',
-          'style="width:100%; height:52px; padding:0 20px; font-size:16px; border-radius:14px; border:2px solid #E5E7EB; transition:all 0.3s; box-sizing:border-box; outline:none;">',
+          'placeholder="ระบุตัวย่อ..." maxlength="20" oninput="updateDNPreview()" ',
+          'style="width:100%; height:46px; padding:0 16px; font-size:13px; font-weight:600; border-radius:12px; border:1.5px solid #EBEBEB; background:#fff; transition:all 0.3s; box-sizing:border-box; outline:none; color:#18120E;">',
       '</div>',
 
-      // Preview Box: ปรับให้ดูเหมือน Card พิเศษ
-      '<div class="gnk-prev-box" style="background: linear-gradient(135deg, #1E293B 0%, #0F172A 100%); border-radius:20px; padding:24px; position:relative; overflow:hidden; box-shadow: 0 10px 20px rgba(15,23,42,0.15);">',
-        // ตกแต่งพื้นหลัง Preview นิดหน่อย
-        '<div style="position:absolute; top:-20px; right:-20px; width:100px; height:100px; background:rgba(255,255,255,0.03); border-radius:50%;"></div>',
+      // Preview Box: ใช้สีส้ม #E83A00 แบบ Solid ไล่เฉดเล็กน้อย
+      '<div class="gnk-prev-box" style="background: linear-gradient(135deg, #E83A00 0%, #B32D00 100%); border-radius:22px; padding:24px; position:relative; overflow:hidden; box-shadow: 0 15px 30px -5px rgba(232, 58, 0, 0.3);">',
+        '<div style="position:absolute; top:-20px; right:-20px; width:100px; height:100px; background:rgba(255,255,255,0.08); border-radius:50%;"></div>',
         
         '<div style="position:relative; z-index:1;">',
-          '<div style="font-size:11px; color:#94A3B8; text-transform:uppercase; letter-spacing:0.1em; margin-bottom:8px; font-weight:600;">Live Preview</div>',
-          '<div id="dn-preview" class="gnk-prev-val" style="font-family:\'JetBrains Mono\', monospace; font-size:28px; color:#F8FAFC; font-weight:700; letter-spacing:0.05em;">' + esc(curPrefix) + '-' + thYear + '-001</div>',
+          '<div style="font-size:9px; color:rgba(255,255,255,0.8); text-transform:uppercase; letter-spacing:0.15em; margin-bottom:6px; font-weight:600;">Live Preview</div>',
+          '<div id="dn-preview" style="font-family:\'JetBrains Mono\', monospace; font-size:22px; color:#fff; font-weight:700; letter-spacing:0.02em;">' + esc(curPrefix) + '-' + thYear + '-001</div>',
         '</div>',
-        '<div class="gnk-prev-tag" style="position:absolute; bottom:20px; right:24px; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); color:#fff; font-size:10px; padding:4px 12px; border-radius:20px; backdrop-filter:blur(4px);">ตัวอย่างรูปแบบ</div>',
+        '<div style="position:absolute; bottom:20px; right:20px; background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.2); color:#fff; font-size:9px; padding:3px 10px; border-radius:10px; backdrop-filter:blur(4px); font-weight:600;">EXAMPLE</div>',
       '</div>',
     '</div>',
 
-    // Footer: เน้นปุ่มให้ดู Clickable มากขึ้น
-    '<div class="gnk-pop-foot" style="padding:20px 32px 32px 32px; background:#F9FAF9; display:flex; gap:12px;">',
-      '<button class="gnk-btn-c" style="flex:1; height:48px; border-radius:12px; font-weight:600; border:1px solid #E5E7EB; background:#fff; color:#4B5563; transition:all 0.2s;" onclick="gnkClose(\'docnum\')">ยกเลิก</button>',
-      '<button class="gnk-btn-p" id="dn-save-btn" data-action="saveDocNumSetting" style="flex:2; height:48px; border-radius:12px; font-weight:700; background:#111827; color:#fff; display:flex; align-items:center; justify-content:center; gap:8px; transition:all 0.2s; border:none; cursor:pointer;">' + _OKSVG + ' บันทึกการตั้งค่า</button>',
+    // Footer: ปุ่มหลักสี #E83A00
+    '<div class="gnk-pop-foot" style="padding:0 32px 32px 32px; display:flex; gap:10px;">',
+      '<button class="gnk-btn-c" style="flex:1; height:44px; border-radius:12px; font-weight:600; font-size:12px; border:1px solid #EBEBEB; background:#fff; color:#6b6560; transition:all 0.2s; cursor:pointer;" onmouseover="this.style.background=\'#F9FAF8\'" onmouseout="this.style.background=\'#fff\'" onclick="gnkClose(\'docnum\')">ยกเลิก</button>',
+      '<button class="gnk-btn-p" id="dn-save-btn" data-action="saveDocNumSetting" style="flex:1.8; height:44px; border-radius:12px; font-weight:700; font-size:12px; background:#E83A00; color:#fff; display:flex; align-items:center; justify-content:center; gap:8px; border:none; cursor:pointer; box-shadow: 0 8px 16px -4px rgba(232, 58, 0, 0.4); transition:all 0.3s;" onmouseover="this.style.transform=\'translateY(-1px)\';this.style.opacity=\'0.9\'" onmouseout="this.style.transform=\'translateY(0)\';this.style.opacity=\'1\'">',
+        _OKSVG + ' บันทึกการตั้งค่า',
+      '</button>',
     '</div>',
   '</div>'
 ].join('');
