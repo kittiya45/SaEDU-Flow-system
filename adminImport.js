@@ -116,6 +116,7 @@ async function doImport(){
   btn.innerHTML=_SPINSVG+'กำลังนำเข้า...';
   var ok=0,skip=0,fail=0;
   for(var i=0;i<_impRows.length;i++){
+    
     var r=_impRows[i];
     try{
       var ex=await dg('users','?email=eq.'+encodeURIComponent(r.email)+'&select=id');
