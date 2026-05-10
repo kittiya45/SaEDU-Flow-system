@@ -182,12 +182,18 @@ function _buildCal(docs){
 
 /* ─── DASHBOARD ─── */
 async function vDash(){
-  var _allD2=await dg('documents','?order=created_at.desc');
-  var _mySteps2=await dg('workflow_steps','?assigned_to=eq.'+CU.id+'&select=document_id,status');
+  var _ds=await Promise.all([
+    dg('documents','?order=created_at.desc&limit=500&select=id,title,doc_type,status,urgency,due_date,created_by,created_at,doc_number'),
+    dg('workflow_steps','?assigned_to=eq.'+CU.id+'&select=document_id,status')
+  ]);
+  var _allD2=_ds[0], _mySteps2=_ds[1];
   var _myIds2=_mySteps2.map(function(s){return s.document_id});
   var _myActive=_mySteps2.filter(function(s){return s.status==='active'}).length;
   var _canSeeAll=CU.role_code==='ROLE-SYS'||CU.position_code==='GNK-SEC';
-  var docs=_canSeeAll?_allD2:_allD2.filter(function(d){return d.created_by===CU.id||_myIds2.indexOf(d.id)!==-1});
+  var docs=_canSeeAll?_allD2:_allD2.filter(function(d){
+    if(CU.role_code==='ROLE-STF') return d.created_by===CU.id||d.forwarded_to_id===CU.id||d.status==='numbering'||_myIds2.indexOf(d.id)!==-1;
+    return d.created_by===CU.id||_myIds2.indexOf(d.id)!==-1;
+  });
 
   var cnt={total:docs.length,pnd:0,cplt:0,rej:0,draft:0};
   docs.forEach(function(d){

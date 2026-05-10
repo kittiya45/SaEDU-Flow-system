@@ -1,4 +1,5 @@
 /* ─── DOC NUM — ออกเลขที่หนังสือขาออก (กนค. SPPTNNN/BBBB หรือ กนค. SPPTNNN-CC/BBBB) ─── */
+var _thFontCache=null;
 
 // Query the next available sequence number for a given category, excluding the current doc
 async function _nextDocNum(docId,docType,catPfx,club,thisYear,thaiYear){
@@ -51,17 +52,23 @@ async function showNumModal(docId){
       '<div style="overflow-y:auto;max-height:72vh;padding-right:4px;padding-bottom:16px">',
       '<div class="al al-ok" style="margin-bottom:12px"><span class="al-icon">'+svg('ok',13)+'</span>',
       '<span style="font-size:12px">ลายเซ็นครบแล้ว กรอกข้อมูลแล้วลากตำแหน่งเลขที่/วันที่บนตัวอย่างเอกสาร</span></div>',
+      '<div class="fg"><label class="fl">ภาคการศึกษา (หลักที่ 1) <span class="req">*</span></label>',
+      '<select class="fi" id="num-sem" onchange="_previewOutNum()">'+semOpts+'</select></div>',
       '<div class="fg"><label class="fl">ตำแหน่ง (หลักที่ 2–3)</label>',
       '<div class="fi" style="background:#f9f7f5;color:#6b6560;cursor:default;font-size:12px">'+esc(posCode)+' — '+esc(posName)+'</div></div>',
       '<input type="hidden" id="num-poscode" value="'+posCode+'">',
-      '<div class="fg"><label class="fl">ภาคการศึกษา (หลักที่ 1) <span class="req">*</span></label>',
-      '<select class="fi" id="num-sem" onchange="_previewOutNum()">'+semOpts+'</select></div>',
       '<div class="fg"><label class="fl">ประเภทจดหมาย (หลักที่ 4) <span class="req">*</span></label>',
       '<select class="fi" id="num-lt" onchange="_previewOutNum()">'+ltOpts+'</select></div>',
       '<div class="fg"><label class="fl">ชมรม (หลักที่ 8–9)</label>',
       '<select class="fi" id="num-club" onchange="_previewOutNum()">'+clubOpts+'</select></div>',
-      '<div class="fg"><label class="fl">วันที่หนังสือ <span class="req">*</span></label>',
-      '<input type="date" class="fi" id="num-docdate" value="'+today+'" oninput="_updateDateStamp()"></div>',
+      '<div class="fg"><label class="fl">วันที่หนังสือ</label>',
+      '<div class="fi" style="background:#f9f7f5;color:#6b6560;cursor:default">'+_fmtDateThai(today)+'</div>',
+      '<input type="hidden" id="num-docdate" value="'+today+'"></div>',
+      '<div class="fg"><label class="fl">ขนาดตัวอักษร</label>',
+      '<div style="display:flex;align-items:center;gap:8px">',
+      '<input type="range" id="num-fontsize" min="8" max="24" value="12" style="flex:1" oninput="_updateStampFontSize()">',
+      '<span id="num-fontsize-val" style="font-size:12px;color:#6b6560;min-width:32px;text-align:right">12px</span>',
+      '</div></div>',
       '<div class="fg"><label class="fl">ตัวอย่างเลขที่</label>',
       '<div class="fi" id="num-preview" style="background:#f9f7f5;color:#1261AB;font-size:12px;font-family:\'TH Sarabun PSK\', Sarabun, sans-serif;font-weight:700;cursor:default;letter-spacing:.5px">—</div></div>',
       '<div style="font-size:11px;color:#a89e99;margin-top:6px;line-height:1.7;display:flex;gap:6px;align-items:flex-start">',
@@ -89,9 +96,9 @@ async function showNumModal(docId){
   }
 
   // หนังสือขาเข้า: auto-generate เลขที่ (รูปแบบ กนค. SPPTNNN-CC/BBBB)
-  var allUsers=await dg('users','?is_active=eq.true&approval_status=eq.approved&order=full_name');
+  var allUsers=await dg('users','?role_code=eq.ROLE-STF&is_active=eq.true&approval_status=eq.approved&order=full_name');
   var uOpts='<option value="">— ไม่ส่งต่อ —</option>'+allUsers.map(function(u){
-    return '<option value="'+u.id+'">'+esc(u.full_name)+' ('+RTH[u.role_code]+')</option>'
+    return '<option value="'+u.id+'">'+esc(u.full_name)+'</option>'
   }).join('');
   var _ltIdx=LETTER_TYPES.indexOf(doc.description);
   var _ltCode=_ltIdx>=0?String(_ltIdx+1):'';
@@ -111,16 +118,22 @@ async function showNumModal(docId){
     '<div style="overflow-y:auto;max-height:72vh;padding-right:4px;padding-bottom:16px">',
     '<div class="al al-ok" style="margin-bottom:12px"><span class="al-icon">'+svg('ok',13)+'</span>',
     '<span style="font-size:12px">ลายเซ็นครบแล้ว กรอกข้อมูลแล้วลากตำแหน่งเลขที่/วันที่บนตัวอย่างเอกสาร</span></div>',
+    '<div class="fg"><label class="fl">ภาคการศึกษา (หลักที่ 1) <span class="req">*</span></label>',
+    '<select class="fi" id="num-sem" onchange="_previewIncNum()">'+semOpts+'</select></div>',
     '<div class="fg"><label class="fl">ตำแหน่ง / สังกัดผู้ส่ง (หลักที่ 2–3'+(_sIsClub?' และ 8–9':'')+')</label>',
     '<div class="fi" style="background:#f9f7f5;color:#6b6560;cursor:default;font-size:12px">'+esc(_sCode)+' — '+esc(doc.addressed_to||'—')+'</div></div>',
     '<input type="hidden" id="num-sendercode" value="'+esc(_sCode)+'">',
     '<input type="hidden" id="num-senderclub" value="'+(_sIsClub?esc(_sCode):'')+'">',
-    '<div class="fg"><label class="fl">ภาคการศึกษา (หลักที่ 1) <span class="req">*</span></label>',
-    '<select class="fi" id="num-sem" onchange="_previewIncNum()">'+semOpts+'</select></div>',
     '<div class="fg"><label class="fl">ประเภทหนังสือ (หลักที่ 4) <span class="req">*</span></label>',
     '<select class="fi" id="num-lt" onchange="_previewIncNum()">'+incLtOpts+'</select></div>',
-    '<div class="fg"><label class="fl">วันที่หนังสือ <span class="req">*</span></label>',
-    '<input type="date" class="fi" id="num-docdate" value="'+today+'" oninput="_updateDateStamp()"></div>',
+    '<div class="fg"><label class="fl">วันที่หนังสือ</label>',
+    '<div class="fi" style="background:#f9f7f5;color:#6b6560;cursor:default">'+_fmtDateThai(today)+'</div>',
+    '<input type="hidden" id="num-docdate" value="'+today+'"></div>',
+    '<div class="fg"><label class="fl">ขนาดตัวอักษร</label>',
+    '<div style="display:flex;align-items:center;gap:8px">',
+    '<input type="range" id="num-fontsize" min="8" max="24" value="12" style="flex:1" oninput="_updateStampFontSize()">',
+    '<span id="num-fontsize-val" style="font-size:12px;color:#6b6560;min-width:32px;text-align:right">12px</span>',
+    '</div></div>',
     '<div class="fg"><label class="fl">ตัวอย่างเลขที่</label>',
       '<div class="fi" id="num-preview" style="background:#f9f7f5;color:#1261AB;font-size:12px;font-family:\'TH Sarabun PSK\', Sarabun, sans-serif;font-weight:700;cursor:default;letter-spacing:.5px">—</div></div>',
     '<div class="fg"><label class="fl">ส่งต่อให้ จนท.กิจนิสิต (ไม่บังคับ)</label>',
@@ -191,6 +204,13 @@ function _updateDateStamp(){
   if(ds) ds.textContent=_fmtDateThai(gv('num-docdate')||'');
 }
 
+function _updateStampFontSize(){
+  var sz=parseInt(($e('num-fontsize')||{}).value)||12;
+  var lbl=$e('num-fontsize-val'); if(lbl) lbl.textContent=sz+'px';
+  var ns=$e('num-stamp-num'); if(ns) ns.style.fontSize=sz+'px';
+  var ds=$e('num-stamp-date'); if(ds) ds.style.fontSize=sz+'px';
+}
+
 /* ─── Drag handler สำหรับ stamp overlays ─── */
 function _makeStampDraggable(el,container){
   var drag=false,ox=0,oy=0,sx=0,sy=0;
@@ -221,8 +241,10 @@ async function _loadNumPDFPreview(docId){
     }
     var pdfUrl=furl(files[0].file_path);
     if(!window.pdfjsLib){
-      await loadSc('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js');
-      pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+      await loadSc('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js');
+      pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    } else if(!pdfjsLib.GlobalWorkerOptions.workerSrc){
+      pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
     }
     var pdf=await pdfjsLib.getDocument(pdfUrl).promise;
     var page=await pdf.getPage(1);
@@ -370,11 +392,13 @@ async function doSetDocNumber(docId){
             var _stampFont=null;
             try{
               _pdfDoc.registerFontkit(window.fontkit);
-              var _fBytes=await fetch('https://cdn.jsdelivr.net/gh/Phonbopit/sarabun-webfont@master/fonts/thsarabunnew-webfont.ttf').then(function(r){
-                if(!r.ok) throw new Error('Font HTTP error');
-                return r.arrayBuffer();
-              });
-              _stampFont=await _pdfDoc.embedFont(_fBytes);
+              if(!_thFontCache){
+                _thFontCache=await fetch('https://cdn.jsdelivr.net/gh/Phonbopit/sarabun-webfont@master/fonts/thsarabunnew-webfont.ttf').then(function(r){
+                  if(!r.ok) throw new Error('Font HTTP error');
+                  return r.arrayBuffer();
+                });
+              }
+              _stampFont=await _pdfDoc.embedFont(_thFontCache.slice(0));
             }catch(_fe){
               console.warn('Thai font load failed, using fallback:',_fe.message);
               // หากโหลดฟอนต์ไทยไม่ได้ ต้องลบภาษาไทยออกเพื่อป้องกัน pdf-lib error (WinAnsi cannot encode)
@@ -385,8 +409,9 @@ async function doSetDocNumber(docId){
             var _clr=PDFLib.rgb(0.07,0.38,0.67);
             var clamp=function(v,lo,hi){return Math.max(lo,Math.min(hi,v));};
             
-            if(docNum) _pg.drawText(docNum,{x:clamp(_numPdfX,0,_pw2-10),y:clamp(_numPdfY,10,_ph-10),size:12,font:_stampFont,color:_clr});
-            if(_dateText) _pg.drawText(_dateText,{x:clamp(_datPdfX,0,_pw2-10),y:clamp(_datPdfY,10,_ph-10),size:12,font:_stampFont,color:_clr});
+            var _stampSz=parseInt(($e('num-fontsize')||{}).value)||12;
+            if(docNum) _pg.drawText(docNum,{x:clamp(_numPdfX,0,_pw2-10),y:clamp(_numPdfY,10,_ph-10),size:_stampSz,font:_stampFont,color:_clr});
+            if(_dateText) _pg.drawText(_dateText,{x:clamp(_datPdfX,0,_pw2-10),y:clamp(_datPdfY,10,_ph-10),size:_stampSz,font:_stampFont,color:_clr});
             
             var _stampBytes=await _pdfDoc.save();
             var _stampPath='stamped_'+Date.now()+'_'+_pf.file_name.replace(/[^a-zA-Z0-9._-]/g,'_');
@@ -420,15 +445,17 @@ async function doSetDocNumber(docId){
         var fwdUser=(await dg('users','?id=eq.'+fwdId))[0];
         var doc2=(await dg('documents','?id=eq.'+docId))[0]||{};
         var fwdEmail=fwdUser?(fwdUser.contact_email||fwdUser.email):'';
-        if(fwdEmail&&!fwdEmail.includes('@gnk.student')){
-          var fwdSubj='[กนค.] ส่งต่อหนังสือขาเข้า: '+(doc2.title||'');
-          var fwdBody='เรียน '+(fwdUser?fwdUser.full_name:'')+', ท่านได้รับหนังสือขาเข้าเลขที่ '+docNum+' เรื่อง "'+(doc2.title||'')+'" ที่ผ่านการลงนามครบถ้วนแล้ว'+(note?' หมายเหตุ: '+note:'');
-          try{
+        var fwdSubj='[กนค.] ส่งต่อหนังสือขาเข้า: '+(doc2.title||'');
+        var fwdBody='เรียน '+(fwdUser?fwdUser.full_name:'')+', ท่านได้รับหนังสือขาเข้าเลขที่ '+docNum+' เรื่อง "'+(doc2.title||'')+'" ที่ผ่านการลงนามครบถ้วนแล้ว'+(note?' หมายเหตุ: '+note:'');
+        var fwdEmailStatus='skipped';
+        try{
+          if(fwdEmail&&!fwdEmail.includes('@gnk.student')){
             var r=await fetch(SU+'/functions/v1/send-email',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+SK,'apikey':SK},body:JSON.stringify({to:fwdEmail,subject:fwdSubj,html:fwdBody})});
+            fwdEmailStatus=r.ok?'sent':'failed';
             if(r.ok) showEmailToast(fwdEmail,fwdSubj);
-            await dp('notifications',{document_id:docId,recipient_id:fwdId,recipient_email:fwdEmail,subject:fwdSubj,body:fwdBody,notification_type:'forward',status:r.ok?'sent':'failed',sent_at:new Date().toISOString()});
-          }catch(fe){console.warn('Forward email failed:',fe)}
-        }
+          }
+          await dp('notifications',{document_id:docId,recipient_id:fwdId,recipient_email:fwdEmail||'',subject:fwdSubj,body:fwdBody,notification_type:'forward',status:fwdEmailStatus,sent_at:new Date().toISOString()});
+        }catch(fe){console.warn('Forward notify failed:',fe)}
       }
       $e('mwrap').innerHTML='';
       var a=$e('dal');if(a)a.innerHTML=alrtH('ok','ออกเลขเอกสารเรียบร้อยแล้ว เลขที่: <strong class="mono">'+esc(docNum)+'</strong>'+(fwdId?' และส่งต่อแล้ว':''));

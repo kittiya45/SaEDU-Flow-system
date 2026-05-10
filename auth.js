@@ -104,14 +104,19 @@ async function doLogin(){
       var r=await dg('users','?email=eq.admin&approval_status=eq.approved');
       if(r&&r.length) row=r[0];
     } else {
-      var r1=await dg('users','?student_id=eq.'+encodeURIComponent(u)+'&approval_status=eq.approved');
-      var r2=await dg('users','?email=eq.'+encodeURIComponent(u)+'&approval_status=eq.approved');
-      var rows=[].concat(r1||[]).concat(r2||[]);
+      var _eu=encodeURIComponent(u);
+      var _ap=await Promise.all([
+        dg('users','?student_id=eq.'+_eu+'&approval_status=eq.approved'),
+        dg('users','?email=eq.'+_eu+'&approval_status=eq.approved')
+      ]);
+      var rows=[].concat(_ap[0]||[]).concat(_ap[1]||[]);
       if(rows.length) row=rows[0];
       if(!row){
-        var p1=await dg('users','?student_id=eq.'+encodeURIComponent(u)+'&approval_status=eq.pending');
-        var p2=await dg('users','?email=eq.'+encodeURIComponent(u)+'&approval_status=eq.pending');
-        if((p1&&p1.length)||(p2&&p2.length)){showPend();return}
+        var _pp=await Promise.all([
+          dg('users','?student_id=eq.'+_eu+'&approval_status=eq.pending'),
+          dg('users','?email=eq.'+_eu+'&approval_status=eq.pending')
+        ]);
+        if((_pp[0]&&_pp[0].length)||(_pp[1]&&_pp[1].length)){showPend();return}
       }
     }
     if(row&&await checkPw(p,row.password_hash)){
@@ -120,6 +125,10 @@ async function doLogin(){
         await dpa('users',row.id,{password_hash:_upgraded});
       }
       delete row.password_hash; // ไม่เก็บ hash ใน global state
+      if(row.user_type==='gnk'&&row.expires_at&&new Date(row.expires_at)<new Date()){
+        if(row.is_active) try{await dpa('users',row.id,{is_active:false});}catch(e){}
+        a.innerHTML=alrtH('er','บัญชีนี้หมดอายุแล้ว กรุณาติดต่อเจ้าหน้าที่เพื่อต่ออายุการใช้งาน');return
+      }
       CU=row;
       _loginAttempts=0;
       localStorage.setItem('_la','0');

@@ -13,7 +13,7 @@ async function vTmpl(){
       '</div></div>';
   }
   var rows=result;
-  var isAdm=CU.role_code==='ROLE-SYS';
+  var isAdm=CU.role_code==='ROLE-SYS'||CU.role_code==='ROLE-STF'||CU.position_code==='GNK-SEC';
   var html=['<div id="tal"></div>'];
 
   // ── Toolbar (search + admin button) — same pattern as docList ──
@@ -126,7 +126,7 @@ async function showTmplUpload(){
           '<div class="flex flex-col gap-1">',
             '<div style="color:#E83A00; font-weight:800; font-size:10px; letter-spacing:.12em; text-transform:uppercase; display:flex; align-items:center; gap:6px;">',
               '<span style="width:10px; height:2px; background:#E83A00; border-radius:2px;"></span>',
-              'เทมเพลตใหม่แบบฟอร์ม',
+              'important templates',
             '</div>',
 
             '<span class="modal-title" style="font-size:19px; font-weight:850; color:#18120E; letter-spacing:-0.02em;">',

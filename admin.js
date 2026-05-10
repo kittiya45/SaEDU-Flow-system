@@ -159,9 +159,13 @@ function rAdmTbl(users){
 
     var activeRow='';
     if(u.approval_status==='approved'){
-      activeRow=u.is_active
-        ? '<span class="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-[#15803D]"><span class="w-1.5 h-1.5 rounded-full bg-[#15803D] inline-block"></span>ใช้งาน</span>'
-        : '<span class="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-[#DC2626]"><span class="w-1.5 h-1.5 rounded-full bg-[#DC2626] inline-block"></span>ปิดบัญชี</span>';
+      var _isExp=u.user_type==='gnk'&&u.expires_at&&new Date(u.expires_at)<new Date();
+      activeRow=_isExp
+        ? '<span class="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-[#DC2626]"><span class="w-1.5 h-1.5 rounded-full bg-[#DC2626] inline-block"></span>หมดอายุ</span>'
+        : u.is_active
+          ? '<span class="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-[#15803D]"><span class="w-1.5 h-1.5 rounded-full bg-[#15803D] inline-block"></span>ใช้งาน</span>'
+          : '<span class="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-[#DC2626]"><span class="w-1.5 h-1.5 rounded-full bg-[#DC2626] inline-block"></span>ปิดบัญชี</span>';
+      if(u.user_type==='gnk'&&u.expires_at) activeRow+='<span class="mt-0.5 text-[10px] text-[#a89e99]">หมดอายุ '+fd(u.expires_at)+'</span>';
     }
 
     var dropItems=[];
@@ -170,6 +174,7 @@ function rAdmTbl(users){
       dropItems.push('<button class="am-item am-danger" data-action="admRej" data-id="'+u.id+'">'+svg('x',13)+' ปฏิเสธบัญชี</button>');
     } else if(u.approval_status==='approved'){
       dropItems.push('<button class="am-item" data-action="showEU" data-id="'+u.id+'">'+svg('edit',13)+' แก้ไขข้อมูล</button>');
+      if(u.user_type==='gnk') dropItems.push('<button class="am-item am-ok" data-action="admRenew" data-id="'+u.id+'">'+svg('ok',13)+' ต่ออายุ (+1 ปี)</button>');
       if(u.is_active){
         dropItems.push('<button class="am-item" data-action="admToggle" data-id="'+u.id+'" data-active="1">'+svg('lock',13)+' ปิดบัญชี</button>');
       } else {
@@ -195,14 +200,22 @@ function rAdmTbl(users){
           '</div>'+
           '<div>'+
             '<div class="text-[13px] font-semibold text-[#18120E] leading-tight">'+esc(u.full_name)+'</div>'+
-            '<div class="text-[11px] font-semibold mt-0.5" style="color:'+roleColor(u.role_code)+'">'+(RTH[u.role_code]||u.role_code||'—')+'</div>'+
+            '<div class="text-[11px] font-semibold mt-0.5" style="color:'+roleColor(u.role_code)+'">'+
+              (u.user_type==='gnk'?(PTH[u.position_code]||RTH[u.role_code]||u.role_code||'—'):
+               u.user_type==='advisor'?'อาจารย์กิจการ':
+               u.user_type==='staff'?'เจ้าหน้าที่กิจการนิสิต':
+               (RTH[u.role_code]||u.role_code||'—'))+
+            '</div>'+
           '</div>'+
         '</div>'+
       '</td>'
     );
     html.push('<td class="text-[12px] text-[#6b6560]" style="font-family:\'IBM Plex Mono\',monospace">'+esc(u.student_id||u.email||'—')+'</td>');
     html.push('<td><span class="badge b-'+(u.user_type||'staff')+'">'+(UTH[u.user_type]||u.user_type||'—')+'</span></td>');
-    html.push('<td>'+(u.position_code?'<span class="mono">'+esc(u.position_code)+'</span>':'<span class="text-[#a89e99]">—</span>')+'</td>');
+    html.push('<td>'+(u.position_code?
+      '<div class="text-[12px] font-semibold text-[#18120E]">'+esc(PTH[u.position_code]||u.position_code)+'</div>'+
+      '<div class="text-[11px] text-[#a89e99] mono">'+esc(u.position_code)+'</div>'
+      :'<span class="text-[#a89e99]">—</span>')+'</td>');
     html.push('<td><div class="flex flex-col gap-0.5">'+apB+activeRow+'</div></td>');
     html.push('<td class="text-[12px] text-[#a89e99] whitespace-nowrap">'+fd(u.created_at)+'</td>');
     html.push('<td><div class="flex gap-1.5 justify-end flex-wrap items-center">'+actB+'</div></td>');
@@ -216,8 +229,20 @@ function rAdmTbl(users){
 async function admApv(uid){
   var u=(AUSERS||[]).filter(function(x){return x.id===uid})[0];
   if(!confirm('อนุมัติผู้ใช้งานนี้?'))return;
-  await dpa('users',uid,{approval_status:'approved',is_active:true,approved_at:new Date().toISOString()});
-  try{await dp('document_history',{action:'อนุมัติบัญชีผู้ใช้',performed_by:CU.id,note:'อนุมัติ: '+(u?u.full_name:uid)});}catch(e){}
+  var _exp=u&&u.user_type==='gnk'?new Date(Date.now()+365*24*60*60*1000).toISOString():null;
+  var _patch={approval_status:'approved',is_active:true,approved_at:new Date().toISOString()};
+  if(_exp) _patch.expires_at=_exp;
+  await dpa('users',uid,_patch);
+  try{await dp('document_history',{action:'อนุมัติบัญชีผู้ใช้',performed_by:CU.id,note:'อนุมัติ: '+(u?u.full_name:uid)+(_exp?' (หมดอายุ '+new Date(_exp).toLocaleDateString('th-TH')+')':'')});}catch(e){}
+  nav('adm')
+}
+
+async function admRenew(uid){
+  var u=(AUSERS||[]).filter(function(x){return x.id===uid})[0];
+  if(!confirm('ต่ออายุบัญชี '+(u?u.full_name:uid)+' อีก 1 ปี?'))return;
+  var _exp=new Date(Date.now()+365*24*60*60*1000).toISOString();
+  await dpa('users',uid,{expires_at:_exp,is_active:true});
+  try{await dp('document_history',{action:'ต่ออายุบัญชีผู้ใช้',performed_by:CU.id,note:'ต่ออายุ: '+(u?u.full_name:uid)+' จนถึง '+new Date(_exp).toLocaleDateString('th-TH')});}catch(e){}
   nav('adm')
 }
 async function admRej(uid){
@@ -229,41 +254,36 @@ async function admRej(uid){
 }
 async function admDel(uid){
   var u=(AUSERS||[]).filter(function(x){return x.id===uid})[0];
-  if(!confirm('ลบผู้ใช้งานนี้?\n(ไม่สามารถเรียกคืนได้)'))return;
-  var wf=[],dc=[],df=[];
+  var wf=[],dcCreated=[],dcRef=[];
   try{
     wf=await dg('workflow_steps','?assigned_to=eq.'+uid+'&select=id');
-    dc=await dg('documents','?or=(created_by.eq.'+uid+',forwarded_to_id.eq.'+uid+',final_recipient_id.eq.'+uid+')&select=id,created_by,forwarded_to_id,final_recipient_id');
-    df=await dg('document_files','?uploaded_by=eq.'+uid+'&select=id');
+    var _allDc=await dg('documents','?or=(created_by.eq.'+uid+',forwarded_to_id.eq.'+uid+',final_recipient_id.eq.'+uid+')&select=id,created_by,forwarded_to_id,final_recipient_id');
+    dcCreated=(_allDc||[]).filter(function(d){return d.created_by===uid});
+    dcRef=(_allDc||[]).filter(function(d){return d.created_by!==uid&&(d.forwarded_to_id===uid||d.final_recipient_id===uid)});
   }catch(e){}
-  var hasDep=(wf&&wf.length)||(dc&&dc.length)||(df&&df.length);
-  if(hasDep){
-    var reason=[];
-    if(wf&&wf.length) reason.push('Workflow Step '+wf.length+' รายการ');
-    if(dc&&dc.length) reason.push('เอกสาร '+dc.length+' รายการ');
-    if(df&&df.length) reason.push('ไฟล์เอกสาร '+df.length+' รายการ');
-    var force=confirm(
-      'ผู้ใช้นี้ยังมี '+reason.join(', ')+' ในระบบ\n\n'+
-      'ต้องการลบแบบบังคับ?\n'+
-      '• Workflow Steps จะถูกยกเลิกการมอบหมาย\n'+
-      '• เอกสาร/ไฟล์จะยังคงอยู่ แต่ไม่มีเจ้าของ\n\n'+
-      'กด OK เพื่อยืนยันการลบแบบบังคับ'
-    );
-    if(!force)return;
-    try{
-      if(wf&&wf.length){var rw=await fetch(SU+'/rest/v1/workflow_steps?assigned_to=eq.'+uid,{method:'PATCH',headers:H,body:JSON.stringify({assigned_to:null})});if(!rw.ok)throw new Error('ไม่สามารถ unlink workflow steps ได้')}
-      if(dc&&dc.length){
-        var hasCreated=dc.some(function(d){return d.created_by===uid});
-        var hasForwarded=dc.some(function(d){return d.forwarded_to_id===uid});
-        var hasFinal=dc.some(function(d){return d.final_recipient_id===uid});
-        if(hasCreated){var r1=await fetch(SU+'/rest/v1/documents?created_by=eq.'+uid,{method:'PATCH',headers:H,body:JSON.stringify({created_by:null})});if(!r1.ok)throw new Error('ไม่สามารถ unlink created_by ได้')}
-        if(hasForwarded){var r2=await fetch(SU+'/rest/v1/documents?forwarded_to_id=eq.'+uid,{method:'PATCH',headers:H,body:JSON.stringify({forwarded_to_id:null})});if(!r2.ok)throw new Error('ไม่สามารถ unlink forwarded_to_id ได้')}
-        if(hasFinal){var r3=await fetch(SU+'/rest/v1/documents?final_recipient_id=eq.'+uid,{method:'PATCH',headers:H,body:JSON.stringify({final_recipient_id:null})});if(!r3.ok)throw new Error('ไม่สามารถ unlink final_recipient_id ได้')}
-      }
-      if(df&&df.length){var r4=await fetch(SU+'/rest/v1/document_files?uploaded_by=eq.'+uid,{method:'PATCH',headers:H,body:JSON.stringify({uploaded_by:null})});if(!r4.ok)throw new Error('ไม่สามารถ unlink document files ได้')}
-    }catch(e){alert(e.message||String(e));return;}
-  }
-  try{await dp('document_history',{action:'ลบบัญชีผู้ใช้',performed_by:CU.id,note:'ลบ: '+(u?u.full_name+' ('+u.email+')':uid)});}catch(e){}
+
+  var msg='ลบผู้ใช้งาน '+(u?'"'+u.full_name+'"':'')+' ?\n(ไม่สามารถเรียกคืนได้)\n\n';
+  if(dcCreated.length) msg+='⚠️ เอกสารที่ผู้ใช้นี้สร้าง '+dcCreated.length+' รายการจะถูกลบออกจากระบบด้วย\n';
+  if(wf.length) msg+='• Workflow Steps '+wf.length+' รายการจะถูกยกเลิกการมอบหมาย\n';
+  if(!confirm(msg))return;
+
+  try{
+    // ลบเอกสารที่ user นี้สร้าง
+    for(var i=0;i<dcCreated.length;i++){
+      try{await dd('documents',dcCreated[i].id);}catch(e){console.warn('ลบเอกสาร '+dcCreated[i].id+' ไม่สำเร็จ:',e)}
+    }
+    // Unlink workflow steps ที่มอบหมายให้ user นี้
+    if(wf&&wf.length){var rw=await fetch(SU+'/rest/v1/workflow_steps?assigned_to=eq.'+uid,{method:'PATCH',headers:H,body:JSON.stringify({assigned_to:null})});if(!rw.ok)throw new Error('ไม่สามารถ unlink workflow steps ได้')}
+    // Unlink เอกสารที่อ้างถึง user นี้แต่ไม่ใช่ผู้สร้าง
+    if(dcRef.length){
+      var _refFwd=dcRef.filter(function(d){return d.forwarded_to_id===uid}).map(function(d){return d.id});
+      var _refFin=dcRef.filter(function(d){return d.final_recipient_id===uid}).map(function(d){return d.id});
+      if(_refFwd.length){var r2=await fetch(SU+'/rest/v1/documents?forwarded_to_id=eq.'+uid,{method:'PATCH',headers:H,body:JSON.stringify({forwarded_to_id:null})});if(!r2.ok)throw new Error('ไม่สามารถ unlink forwarded_to_id ได้')}
+      if(_refFin.length){var r3=await fetch(SU+'/rest/v1/documents?final_recipient_id=eq.'+uid,{method:'PATCH',headers:H,body:JSON.stringify({final_recipient_id:null})});if(!r3.ok)throw new Error('ไม่สามารถ unlink final_recipient_id ได้')}
+    }
+  }catch(e){alert(e.message||String(e));return;}
+
+  try{await dp('document_history',{action:'ลบบัญชีผู้ใช้',performed_by:CU.id,note:'ลบ: '+(u?u.full_name+' ('+u.email+')':uid)+(dcCreated.length?' พร้อมเอกสาร '+dcCreated.length+' รายการ':'')});}catch(e){}
   try{
     await dd('users',uid);
     nav('adm');

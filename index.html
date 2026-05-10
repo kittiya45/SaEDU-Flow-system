@@ -5,8 +5,10 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>ระบบเสนอเอกสาร กนค.</title>
 <link rel="icon" type="image/png" href="img/Logo.png">
-<script src="https://cdn.tailwindcss.com"></script>
-<script src="https://unpkg.com/lucide@latest"></script>
+<link rel="preconnect" href="https://jrubupvzltxqstzcpoov.supabase.co">
+<link rel="preconnect" href="https://cdnjs.cloudflare.com">
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link rel="dns-prefetch" href="https://unpkg.com">
 <script>
   tailwind.config = {
     theme: {
@@ -27,76 +29,81 @@
     }
   }
 </script>
+<script src="https://cdn.tailwindcss.com" defer></script>
+<script src="https://unpkg.com/lucide@latest" defer></script>
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 <div id="app"></div>
 
 <!-- ตั้งค่า API, ตัวแปรหลัก และสิทธิ์ใช้งาน -->
-<script src="config.js"></script>
+<script src="config.js" defer></script>
 
 <!-- รวมฟังก์ชันช่วยจัดการหน้าจอและแจ้งเตือน -->
-<script src="utils.js"></script>
+<script src="utils.js" defer></script>
 
 <!-- ตัวดักจับการคลิกและส่งคำสั่งจัดการหน้าเว็บ -->
-<script src="events.js"></script>
+<script src="events.js" defer></script>
 
 <!-- ระบบ Login และจัดการเซสชันผู้ใช้ -->
-<script src="auth.js"></script>
+<script src="auth.js" defer></script>
 
 <!-- หน้าสรุปผลและรายการงานล่าสุด -->
-<script src="dashboard.js"></script>
+<script src="dashboard.js" defer></script>
 
 <!-- ตารางรายการเอกสารและการค้นหา -->
-<script src="docList.js"></script>
+<script src="docList.js" defer></script>
 
 <!-- ฟอร์มสร้าง/แก้ไขเอกสารและอัปโหลดไฟล์ -->
-<script src="docForm.js"></script>
+<script src="docForm.js" defer></script>
 
 <!-- ระบบอนุมัติ ตีกลับ และส่งต่อเอกสาร -->
-<script src="workflow.js"></script>
+<script src="workflow.js" defer></script>
 
 <!-- ประวัติเอกสารและดาวน์โหลดรายงาน CSV -->
-<script src="report.js"></script>
+<script src="report.js" defer></script>
+
+<!-- modal อนุมัติ/ส่งคืน และ signature placement (ต้องโหลดก่อน docDetail) -->
+<script src="docSign.js" defer></script>
 
 <!-- หน้าแสดงรายละเอียดเอกสาร อนุมัติ/ตีกลับ และฝังลายเซ็นใน PDF -->
-<script src="docDetail.js"></script>
+<script src="docDetail.js" defer></script>
 
 <!-- ออกเลขที่หนังสือขาออก (สร้างเลขอัตโนมัติในรูปแบบ SPPTNNN หรือ SPPTNNN-CC) -->
-<script src="docNum.js"></script>
+<script src="docNum.js" defer></script>
 
 <!-- ส่งอีเมลแจ้งเตือนผ่าน Edge Function และตรวจเอกสารที่เลยกำหนด -->
-<script src="notif.js"></script>
+<script src="notif.js" defer></script>
 
 <!-- หน้าต่างเปิดดูไฟล์ PDF และรูปภาพ -->
-<script src="viewer.js"></script>
+<script src="viewer.js" defer></script>
 
 <!-- เครื่องมือแก้ไข PDF และใส่ลายเซ็น -->
-<script src="editor.js"></script>
+<script src="editor.js" defer></script>
 
 <!-- กราฟสถิติและติดตามงานค้าง -->
-<script src="stats.js"></script>
+<script src="stats.js" defer></script>
 
 <!-- หน้าจัดการระบบ: เลขที่เอกสาร -->
-<script src="sysAdmin.js"></script>
+<script src="sysAdmin.js" defer></script>
 
 <!-- หน้าจัดการระบบ: ประเภทเอกสาร-->
-<script src="docTypeAdmin.js"></script>
+<script src="docTypeAdmin.js" defer></script>
 
 <!-- แบบฟอร์มดาวน์โหลด -->
-<script src="templates.js"></script>
+<script src="templates.js" defer></script>
 
 <!-- จัดการผู้ใช้งาน: อนุมัติบัญชี แก้ไขข้อมูล รีเซ็ตรหัสผ่าน เพิ่มอาจารย์ -->
-<script src="admin.js"></script>
+<script src="admin.js" defer></script>
 
 <!-- นำเข้าผู้ใช้หลายคนพร้อมกันจากไฟล์ CSV (เฉพาะ ROLE-SYS) -->
-<script src="adminImport.js"></script>
+<script src="adminImport.js" defer></script>
 
 <!-- จัดการโครงสร้างเมนูและหน้าตาเว็บหลัก -->
-<script src="layout.js"></script>
+<script src="layout.js" defer></script>
 
 <!-- ตัวเริ่มรันระบบ (เรียกหน้า Login เมื่อโหลด) -->
-<script src="boot.js"></script>
+<script src="boot.js" defer></script>
 
 </body>
 </html>

@@ -54,6 +54,7 @@ document.addEventListener('click', function(e){
   else if(a==='admDel') admDel(id);
   else if(a==='admToggle') admToggle(id, el.dataset.active==='1');
   else if(a==='admResetPw') admResetPw(id);
+  else if(a==='admRenew') admRenew(id);
   else if(a==='doAdmResetPw') doAdmResetPw(el.dataset.uid);
   else if(a==='doReSubmit') doReSubmit(id).catch(function(e){_resubBusy=false;console.error('doReSubmit error:',e)});
   else if(a==='admDelDoc') admDelDoc(id);
@@ -89,6 +90,8 @@ document.addEventListener('click', function(e){
   else if(a==='txtColor'){PED.txtColor=el.dataset.color;document.querySelectorAll('#ps-txt .csw').forEach(function(s){s.classList.remove('on')});el.classList.add('on')}
   else if(a==='uploadLocal') $e('ped-local').click();
   else if(a==='dlFile') dlFile(el.dataset.url,el.dataset.name);
+  else if(a==='acceptFwd') doAcceptFwd(id);
+  else if(a==='declineFwd') doDeclineFwd(id);
 });
 
 

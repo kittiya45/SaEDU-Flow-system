@@ -56,8 +56,14 @@ async function exportDocPDF(docId){
   if(w){w.document.write(html);w.document.close()}
 }
 
-function exportCSV(){
+async function exportCSV(){
   if(!ADOCS||!ADOCS.length){alert('ไม่มีข้อมูลเอกสารให้ส่งออก');return}
+  var _uids=[...new Set(ADOCS.map(function(d){return d.created_by}).filter(Boolean))];
+  var _umap={};
+  if(_uids.length){
+    var _urows=await dg('users','?id=in.('+_uids.map(safeId).join(',')+')'+'&select=id,full_name');
+    (_urows||[]).forEach(function(u){_umap[u.id]=u.full_name});
+  }
   var headers=['เลขที่เอกสาร','ชื่อเรื่อง','ประเภท','ความเร่งด่วน','สถานะ','จากฝ่าย','เรียน','วันที่สร้าง','Deadline/วันที่กิจกรรม','ผู้สร้าง'];
   var rows=ADOCS.map(function(d){
     return [
@@ -70,7 +76,7 @@ function exportCSV(){
       d.addressed_to||'',
       d.created_at?new Date(d.created_at).toLocaleDateString('th-TH'):'',
       d.due_date?new Date(d.due_date).toLocaleDateString('th-TH'):'',
-      d.created_by||''
+      _umap[d.created_by]||d.created_by||''
     ]
   });
   var csv=[headers].concat(rows).map(function(r){

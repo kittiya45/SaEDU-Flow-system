@@ -168,9 +168,17 @@ function renderTypeFields(type, doc){
     var _ltOpts='<option value="">— เลือกประเภทหนังสือ —</option>'+LETTER_TYPES.map(function(t){
       return '<option value="'+esc(t)+'"'+(_curDesc===t?' selected':'')+'>'+esc(t)+'</option>'
     }).join('');
-    var _spOpts='<option value="">— เลือกตำแหน่ง / สังกัด —</option>'+SENDER_POS.map(function(p){
-      return '<option value="'+esc(p.name)+'"'+(_curTo===p.name?' selected':'')+'>'+esc(p.name)+'</option>'
-    }).join('');
+    var _spGnk=SENDER_POS.filter(function(p){return !p.isClub&&parseInt(p.code,10)<=14;});
+    var _spDept=SENDER_POS.filter(function(p){return !p.isClub&&parseInt(p.code,10)>=15;});
+    var _spClub=SENDER_POS.filter(function(p){return p.isClub;});
+    var _spGrp=function(label,arr){
+      if(!arr.length) return '';
+      return '<optgroup label="'+label+'">'+arr.map(function(p){
+        return '<option value="'+esc(p.name)+'"'+(_curTo===p.name?' selected':'')+'>'+esc(p.name)+'</option>';
+      }).join('')+'</optgroup>';
+    };
+    var _spOpts='<option value="">— เลือกตำแหน่ง / สังกัด —</option>'+
+      _spGrp('กนค.',_spGnk)+_spGrp('แผนก',_spDept)+_spGrp('ชมรม',_spClub);
     html.push('<div class="fg"><label class="fl">ประเภทหนังสือ <span class="req">*</span></label><select class="fi" id="fdsc">'+_ltOpts+'</select></div>');
     html.push('<div class="fg"><label class="fl">ชื่อผู้ส่งเอกสาร <span class="req">*</span></label><input class="fi" id="ffromdept" value="'+esc(_curFrom)+'" placeholder="ระบุชื่อผู้ส่งหรือหน่วยงาน"></div>');
     html.push('<div class="fg"><label class="fl">ตำแหน่ง / สังกัด</label><select class="fi" id="fto">'+_spOpts+'</select></div>');
@@ -258,8 +266,10 @@ function selectDocType(type){
       tf.innerHTML=renderTypeFields(type,curDoc);
     }
     // GNK-PRE (หัวหน้านิสิต) ลงนามทุกเอกสาร — เพิ่ม locked step เฉพาะขาเข้า (ขาออกไม่ต้องผ่าน workflow)
+    // ยกเว้น: ROLE-STF และ ROLE-SYS ออกเลขเองได้โดยไม่ต้องรอ GNK-PRE
     FS=FS.filter(function(s){return !s.locked});
-    if(type==='incoming'){
+    var _staffBypass=CU.role_code==='ROLE-STF'||CU.role_code==='ROLE-SYS';
+    if(type==='incoming'&&!_staffBypass){
       var _pre=(FU||[]).find(function(u){return u.position_code==='GNK-PRE'&&u.id!==CU.id});
       if(_pre) FS.push({step_name:PTH['GNK-PRE']||'หัวหน้านิสิต',role_required:'ROLE-SGN',assigned_to:_pre.id,deadline_days:2,locked:true});
     }
@@ -384,6 +394,27 @@ async function genDocNumber(){
   }catch(e){return prefix+'001'}
 }
 
+async function genOutDocNumber(){
+  var thYear=new Date().getFullYear()+543;
+  var startSeq=1;
+  try{
+    var cfg=await dg('doc_number_settings','?year=eq.'+thYear+'&select=out_start_seq&limit=1');
+    if(cfg&&cfg.length&&cfg[0].out_start_seq) startSeq=cfg[0].out_start_seq;
+  }catch(e){}
+  var prefix='กนค.'+thYear+'.';
+  try{
+    var docs=await dg('documents','?doc_type=eq.outgoing&doc_number=not.is.null&select=doc_number&order=doc_number.desc');
+    var maxSeq=0;
+    (docs||[]).forEach(function(d){
+      if(d.doc_number&&d.doc_number.startsWith(prefix)){
+        var seq=parseInt(d.doc_number.replace(prefix,''))||0;
+        if(seq>maxSeq) maxSeq=seq;
+      }
+    });
+    return prefix+String(Math.max(maxSeq+1,startSeq)).padStart(2,'0')
+  }catch(e){return prefix+String(startSeq).padStart(2,'0')}
+}
+
 async function saveDoc(status){
   var a=$e('fal'), title=gv('ftit').trim();
   if(!title){a.innerHTML=alrtH('er','กรุณาระบุชื่อเรื่องเอกสาร');return}
@@ -430,7 +461,7 @@ async function saveDoc(status){
   setTimeout(function(){nav('det',FDI)},900)
 
     } else {
-      var docNum=(_dtype==='outgoing')?null:await genDocNumber();
+      var docNum=(_dtype==='outgoing')?await genOutDocNumber():await genDocNumber();
       var finalStatus=(_dtype==='outgoing'&&status==='pending')?'completed':status;
       var res=await dp('documents',Object.assign({},body,{status:finalStatus,created_by:CU.id,current_step:1,total_steps:FS.length,doc_number:docNum}));
       if(!Array.isArray(res)||!res[0]||!res[0].id){

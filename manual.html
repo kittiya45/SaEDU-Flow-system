@@ -1211,9 +1211,11 @@
     <a class="nav-item" href="#create-doc" data-roles="student staff"><svg class="icon"><use href="#i-file-plus"/></svg> สร้างเอกสาร</a>
     <a class="nav-item" href="#workflow" data-roles="student staff"><svg class="icon"><use href="#i-workflow"/></svg> ขั้นตอน Workflow</a>
     <a class="nav-item" href="#approve" data-roles="teacher staff"><svg class="icon"><use href="#i-check-circle"/></svg> อนุมัติ / ลงนาม</a>
+    <a class="nav-item" href="#numbering" data-roles="student staff"><svg class="icon"><use href="#i-pen"/></svg> ออกเลขหนังสือ</a>
     <a class="nav-item" href="#reject" data-roles="teacher staff"><svg class="icon"><use href="#i-undo"/></svg> ส่งคืนแก้ไข</a>
     <a class="nav-item" href="#files" data-roles="student teacher staff"><svg class="icon"><use href="#i-paperclip"/></svg> จัดการไฟล์แนบ</a>
     <a class="nav-item" href="#calendar" data-roles="student teacher staff"><svg class="icon"><use href="#i-calendar"/></svg> ปฏิทินกิจกรรม</a>
+    <a class="nav-item" href="#templates" data-roles="student teacher staff"><svg class="icon"><use href="#i-download"/></svg> แบบฟอร์มดาวน์โหลด</a>
 
     <div class="nav-section" data-admin-section>ดูแลระบบ</div>
     <a class="nav-item" href="#-users" data-roles="staff"><svg class="icon"><use href="#i-users"/></svg> จัดการผู้ใช้</a>
@@ -1327,12 +1329,12 @@
       <div class="card">
         <div class="card-head">
           <div class="card-head-icon" style="background: var(--orange-50); color: var(--orange-500);">
-            <svg><use href="#i-workflow"/></svg>
+            <svg><use href="#i-doc-input"/></svg>
           </div>
-          วงจรเอกสาร
+          วงจรเอกสาร — หนังสือขาเข้า
         </div>
         <div class="card-body">
-          <div class="flow">
+          <div class="flow" style="flex-wrap:wrap;gap:6px">
             <div class="flow-step">
               <div class="flow-icon"><svg class="icon-sm"><use href="#i-pencil"/></svg></div>
               <div>ร่างเอกสาร<small>draft</small></div>
@@ -1343,15 +1345,48 @@
               <div>รอลงนาม<small>pending</small></div>
             </div>
             <span class="flow-arrow"><svg class="icon"><use href="#i-arrow-right"/></svg></span>
+            <div class="flow-step active">
+              <div class="flow-icon"><svg class="icon-sm"><use href="#i-pen"/></svg></div>
+              <div>ออกเลขหนังสือ<small>numbering</small></div>
+            </div>
+            <span class="flow-arrow"><svg class="icon"><use href="#i-arrow-right"/></svg></span>
             <div class="flow-step done">
               <div class="flow-icon"><svg class="icon-sm"><use href="#i-check"/></svg></div>
               <div>เสร็จสิ้น<small>completed</small></div>
             </div>
+            <span class="flow-arrow"><svg class="icon"><use href="#i-arrow-right"/></svg></span>
+            <div class="flow-step" style="border-color:var(--blue-300);background:var(--blue-50)">
+              <div class="flow-icon" style="background:var(--blue-100);color:var(--blue-600)"><svg class="icon-sm"><use href="#i-send"/></svg></div>
+              <div style="color:var(--blue-700)">ส่งกิจการนิสิต<small>ไม่บังคับ</small></div>
+            </div>
           </div>
-          <div class="flow-rejected">
+          <div class="flow-rejected" style="margin-top:12px">
             <svg class="icon"><use href="#i-undo"/></svg>
-            <span>ส่งคืนแก้ไข (rejected) → ผู้จัดทำแก้ไขแล้วส่งใหม่ → กลับไปขั้นตอนอนุมัติ</span>
+            <span>ส่งคืนแก้ไข → ผู้จัดทำแก้ไขแล้วส่งใหม่ → กลับสู่ขั้นตอนลงนาม</span>
           </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <div class="card-head-icon" style="background: var(--green-50); color: var(--green-500);">
+            <svg><use href="#i-doc-output"/></svg>
+          </div>
+          วงจรเอกสาร — หนังสือขาออก
+        </div>
+        <div class="card-body">
+          <div class="flow">
+            <div class="flow-step">
+              <div class="flow-icon"><svg class="icon-sm"><use href="#i-pencil"/></svg></div>
+              <div>ร่างเอกสาร<small>draft</small></div>
+            </div>
+            <span class="flow-arrow"><svg class="icon"><use href="#i-arrow-right"/></svg></span>
+            <div class="flow-step done">
+              <div class="flow-icon"><svg class="icon-sm"><use href="#i-check"/></svg></div>
+              <div>เสร็จสิ้นทันที<small>completed</small></div>
+            </div>
+          </div>
+          <p style="font-size:12px;color:var(--ink-400);margin-top:10px">เจ้าหน้าที่อัปโหลดเอกสารที่เซ็นแล้ว → ระบบแจ้งเตือนตำแหน่ง กนค. ที่รับเอกสารทางอีเมลทันที</p>
         </div>
       </div>
 
@@ -1394,23 +1429,7 @@
       </div>
 
       <div class="role-grid">
-        <div class="role-card role-content" data-roles="staff" style="--accent: var(--orange-500); --accent-bg: var(--orange-50);">
-          <div class="role-icon-box"><svg><use href="#i-shield"/></svg></div>
-          <div class="role-name">ผู้ดูแลระบบ</div>
-          <div class="role-code">ROLE-SYS</div>
-          <div class="role-perm">
-            <span class="badge b-green">สร้าง</span>
-            <span class="badge b-green">แก้ไข</span>
-            <span class="badge b-green">อนุมัติ</span>
-            <span class="badge b-orange">จัดการระบบ</span>
-          </div>
-          <div class="role-reg">
-            <svg class="icon-sm" style="flex-shrink:0"><use href="#i-info"/></svg>
-            <span>ไม่รับสมัครโดยตรง — Admin สร้างบัญชีให้เท่านั้น</span>
-          </div>
-        </div>
-
-        <div class="role-card role-content" data-roles="student" style="--accent: var(--green-500); --accent-bg: var(--green-50);">
+<div class="role-card role-content" data-roles="student" style="--accent: var(--green-500); --accent-bg: var(--green-50);">
           <div class="role-icon-box"><svg><use href="#i-pen"/></svg></div>
           <div class="role-name">ผู้ลงนาม</div>
           <div class="role-code">ROLE-SGN</div>
@@ -1461,6 +1480,8 @@
             <span class="badge b-green">สร้าง</span>
             <span class="badge b-gray">แก้ไข</span>
             <span class="badge b-amber">ดูรายงาน</span>
+            <span class="badge b-blue">จัดการแบบฟอร์ม</span>
+            <span class="badge b-orange">ออกเลขหนังสือ</span>
           </div>
           <div class="role-reg">
             <svg class="icon-sm" style="flex-shrink:0"><use href="#i-user-plus"/></svg>
@@ -1931,7 +1952,7 @@
               <div class="step-num">2</div>
               <div class="step-content">
                 <h4>เลือกประเภทเอกสาร</h4>
-                <p>มี 4 ประเภท: หนังสือขาเข้า / หนังสือขาออก / หนังสือรับรอง / บันทึกข้อความ (ฟิลด์จะเปลี่ยนตามประเภทที่เลือก)</p>
+                <p>มี 2 ประเภท: <strong>หนังสือขาเข้า</strong> / <strong>หนังสือขาออก</strong> (ฟิลด์จะเปลี่ยนตามประเภทที่เลือก)</p>
               </div>
             </div>
             <div class="step">
@@ -1976,27 +1997,17 @@
         <div class="card-body" style="padding:0">
           <div class="table-wrap">
             <table>
-              <thead><tr><th>ประเภท</th><th>ฟิลด์พิเศษ</th><th style="text-align:center">วันที่บังคับ</th></tr></thead>
+              <thead><tr><th>ประเภท</th><th>ฟิลด์พิเศษ</th><th style="text-align:center">Workflow</th></tr></thead>
               <tbody>
                 <tr>
                   <td><span class="icon-cell"><svg class="icon-sm"><use href="#i-doc-input"/></svg> หนังสือขาเข้า</span></td>
-                  <td>จากหน่วยงาน, เรียน/ฝ่าย, เลขที่อ้างอิง, วันที่รับ</td>
-                  <td style="text-align:center"><span class="badge b-gray">ไม่บังคับ</span></td>
+                  <td>ประเภทหนังสือ, ชื่อผู้ส่ง, <strong>ตำแหน่ง/สังกัด</strong> (แบ่งกลุ่ม กนค. / แผนก / ชมรม), วันที่รับ</td>
+                  <td style="text-align:center"><span class="badge b-orange">มี Workflow</span></td>
                 </tr>
                 <tr>
                   <td><span class="icon-cell"><svg class="icon-sm"><use href="#i-doc-output"/></svg> หนังสือขาออก</span></td>
-                  <td>จากฝ่าย, เรียน (ผู้รับ), หัวข้ออีเมล</td>
-                  <td style="text-align:center"><span class="badge b-red">บังคับ *</span></td>
-                </tr>
-                <tr>
-                  <td><span class="icon-cell"><svg class="icon-sm"><use href="#i-doc-cert"/></svg> หนังสือรับรอง</span></td>
-                  <td>ออกให้แก่ / เรียน</td>
-                  <td style="text-align:center"><span class="badge b-red">บังคับ *</span></td>
-                </tr>
-                <tr>
-                  <td><span class="icon-cell"><svg class="icon-sm"><use href="#i-doc-memo"/></svg> บันทึกข้อความ</span></td>
-                  <td>จาก (ฝ่าย), ถึง (ฝ่าย/ผู้รับ)</td>
-                  <td style="text-align:center"><span class="badge b-gray">ไม่บังคับ</span></td>
+                  <td>โครงการ/กิจกรรม, ประเภทจดหมาย, ชมรม (ถ้ามี), ส่งให้ตำแหน่ง กนค., วันที่หนังสือ, วันที่กิจกรรม</td>
+                  <td style="text-align:center"><span class="badge b-green">เสร็จทันที</span></td>
                 </tr>
               </tbody>
             </table>
@@ -2030,22 +2041,46 @@
           หลักการทำงานของ Workflow
         </div>
         <div class="card-body">
-          <p style="margin-bottom:14px">Workflow คือลำดับการอนุมัติ แต่ละขั้นตอนมี <strong>ผู้รับผิดชอบ 1 คน</strong> เอกสารจะไหลตามลำดับ ขั้นตอนที่ 1 → 2 → 3 จนครบ</p>
-          <div class="flow">
+          <p style="margin-bottom:14px">Workflow คือลำดับการอนุมัติของ<strong>หนังสือขาเข้า</strong> แต่ละขั้นตอนมี <strong>ผู้รับผิดชอบ 1 คน</strong> เอกสารไหลตามลำดับจนครบ แล้วเข้าสู่การออกเลข</p>
+
+          <!-- แถวหลัก -->
+          <div class="flow" style="gap:6px;margin-bottom:10px">
+            <div class="flow-step done">
+              <div class="flow-icon"><svg class="icon-sm"><use href="#i-pencil"/></svg></div>
+              <div>ผู้จัดทำ<small>auto-approve</small></div>
+            </div>
+            <span class="flow-arrow"><svg class="icon"><use href="#i-arrow-right"/></svg></span>
             <div class="flow-step active">
               <div class="flow-icon"><svg class="icon-sm"><use href="#i-eye"/></svg></div>
-              <div>ขั้นตอน 1<small>ผู้ตรวจทาน</small></div>
+              <div>ผู้ตรวจทาน<small>ลงนาม</small></div>
             </div>
             <span class="flow-arrow"><svg class="icon"><use href="#i-arrow-right"/></svg></span>
             <div class="flow-step">
-              <div class="flow-icon"><svg class="icon-sm"><use href="#i-clock"/></svg></div>
-              <div>ขั้นตอน 2<small>รออนุมัติ</small></div>
+              <div class="flow-icon"><svg class="icon-sm"><use href="#i-pen"/></svg></div>
+              <div>หัวหน้านิสิต<small>ลงนามสุดท้าย 🔒</small></div>
+            </div>
+            <span class="flow-arrow"><svg class="icon"><use href="#i-arrow-right"/></svg></span>
+            <div class="flow-step active">
+              <div class="flow-icon"><svg class="icon-sm"><use href="#i-scroll"/></svg></div>
+              <div>ออกเลขหนังสือ<small>numbering</small></div>
             </div>
             <span class="flow-arrow"><svg class="icon"><use href="#i-arrow-right"/></svg></span>
             <div class="flow-step done">
-              <div class="flow-icon"><svg class="icon-sm"><use href="#i-pen"/></svg></div>
-              <div>ขั้นตอน 3<small>อนุมัติสุดท้าย</small></div>
+              <div class="flow-icon"><svg class="icon-sm"><use href="#i-check"/></svg></div>
+              <div>เสร็จสิ้น<small>completed</small></div>
             </div>
+          </div>
+
+          <!-- optional forward -->
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;padding:8px 12px;background:var(--blue-50);border-radius:8px;border:1px dashed var(--blue-200)">
+            <svg class="icon" style="color:var(--blue-500);flex-shrink:0"><use href="#i-send"/></svg>
+            <span style="font-size:12.5px;color:var(--blue-700)"><strong>(ไม่บังคับ)</strong> หลังออกเลขเสร็จ — ผู้จัดทำสามารถส่งต่อเอกสารให้เจ้าหน้าที่กิจการนิสิตได้</span>
+          </div>
+
+          <!-- ส่งคืน -->
+          <div class="flow-rejected">
+            <svg class="icon"><use href="#i-undo"/></svg>
+            <span>ส่งคืนแก้ไข (rejected) → ผู้จัดทำแก้ไขแล้วส่งใหม่ → กลับสู่ขั้นตอนลงนามจากต้น</span>
           </div>
         </div>
       </div>
@@ -2094,6 +2129,40 @@
       <div class="al al-info">
         <svg class="icon"><use href="#i-info"/></svg>
         <span>ขั้นตอนแรกสุดคือ "ผู้จัดทำ" (ตัวผู้สร้างเอง) ไม่สามารถลบได้ ขั้นตอนที่เพิ่มเองสามารถลบหรือเปลี่ยนลำดับได้ก่อนส่ง</span>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <div class="card-head-icon" style="background: var(--orange-50); color: var(--orange-500);">
+            <svg><use href="#i-lock"/></svg>
+          </div>
+          GNK-PRE (หัวหน้านิสิต) — Locked Final Signer
+        </div>
+        <div class="card-body">
+          <p style="margin-bottom:12px">สำหรับ<strong>หนังสือขาเข้า</strong> ระบบจะ auto-add <strong>หัวหน้านิสิต (GNK-PRE)</strong> เป็นผู้ลงนามขั้นตอนสุดท้ายเสมอ — ไม่สามารถลบได้ (แสดง icon 🔒)</p>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>ผู้สร้าง</th><th>GNK-PRE locked step</th><th>หลังส่ง</th></tr></thead>
+              <tbody>
+                <tr>
+                  <td>นิสิต กนค. ทั่วไป</td>
+                  <td><span class="badge b-orange">มี (auto-add)</span></td>
+                  <td>รอ GNK-PRE ลงนาม → ออกเลข</td>
+                </tr>
+                <tr>
+                  <td>หัวหน้านิสิต (GNK-PRE)</td>
+                  <td><span class="badge b-gray">ไม่มี (ข้าม)</span></td>
+                  <td>ผ่าน workflow → ออกเลข</td>
+                </tr>
+                <tr>
+                  <td>เจ้าหน้าที่ (ROLE-STF / ROLE-SYS)</td>
+                  <td><span class="badge b-gray">ไม่มี (ข้าม)</span></td>
+                  <td><strong>ออกเลขได้ทันที</strong> ไม่ต้องรอใคร</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -2163,6 +2232,161 @@
       <div class="tip">
         <svg class="icon"><use href="#i-lightbulb"/></svg>
         <div><strong>หมายเหตุเกี่ยวกับลายเซ็น:</strong> หากลายเซ็นถูกฝังสำเร็จ ไฟล์ PDF ใหม่ที่มีลายเซ็นจะปรากฏในรายการไฟล์แนบพร้อมคำว่า <code>[ลงนาม]</code> นำหน้าชื่อไฟล์ ไฟล์ PDF ที่ใหญ่เกิน 20 MB จะไม่สามารถฝังลายเซ็นอัตโนมัติได้</div>
+      </div>
+    </section>
+
+    <!-- ── 7b. NUMBERING ── -->
+    <section class="section" id="numbering" data-roles="student staff">
+      <div class="section-header">
+        <div class="section-icon" style="background: var(--blue-50); color: var(--blue-500);">
+          <svg><use href="#i-pen"/></svg>
+        </div>
+        <div>
+          <h2>ออกเลขหนังสือ</h2>
+          <p>สำหรับหนังสือขาเข้าที่ผ่าน Workflow ครบแล้ว</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <div class="card-head-icon" style="background: var(--blue-50); color: var(--blue-500);">
+            <svg><use href="#i-scroll"/></svg>
+          </div>
+          รูปแบบเลขที่หนังสือ
+        </div>
+        <div class="card-body">
+          <p style="margin-bottom:14px">เลขที่หนังสือขาเข้าใช้รูปแบบ: <code style="font-size:15px;font-weight:700;color:var(--blue-700)">กนค. SPPTNNN-CC/BBBB</code></p>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>หลัก</th><th>ชื่อ</th><th>ที่มา</th></tr></thead>
+              <tbody>
+                <tr><td><code>S</code> (หลัก 1)</td><td>ภาคการศึกษา</td><td>ผู้ใช้เลือก: 1 = ต้น, 2 = ปลาย</td></tr>
+                <tr><td><code>PP</code> (หลัก 2–3)</td><td>รหัสตำแหน่ง/สังกัดผู้ส่ง</td><td>ดึงจาก ตำแหน่ง/สังกัด ของเอกสาร (auto)</td></tr>
+                <tr><td><code>T</code> (หลัก 4)</td><td>ประเภทหนังสือ</td><td>ผู้ใช้เลือก</td></tr>
+                <tr><td><code>NNN</code> (หลัก 5–7)</td><td>ลำดับที่</td><td>auto-generate นับต่อเนื่องต่อปีและหมวด</td></tr>
+                <tr><td><code>-CC</code> (หลัก 8–9)</td><td>รหัสชมรม</td><td>มีเฉพาะเมื่อผู้ส่งเป็นชมรม</td></tr>
+                <tr><td><code>/BBBB</code></td><td>ปี พ.ศ.</td><td>คำนวณอัตโนมัติ (ค.ศ. + 543)</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <div class="card-head-icon" style="background: var(--green-50); color: var(--green-500);">
+            <svg><use href="#i-check-circle"/></svg>
+          </div>
+          ขั้นตอนการออกเลข
+        </div>
+        <div class="card-body">
+          <div class="steps">
+            <div class="step">
+              <div class="step-num">1</div>
+              <div class="step-content">
+                <h4>เลือกภาคการศึกษา (หลักที่ 1)</h4>
+                <p>1 = ภาคต้น / 2 = ภาคปลาย</p>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num">2</div>
+              <div class="step-content">
+                <h4>ตำแหน่ง/สังกัดผู้ส่ง (หลักที่ 2–3)</h4>
+                <p>ดึงจากเอกสารอัตโนมัติ — ไม่ต้องเลือก</p>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num">3</div>
+              <div class="step-content">
+                <h4>เลือกประเภทหนังสือ (หลักที่ 4)</h4>
+                <p>เลือกจาก dropdown ประเภทหนังสือ 9 ประเภท</p>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num">4</div>
+              <div class="step-content">
+                <h4>วันที่หนังสือ — อัตโนมัติ</h4>
+                <p>ระบบใช้วันที่ปัจจุบัน (วันที่ออกเลข) โดยอัตโนมัติ ไม่ต้องเลือก</p>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num">5</div>
+              <div class="step-content">
+                <h4>ปรับขนาดตัวอักษร (ถ้าต้องการ)</h4>
+                <p>ใช้ slider ลด/ขยายขนาดตัวอักษรของเลขที่และวันที่บน PDF (8–24px)</p>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num">6</div>
+              <div class="step-content">
+                <h4>ลากตำแหน่ง stamp บน PDF preview</h4>
+                <p>ลากกล่องเลขที่และวันที่ไปยังตำแหน่งที่ต้องการบนเอกสาร</p>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num">7</div>
+              <div class="step-content">
+                <h4>กด "ออกเลขและเสร็จสิ้น"</h4>
+                <p>ระบบประทับเลขลงใน PDF จริง บันทึกเป็นเวอร์ชันใหม่ และเปลี่ยน status เป็น completed</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="tip">
+        <svg class="icon"><use href="#i-lightbulb"/></svg>
+        <div><strong>ใครออกเลขได้:</strong> ผู้สร้างเอกสาร, ROLE-SYS และ ROLE-STF เท่านั้น — ผู้ลงนาม (ROLE-SGN) และผู้ตรวจทาน (ROLE-REV) ออกเลขไม่ได้</div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <div class="card-head-icon" style="background: var(--ink-100); color: var(--ink-500);">
+            <svg><use href="#i-list"/></svg>
+          </div>
+          ตารางอ้างอิงรหัสตำแหน่ง / สังกัด (หลักที่ 2–3 และ 8–9)
+        </div>
+        <div class="card-body" style="padding:0">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th style="text-align:center">รหัส</th>
+                  <th>ตำแหน่ง กนค. (หลักที่ 2–3)</th>
+                  <th>ชมรม (หลักที่ 8–9 เมื่อผู้ส่งเป็นชมรม)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td style="text-align:center"><code>01</code></td><td>หัวหน้านิสิต</td><td>ชมรมต้นกล้าคณิตศาสตร์</td></tr>
+                <tr><td style="text-align:center"><code>02</code></td><td>รองหัวหน้านิสิตคนที่ 1</td><td>ชมรมคิดแบบนักวิทย์</td></tr>
+                <tr><td style="text-align:center"><code>03</code></td><td>รองหัวหน้านิสิตคนที่ 2</td><td>ชมรมพลเมืองพลัส</td></tr>
+                <tr><td style="text-align:center"><code>04</code></td><td>เลขานุการ</td><td>ชมรมภาษาและวัฒนธรรมไทย</td></tr>
+                <tr><td style="text-align:center"><code>05</code></td><td>เหรัญญิก</td><td>ชมรมอิงคลิศวิชชหรรษา</td></tr>
+                <tr><td style="text-align:center"><code>06</code></td><td>ฝ่ายวิชาการ</td><td>ชมรมโต้วาที</td></tr>
+                <tr><td style="text-align:center"><code>07</code></td><td>ฝ่ายนิสิตสัมพันธ์</td><td>ชมรมกิจกรรมและสันทนาการ</td></tr>
+                <tr><td style="text-align:center"><code>08</code></td><td>ฝ่ายกีฬา</td><td>ชมรมวอลเลย์บอล</td></tr>
+                <tr><td style="text-align:center"><code>09</code></td><td>ฝ่ายศิลปะและวัฒนธรรม</td><td>ชมรมแบดมินตัน</td></tr>
+                <tr><td style="text-align:center"><code>10</code></td><td>ฝ่ายพัฒนาสังคมและบำเพ็ญประโยชน์</td><td>ชมรมครุศาสตร์นานาศิลป์และศิลปะเพื่อการศึกษาร่วมสมัย</td></tr>
+                <tr><td style="text-align:center"><code>11</code></td><td>หัวหน้าชั้นปีที่ 1</td><td>ชมรมศิลปะการแสดง</td></tr>
+                <tr><td style="text-align:center"><code>12</code></td><td>หัวหน้าชั้นปีที่ 2</td><td>ชมรมสื่อสร้างสรรค์</td></tr>
+                <tr><td style="text-align:center"><code>13</code></td><td>หัวหน้าชั้นปีที่ 3</td><td>ชมรมครุศาสตร์นาฎยสโมสร</td></tr>
+                <tr><td style="text-align:center"><code>14</code></td><td>หัวหน้าชั้นปีที่ 4</td><td>ชมรมดนตรีสากล คณะครุศาสตร์ จุฬาฯ</td></tr>
+                <tr style="background:var(--ink-50)"><td style="text-align:center"><code>15</code></td><td>แผนกทะเบียนและประเมินผล</td><td>ชมรมครุศิลป์สู่สังคม</td></tr>
+                <tr style="background:var(--ink-50)"><td style="text-align:center"><code>16</code></td><td>แผนกสวัสดิการและพยาบาล</td><td>—</td></tr>
+                <tr style="background:var(--ink-50)"><td style="text-align:center"><code>17</code></td><td>แผนกหาทุน</td><td>—</td></tr>
+                <tr style="background:var(--ink-50)"><td style="text-align:center"><code>18</code></td><td>แผนกสถานที่</td><td>—</td></tr>
+                <tr style="background:var(--ink-50)"><td style="text-align:center"><code>19</code></td><td>แผนกโสตทัศนูปกรณ์</td><td>—</td></tr>
+                <tr style="background:var(--ink-50)"><td style="text-align:center"><code>20</code></td><td>แผนกพัสดุ</td><td>—</td></tr>
+                <tr style="background:var(--ink-50)"><td style="text-align:center"><code>22</code></td><td>แผนกสื่อประชาสัมพันธ์</td><td>—</td></tr>
+                <tr style="background:var(--ink-50)"><td style="text-align:center"><code>23</code></td><td>แผนกถ่ายภาพ</td><td>—</td></tr>
+                <tr style="background:var(--ink-50)"><td style="text-align:center"><code>24</code></td><td>แผนกศิลป์และออกแบบ</td><td>—</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div style="padding:12px 16px;font-size:12px;color:var(--ink-400);border-top:1px solid var(--ink-100)">
+            <strong>หมายเหตุ:</strong> แถวพื้นเทา = ตำแหน่งแผนก (รหัส 15–24) · ชมรมใช้รหัสเดียวกับตำแหน่ง กนค. แต่ต่างกันตรงหลักที่ 8–9 เท่านั้น
+          </div>
+        </div>
       </div>
     </section>
 
@@ -2356,6 +2580,62 @@
       </div>
     </section>
 
+    <!-- ── 10b. TEMPLATES ── -->
+    <section class="section" id="templates" data-roles="student teacher staff">
+      <div class="section-header">
+        <div class="section-icon" style="background: var(--green-50); color: var(--green-500);">
+          <svg><use href="#i-download"/></svg>
+        </div>
+        <div>
+          <h2>แบบฟอร์มดาวน์โหลด</h2>
+          <p>แม่แบบเอกสารสำหรับนำไปกรอกและแนบในระบบ</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <div class="card-head-icon" style="background: var(--ink-100); color: var(--ink-500);">
+            <svg><use href="#i-folder"/></svg>
+          </div>
+          หมวดหมู่แบบฟอร์ม
+        </div>
+        <div class="card-body" style="padding:0">
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>หมวด</th><th>ตัวอย่าง</th><th style="text-align:center">ผู้ดูได้</th></tr></thead>
+              <tbody>
+                <tr><td><span class="badge b-draft">หนังสือขาเข้า</span></td><td>แบบฟอร์มหนังสือขอความอนุเคราะห์ ฯลฯ</td><td style="text-align:center">ทุกคน</td></tr>
+                <tr><td><span class="badge b-signed">หนังสือขาออก</span></td><td>แบบฟอร์มหนังสือนำส่ง ฯลฯ</td><td style="text-align:center">ทุกคน</td></tr>
+                <tr><td><span class="badge b-staff">ทั่วไป</span></td><td>แบบฟอร์มขอใช้สถานที่ ฯลฯ</td><td style="text-align:center">ทุกคน</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <div class="card-head-icon" style="background: var(--amber-50); color: var(--amber-500);">
+            <svg><use href="#i-shield"/></svg>
+          </div>
+          สิทธิ์จัดการแบบฟอร์ม (อัปโหลด / ลบ)
+        </div>
+        <div class="card-body" style="padding:0">
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>บทบาท / ตำแหน่ง</th><th style="text-align:center">ดู</th><th style="text-align:center">อัปโหลด / ลบ</th></tr></thead>
+              <tbody>
+                <tr><td>ทุกคน (นิสิต กนค., อาจารย์)</td><td style="text-align:center"><span class="badge b-green">✓</span></td><td style="text-align:center"><span class="badge b-gray">—</span></td></tr>
+                <tr><td>เจ้าหน้าที่ <span class="badge b-amber">ROLE-STF</span></td><td style="text-align:center"><span class="badge b-green">✓</span></td><td style="text-align:center"><span class="badge b-green">✓</span></td></tr>
+                <tr><td>เลขานุการ กนค. <span class="badge b-orange">GNK-SEC</span></td><td style="text-align:center"><span class="badge b-green">✓</span></td><td style="text-align:center"><span class="badge b-green">✓</span></td></tr>
+                <tr><td>ผู้ดูแลระบบ <span class="badge b-orange">ROLE-SYS</span></td><td style="text-align:center"><span class="badge b-green">✓</span></td><td style="text-align:center"><span class="badge b-green">✓</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- ── 11. ADMIN USERS ── -->
     <section class="section" id="-users" data-roles="staff">
       <div class="section-header">
@@ -2411,8 +2691,9 @@
               <tbody>
                 <tr><td><span class="icon-cell"><svg class="icon-sm"><use href="#i-edit"/></svg> แก้ไขข้อมูล</span></td><td>ชื่อ, บทบาท, ตำแหน่ง, ฝ่าย</td><td><span class="badge b-orange">SYS</span> <span class="badge b-amber">STF</span></td></tr>
                 <tr><td><span class="icon-cell"><svg class="icon-sm"><use href="#i-lock"/></svg> ระงับ / เปิดใช้</span></td><td>ปิดการเข้าสู่ระบบชั่วคราว</td><td><span class="badge b-orange">SYS</span> <span class="badge b-amber">STF</span></td></tr>
-                <tr><td><span class="icon-cell"><svg class="icon-sm"><use href="#i-key"/></svg> รีเซ็ตรหัสผ่าน</span></td><td>ตั้งรหัสผ่านใหม่ (อย่างน้อย 6 ตัว)</td><td><span class="badge b-orange">SYS เท่านั้น</span></td></tr>
-                <tr><td><span class="icon-cell"><svg class="icon-sm"><use href="#i-trash"/></svg> ลบบัญชี</span></td><td>ลบถาวร (ไม่สามารถกู้คืนได้)</td><td><span class="badge b-red">SYS เท่านั้น</span></td></tr>
+                <tr><td><span class="icon-cell"><svg class="icon-sm"><use href="#i-key"/></svg> รีเซ็ตรหัสผ่าน</span></td><td>ตั้งรหัสผ่านใหม่ (อย่างน้อย 6 ตัว)</td><td><span class="badge b-orange">SYS</span> <span class="badge b-amber">STF</span></td></tr>
+                <tr><td><span class="icon-cell"><svg class="icon-sm"><use href="#i-trash"/></svg> ลบบัญชี</span></td><td>ลบถาวร (ไม่สามารถกู้คืนได้)</td><td><span class="badge b-orange">SYS</span> <span class="badge b-amber">STF</span></td></tr>
+                <tr><td><span class="icon-cell"><svg class="icon-sm"><use href="#i-upload"/></svg> นำเข้า CSV</span></td><td>เพิ่มผู้ใช้หลายคนพร้อมกัน</td><td><span class="badge b-orange">SYS</span> <span class="badge b-amber">STF</span></td></tr>
               </tbody>
             </table>
           </div>

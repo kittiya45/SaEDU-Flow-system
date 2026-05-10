@@ -59,10 +59,20 @@ async function nav(view, id) {
     } else {
       var results = await Promise.all([
         dg('documents',      '?status=in.(pending,rejected)&select=id,created_by'),
-        dg('workflow_steps', '?assigned_to=eq.'+safeId(CU.id)+'&select=document_id')
+        dg('workflow_steps', '?assigned_to=eq.'+safeId(CU.id)+'&select=document_id'),
+        dg('documents',      '?forwarded_to_id=eq.'+safeId(CU.id)+'&status=eq.completed&select=id&limit=99')
       ]);
       var psIds = results[1].map(function(s){ return s.document_id; });
-      PC = results[0].filter(function(d){ return d.created_by===CU.id || psIds.indexOf(d.id)!==-1; }).length || 0;
+      var pendCount = results[0].filter(function(d){ return d.created_by===CU.id || psIds.indexOf(d.id)!==-1; }).length || 0;
+      var fwdDocs = results[2]; var fwdCount = 0;
+      if(fwdDocs.length){
+        var _actedHist=await dg('document_history',
+          '?document_id=in.('+fwdDocs.map(function(d){return safeId(d.id)}).join(',')+')'
+          +'&action=in.(รับเอกสาร,ปฏิเสธเอกสาร)&performed_by=eq.'+safeId(CU.id)+'&select=document_id');
+        var _actedIds=new Set((_actedHist||[]).map(function(h){return h.document_id}));
+        fwdCount=fwdDocs.filter(function(d){return !_actedIds.has(d.id)}).length;
+      }
+      PC = pendCount + fwdCount;
     }
   } catch(e) { PC = 0; }
 

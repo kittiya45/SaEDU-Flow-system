@@ -14,8 +14,8 @@ async function sendNotifEmail(docId, action, newStatus, note){
   // ── สร้าง recipient list ──
   var recipients=[];
   function _okEmail(em){return em&&em.includes('@')&&!em.includes('@gnk.student')}
-  if(newStatus==='completed'){
-    // แจ้งเตือนเฉพาะผู้จัดทำเมื่อเอกสารเสร็จสิ้น
+  if(newStatus==='completed'||newStatus==='numbering'){
+    // แจ้งเตือนผู้จัดทำเมื่อเอกสารเสร็จสิ้น หรือพร้อมออกเลขหนังสือ
     if(doc.created_by){
       var creatorUser=await dg('users','?id=eq.'+safeId(doc.created_by));
       if(creatorUser[0]){
@@ -56,7 +56,7 @@ async function sendNotifEmail(docId, action, newStatus, note){
     if(_sFile) signedFileUrl=furl(_sFile.file_path);
   }
 
-  var emailSubj='[กนค.] '+(newStatus==='completed'?'เสร็จสิ้น: ':action==='reject'?'↩ ส่งคืนแก้ไข: ':action==='create'?'📋 เอกสารใหม่รอดำเนินการ: ':action==='overdue'?'⚠️ เลยกำหนด: ':'')+subj;
+  var emailSubj='[กนค.] '+(newStatus==='completed'?'เสร็จสิ้น: ':newStatus==='numbering'?'🔢 รอออกเลขหนังสือ: ':action==='reject'?'↩ ส่งคืนแก้ไข: ':action==='create'?'📋 เอกสารใหม่รอดำเนินการ: ':action==='overdue'?'⚠️ เลยกำหนด: ':'')+subj;
   var sentEmails=[];
 
   for(var ri=0;ri<recipients.length;ri++){
@@ -76,6 +76,7 @@ async function sendNotifEmail(docId, action, newStatus, note){
     });
 
     // ── ส่งอีเมลจริงผ่าน Edge Function ──
+    var status='failed';
     try{
       var resp=await fetch(SU+'/functions/v1/send-email',{
         method:'POST',
@@ -83,12 +84,11 @@ async function sendNotifEmail(docId, action, newStatus, note){
         body:JSON.stringify({to:recip.email,subject:emailSubj,html:html})
       });
       var result=await resp.json();
-      var status=resp.ok?'sent':'failed';
+      status=resp.ok?'sent':'failed';
       if(!resp.ok) console.warn('Email send failed for '+recip.email+':',result);
       else sentEmails.push(recip.email);
     }catch(e){
       console.warn('Email fetch error:',e);
-      var status='failed';
     }
 
     // ── บันทึก audit log ──
@@ -118,6 +118,8 @@ function buildEmailHtml(o){
   var bannerBg,bannerIcon,actionLabel;
   if(o.newStatus==='completed'){
     bannerBg='#E8F5E9'; bannerIcon='✅'; actionLabel='<span style="color:#2E7D32;font-weight:700">เอกสารผ่านทุกขั้นตอนเรียบร้อยแล้ว</span>';
+  } else if(o.newStatus==='numbering'){
+    bannerBg='#FFF8E1'; bannerIcon='🔢'; actionLabel='<span style="color:#F57F17;font-weight:700">ลายเซ็นครบแล้ว — กรุณาออกเลขที่หนังสือ</span>';
   } else if(o.action==='reject'){
     bannerBg='#FFF3E0'; bannerIcon='↩'; actionLabel='<span style="color:#E65100;font-weight:700">เอกสารถูกส่งคืนเพื่อแก้ไข</span>';
   } else if(o.action==='overdue'){
@@ -138,6 +140,8 @@ function buildEmailHtml(o){
   if(o.newStatus==='completed'){
     footerMsg='<p style="font-size:13px;color:#2E7D32;margin:16px 0 8px">กรุณาเข้าระบบเพื่อดาวน์โหลดเอกสารฉบับลงนาม</p>';
     if(o.signedFileUrl) footerMsg+='<a href="'+o.signedFileUrl+'" style="display:inline-block;background:#E84300;color:#fff;text-decoration:none;padding:10px 22px;border-radius:8px;font-weight:600;font-size:13px;margin-top:4px">ดูเอกสารลงนาม</a>';
+  } else if(o.newStatus==='numbering'){
+    footerMsg='<p style="font-size:13px;color:#F57F17;margin:16px 0 0;font-weight:700">กรุณาเข้าสู่ระบบเพื่อออกเลขที่หนังสือและวันที่</p>';
   } else if(o.action==='reject'){
     footerMsg='<p style="font-size:13px;color:#E65100;margin:16px 0 0">กรุณาแก้ไขเอกสารและส่งกลับผ่านระบบ</p>';
   } else if(o.action==='overdue'){
