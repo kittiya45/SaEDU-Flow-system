@@ -7,8 +7,10 @@
 <link rel="icon" type="image/png" href="img/Logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
+  @font-face{font-family:'Chulalongkorn';src:url('font/CHULALONGKORNReg.otf')format('opentype');font-weight:400;font-style:normal;font-display:swap}
+  @font-face{font-family:'Chulalongkorn';src:url('font/CHULALONGKORNBold.otf')format('opentype');font-weight:700;font-style:normal;font-display:swap}
   :root {
     /* Brand */
     --orange-50:  #FFF6F1;
@@ -77,11 +79,11 @@
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html { scroll-behavior: smooth; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
   body {
-    font-family: 'IBM Plex Sans Thai', 'Inter', system-ui, -apple-system, sans-serif;
+    font-family: 'Noto Sans Thai', system-ui, -apple-system, sans-serif;
     background: var(--ink-50);
     color: var(--ink-900);
-    font-size: 15px;
-    line-height: 1.65;
+    font-size: 16px;
+    line-height: 1.72;
   }
   a { color: inherit; text-decoration: none; }
   img, svg { display: block; }
@@ -115,25 +117,21 @@
     background: linear-gradient(180deg, #fff 0%, var(--orange-50) 100%);
   }
   .sidebar-logo {
-    width: 42px; height: 42px;
-    border-radius: 12px;
-    background: linear-gradient(135deg, var(--orange-500), var(--orange-700));
+    width: 46px; height: 46px;
+    border-radius: 50%;
+    background: transparent;
     display: flex; align-items: center; justify-content: center;
-    color: white;
-    box-shadow: var(--shadow-orange);
     flex-shrink: 0;
+    overflow: hidden;
   }
   .sidebar-logo img {
-    width: 80%;       /* ปรับขนาดโลโก้ให้ไม่ชิดขอบเกินไป */
-    height: 80%;
+    width: 100%;
+    height: 100%;
     object-fit: contain;
-    /* ✨ ไม้ตาย: ทำให้สีขาวโปร่งแสงเนียนไปกับพื้นหลัง */
-    mix-blend-mode: multiply; 
-    filter: contrast(110%); /* เพิ่มความคมชัดเล็กน้อย */
-}
+  }
 
   .sidebar-title { font-size: 16px; font-weight: 800; color: var(--ink-900); line-height: 1.2; letter-spacing: -.01em; }
-  .sidebar-sub { font-size: 11px; color: var(--ink-400); margin-top: 2px; font-weight: 500; }
+  .sidebar-sub { font-size: 12px; color: var(--ink-400); margin-top: 2px; font-weight: 500; }
 
   .sidebar-search {
     margin: 14px 16px 6px;
@@ -172,9 +170,9 @@
   }
   .nav-item {
     display: flex; align-items: center; gap: 11px;
-    padding: 9px 14px; margin: 1px 10px;
+    padding: 10px 14px; margin: 1px 10px;
     border-radius: 10px;
-    font-size: 13.5px; font-weight: 500;
+    font-size: 14px; font-weight: 500;
     color: var(--ink-700);
     cursor: pointer;
     transition: var(--transition);
@@ -189,13 +187,6 @@
     font-weight: 600;
   }
   .nav-item.active svg { color: var(--orange-500); }
-  .nav-item.active::before {
-    content: '';
-    position: absolute;
-    left: -10px; top: 8px; bottom: 8px;
-    width: 3px; border-radius: 0 3px 3px 0;
-    background: var(--orange-500);
-  }
 
   /* ── MAIN ── */
   .main { margin-left: var(--sidebar-w); min-height: 100vh; }
@@ -220,7 +211,7 @@
   }
   .breadcrumbs {
     display: flex; align-items: center; gap: 8px;
-    font-size: 13px; color: var(--ink-500);
+    font-size: 14px; color: var(--ink-500);
     flex: 1;
   }
   .breadcrumbs strong { color: var(--ink-900); font-weight: 600; }
@@ -247,31 +238,12 @@
 
   /* HERO */
   .hero {
-    background:
-      radial-gradient(120% 120% at 80% 0%, rgba(255,255,255,.18) 0%, rgba(255,255,255,0) 40%),
-      radial-gradient(140% 80% at 0% 100%, rgba(0,0,0,.18) 0%, rgba(0,0,0,0) 50%),
-      linear-gradient(135deg, #E83A00 0%, #B72A00 50%, #6E1700 100%);
+    background: linear-gradient(150deg, #E83A00 0%, #B72A00 55%, #6E1700 100%);
     padding: 56px 48px 64px;
     color: white;
     position: relative; overflow: hidden;
   }
-  .hero-pattern {
-    position: absolute; inset: 0;
-    background-image:
-      radial-gradient(circle at 1px 1px, rgba(255,255,255,.10) 1px, transparent 0);
-    background-size: 24px 24px;
-    opacity: .35;
-    mask-image: linear-gradient(180deg, transparent 0%, black 30%, black 70%, transparent 100%);
-  }
-  .hero-orb {
-    position: absolute;
-    border-radius: 50%;
-    background: rgba(255,255,255,.08);
-    filter: blur(2px);
-    pointer-events: none;
-  }
-  .hero-orb.a { width: 320px; height: 320px; top: -80px; right: -80px; }
-  .hero-orb.b { width: 180px; height: 180px; bottom: -60px; right: 200px; background: rgba(255,255,255,.05); }
+  .hero-pattern { display: none; }
   .hero-content { position: relative; max-width: 720px; }
   .hero-badge {
     display: inline-flex; align-items: center; gap: 7px;
@@ -284,13 +256,13 @@
     margin-bottom: 22px;
   }
   .hero h1 {
-    font-size: 42px; font-weight: 800;
-    line-height: 1.1; margin-bottom: 14px;
-    letter-spacing: -.02em;
+    font-size: 40px; font-weight: 800;
+    line-height: 1.15; margin-bottom: 14px;
+    letter-spacing: -.01em;
   }
   .hero p {
-    font-size: 16.5px; line-height: 1.6;
-    color: rgba(255,255,255,.88); max-width: 580px;
+    font-size: 17px; line-height: 1.68;
+    color: rgba(255,255,255,.88); max-width: 600px;
   }
   .hero-meta {
     display: flex; gap: 24px; margin-top: 28px;
@@ -311,7 +283,6 @@
   /* ── CONTENT ── */
   .content {
     padding: 40px 48px 80px;
-    max-width: 980px;
   }
   .section {
     margin-bottom: 56px;
@@ -332,13 +303,13 @@
   }
   .section-icon svg { width: 22px; height: 22px; }
   .section-header h2 {
-    font-size: 24px; font-weight: 800;
-    color: var(--ink-900); letter-spacing: -.01em;
-    line-height: 1.2;
+    font-size: 22px; font-weight: 800;
+    color: var(--ink-900); letter-spacing: 0;
+    line-height: 1.25;
   }
   .section-header p {
-    font-size: 13.5px; color: var(--ink-500);
-    margin-top: 4px;
+    font-size: 14px; color: var(--ink-500);
+    margin-top: 5px;
   }
 
   /* ── CARDS ── */
@@ -353,12 +324,12 @@
   }
   .card:hover { box-shadow: var(--shadow-md); }
   .card-head {
-    padding: 14px 20px;
+    padding: 15px 20px;
     border-bottom: 1px solid var(--ink-200);
     display: flex; align-items: center; gap: 12px;
-    font-size: 14.5px; font-weight: 700;
+    font-size: 15px; font-weight: 700;
     color: var(--ink-900);
-    background: linear-gradient(180deg, #fff 0%, #FBFAF8 100%);
+    background: var(--white);
   }
   .card-body { padding: 22px; }
   .card-body > p { color: var(--ink-700); }
@@ -383,24 +354,23 @@
   .step-num {
     width: 30px; height: 30px;
     border-radius: 50%;
-    background: linear-gradient(135deg, var(--orange-500), var(--orange-700));
+    background: var(--orange-500);
     color: white;
     font-size: 13px; font-weight: 700;
     display: flex; align-items: center; justify-content: center;
     flex-shrink: 0;
-    box-shadow: 0 4px 10px rgba(232,58,0,.25);
   }
   .step-content { flex: 1; min-width: 0; }
   .step-content h4 {
-    font-size: 14.5px; font-weight: 700;
-    margin-bottom: 4px;
+    font-size: 15px; font-weight: 700;
+    margin-bottom: 5px;
     color: var(--ink-900);
   }
-  .step-content p { font-size: 13.5px; color: var(--ink-500); }
+  .step-content p { font-size: 14px; color: var(--ink-500); }
 
   /* ── TABLES ── */
   .table-wrap { overflow-x: auto; }
-  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
   th {
     background: var(--ink-50);
     padding: 11px 16px; text-align: left;
@@ -456,15 +426,15 @@
     display: flex; align-items: flex-start; gap: 12px;
     padding: 13px 16px;
     border-radius: var(--radius-md);
-    font-size: 13.5px;
+    font-size: 14px;
     margin-bottom: 12px;
-    line-height: 1.55;
+    line-height: 1.6;
   }
   .al svg { flex-shrink: 0; margin-top: 1px; }
-  .al-info  { background: var(--blue-50);   color: var(--blue-700);   border-left: 3px solid var(--blue-500); }
-  .al-warn  { background: var(--amber-50);  color: var(--amber-700);  border-left: 3px solid var(--amber-500); }
-  .al-ok    { background: var(--green-50);  color: var(--green-700);  border-left: 3px solid var(--green-500); }
-  .al-er    { background: var(--red-50);    color: var(--red-700);    border-left: 3px solid var(--red-500); }
+  .al-info  { background: var(--blue-50);   color: var(--blue-700);   border: 1.5px solid var(--blue-100); }
+  .al-warn  { background: var(--amber-50);  color: var(--amber-700);  border: 1.5px solid var(--amber-100); }
+  .al-ok    { background: var(--green-50);  color: var(--green-700);  border: 1.5px solid var(--green-100); }
+  .al-er    { background: var(--red-50);    color: var(--red-700);    border: 1.5px solid var(--red-100); }
   .al strong { font-weight: 700; }
   .al:last-child { margin-bottom: 0; }
 
@@ -601,8 +571,8 @@
   }
   .faq-item:hover { border-color: var(--ink-300); }
   .faq-q {
-    padding: 15px 18px;
-    font-weight: 600; font-size: 14px;
+    padding: 16px 18px;
+    font-weight: 600; font-size: 15px;
     cursor: pointer;
     display: flex; justify-content: space-between; align-items: center;
     gap: 12px;
@@ -613,7 +583,7 @@
   .faq-q-text svg { color: var(--ink-400); flex-shrink: 0; }
   .faq-a {
     padding: 0 18px;
-    font-size: 13.5px; color: var(--ink-700);
+    font-size: 14.5px; color: var(--ink-700);
     max-height: 0; overflow: hidden;
     transition: max-height .3s ease, padding .3s ease;
   }
@@ -630,8 +600,8 @@
 
   /* ── TIP BOX ── */
   .tip {
-    background: linear-gradient(135deg, var(--orange-50) 0%, #FFEDE3 100%);
-    border: 1px solid var(--orange-200);
+    background: var(--orange-50);
+    border: 1px solid var(--orange-100);
     border-radius: var(--radius-md);
     padding: 14px 16px;
     font-size: 13.5px; color: var(--ink-700);
@@ -679,8 +649,8 @@
     display: flex; align-items: center; justify-content: center;
     opacity: .85;
   }
-  .stat-label { font-size: 12.5px; color: var(--ink-500); font-weight: 600; }
-  .stat-value { font-size: 28px; font-weight: 800; margin-top: 4px; letter-spacing: -.02em; }
+  .stat-label { font-size: 13px; color: var(--ink-500); font-weight: 600; }
+  .stat-value { font-size: 28px; font-weight: 800; margin-top: 6px; letter-spacing: -.02em; }
   .stat-card.orange { background: var(--orange-50); border-color: transparent; }
   .stat-card.orange .stat-value, .stat-card.orange .stat-icon { color: var(--orange-600); }
   .stat-card.green { background: var(--green-50); border-color: transparent; }
@@ -693,7 +663,7 @@
   /* ── LIST ── */
   ul.list { padding-left: 4px; list-style: none; }
   ul.list li {
-    margin-bottom: 8px; font-size: 14px;
+    margin-bottom: 10px; font-size: 15px;
     padding-left: 24px;
     position: relative;
     color: var(--ink-700);
@@ -728,11 +698,11 @@
   /* ── FOOTER ── */
   .footer {
     border-top: 1px solid var(--ink-200);
-    padding: 28px 0 12px;
+    padding: 28px 0 16px;
     margin-top: 24px;
     text-align: center;
     color: var(--ink-400);
-    font-size: 12.5px;
+    font-size: 13px;
   }
   .footer p { margin-bottom: 4px; }
   .footer-brand { color: var(--ink-700); font-weight: 700; }
@@ -759,9 +729,9 @@
   }
   .toc-link {
     display: flex; align-items: center; gap: 8px;
-    padding: 6px 8px; margin: 0 -8px;
+    padding: 7px 8px; margin: 0 -8px;
     border-radius: 7px;
-    font-size: 13px; color: var(--ink-700);
+    font-size: 14px; color: var(--ink-700);
     transition: var(--transition);
   }
   .toc-link:hover { background: white; color: var(--orange-600); }
@@ -810,7 +780,7 @@
   .role-picker {
     background: var(--white);
     border-radius: var(--radius-xl);
-    padding: 36px 32px 32px;
+    padding: 40px 36px 36px;
     max-width: 560px; width: 100%;
     box-shadow: var(--shadow-lg);
     text-align: center;
@@ -827,10 +797,10 @@
   }
   .role-picker h2 {
     font-size: 22px; font-weight: 800;
-    letter-spacing: -.01em; margin-bottom: 6px;
+    letter-spacing: 0; margin-bottom: 8px;
   }
   .role-picker > p {
-    font-size: 14px; color: var(--ink-500); margin-bottom: 28px;
+    font-size: 15px; color: var(--ink-500); margin-bottom: 28px;
   }
   .role-picker-grid {
     display: grid;
@@ -872,8 +842,8 @@
     transition: var(--transition);
   }
   .rp-icon svg { width: 26px; height: 26px; }
-  .rp-name { font-size: 15px; font-weight: 800; color: var(--ink-900); margin-bottom: 4px; }
-  .rp-desc { font-size: 12px; color: var(--ink-500); line-height: 1.45; }
+  .rp-name { font-size: 15px; font-weight: 800; color: var(--ink-900); margin-bottom: 6px; }
+  .rp-desc { font-size: 13px; color: var(--ink-500); line-height: 1.55; }
   .rp-card:hover .rp-icon { background: var(--orange-100); color: var(--orange-600); }
 
   .role-picker-btn {
@@ -1264,9 +1234,6 @@
 
   <!-- HERO -->
   <div class="hero">
-    <div class="hero-pattern"></div>
-    <div class="hero-orb a"></div>
-    <div class="hero-orb b"></div>
     <div class="hero-content">
       <div class="hero-badge">
         <svg class="icon-sm"><use href="#i-sparkle"/></svg>
@@ -1299,9 +1266,11 @@
         <a class="toc-link" href="#create-doc" data-roles="student staff"><svg><use href="#i-chevron-right"/></svg> สร้างเอกสาร</a>
         <a class="toc-link" href="#workflow" data-roles="student staff"><svg><use href="#i-chevron-right"/></svg> ขั้นตอน Workflow</a>
         <a class="toc-link" href="#approve" data-roles="teacher staff"><svg><use href="#i-chevron-right"/></svg> อนุมัติ / ลงนาม</a>
+        <a class="toc-link" href="#numbering" data-roles="student staff"><svg><use href="#i-chevron-right"/></svg> ออกเลขหนังสือ</a>
         <a class="toc-link" href="#reject" data-roles="teacher staff"><svg><use href="#i-chevron-right"/></svg> ส่งคืนแก้ไข</a>
         <a class="toc-link" href="#files"><svg><use href="#i-chevron-right"/></svg> จัดการไฟล์แนบ</a>
         <a class="toc-link" href="#calendar"><svg><use href="#i-chevron-right"/></svg> ปฏิทินกิจกรรม</a>
+        <a class="toc-link" href="#templates"><svg><use href="#i-chevron-right"/></svg> แบบฟอร์มดาวน์โหลด</a>
         <a class="toc-link" href="#-users" data-roles="staff"><svg><use href="#i-chevron-right"/></svg> จัดการผู้ใช้</a>
         <a class="toc-link" href="#-import" data-roles="staff"><svg><use href="#i-chevron-right"/></svg> นำเข้า CSV</a>
         <a class="toc-link" href="#faq"><svg><use href="#i-chevron-right"/></svg> คำถามที่พบบ่อย</a>
@@ -1862,7 +1831,7 @@
           </div>
           <div class="al al-info">
             <svg class="icon"><use href="#i-info"/></svg>
-            <span>ลืมรหัสผ่าน? คลิก "ลืมรหัสผ่าน?" แล้วตอบคำถามเพื่อรีเซ็ต หรือแจ้ง Admin รีเซ็ตให้</span>
+            <span>ลืมรหัสผ่าน? คลิก "ลืมรหัสผ่าน?" แล้วกรอกรหัสผ่านเดิมพร้อมตั้งรหัสใหม่ หากจำรหัสเดิมไม่ได้ ให้แจ้ง Admin รีเซ็ตให้</span>
           </div>
         </div>
       </div>
@@ -2785,7 +2754,7 @@
           <svg class="faq-arrow icon"><use href="#i-chevron-down"/></svg>
         </div>
         <div class="faq-a">
-          <p>คลิก <strong>"ลืมรหัสผ่าน?"</strong> ที่หน้าเข้าสู่ระบบ แล้วตอบคำถามเพื่อยืนยันตัวตน หรือแจ้ง Admin รีเซ็ตรหัสผ่านให้ผ่านหน้าจัดการผู้ใช้</p>
+          <p>คลิก <strong>"ลืมรหัสผ่าน?"</strong> ที่หน้าเข้าสู่ระบบ จากนั้นกรอก username + <strong>รหัสผ่านปัจจุบัน</strong> + รหัสผ่านใหม่ เพื่อเปลี่ยนรหัสผ่าน หากจำรหัสผ่านเดิมไม่ได้ กรุณาแจ้ง Admin รีเซ็ตรหัสผ่านให้ผ่านหน้าจัดการผู้ใช้</p>
         </div>
       </div>
 

@@ -10,11 +10,11 @@ function _startSessionTimer(){
   document.addEventListener('keydown',_actHandler,true);
   if(_sesTmr)clearInterval(_sesTmr);
   _sesTmr=setInterval(function(){
-    if(CU&&Date.now()-_lastAct>30*60*1000){
+    if(CU&&Date.now()-_lastAct>(SETT.session_timeout_min||30)*60*1000){
       try{dp('document_history',{action:'session_timeout',performed_by:CU.id,note:'Session หมดอายุอัตโนมัติ'});}catch(e){}
       _cleanupSession();
       showAuth();
-      alert('Session หมดอายุ กรุณาเข้าสู่ระบบใหม่');
+      showAlert('Session หมดอายุ กรุณาเข้าสู่ระบบใหม่','wa');
     }
   },60000);
 }
@@ -42,19 +42,26 @@ function showAuth(){
     '<button type="button" id="lp-eye" onclick="_togglePwVis()" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;padding:4px;cursor:pointer;color:#a89e99;display:flex;align-items:center;line-height:1;border-radius:6px" title="แสดง/ซ่อนรหัสผ่าน">'+svg('eye',16)+'</button>',
     '</div>',
     '<div style="text-align:right;margin-top:6px">',
-    '<button type="button" style="font-size:12px;background:transparent;color:#E83A00;border:none;padding:0;cursor:pointer;font-weight:600" data-action="showChangePwPopup">ลืมรหัสผ่าน?</button>',
+    /* [UX] เปลี่ยน label ให้ตรงกับ behavior จริง (ต้องใส่รหัสเดิม ไม่ใช่ reset) */
+    '<button type="button" style="font-size:12px;background:transparent;color:#E83A00;border:none;padding:0;cursor:pointer;font-weight:600" data-action="showChangePwPopup">เปลี่ยนรหัสผ่าน</button>',
     '</div></div>',
     '<button class="btn btn-primary fw py-[13px] mt-1" data-action="login">เข้าสู่ระบบ</button>',
     '<div class="divider">ยังไม่มีบัญชี?</div>',
+    /* [UX] เพิ่ม sub-caption ใต้ปุ่มสมัครเพื่อบอกว่าแต่ละปุ่มสำหรับใคร */
     '<div class="grid grid-cols-2 gap-[9px]">',
+    '<div class="flex flex-col items-center gap-1">',
     '<button class="btn btn-ghost fw" data-action="showRegGnkPopup">สมัคร กนค.</button>',
-    '<button class="btn btn-ghost fw" data-action="showRegStaffPopup">สมัคร อ./จนท.</button></div>',
+    '<span style="font-size:11px;color:#a89e99">สำหรับนิสิต กนค.</span>',
+    '</div>',
+    '<div class="flex flex-col items-center gap-1">',
+    '<button class="btn btn-ghost fw" data-action="showRegStaffPopup">สมัคร อ./จนท.</button>',
+    '<span style="font-size:11px;color:#a89e99">สำหรับอาจารย์และเจ้าหน้าที่</span>',
+    '</div></div>',
 
   ].join('');
 
   rdr([
     '<div class="auth-root">',
-    '<div class="ab1"></div><div class="ab2"></div><div class="ab3"></div><div class="ab4"></div>',
     '<div class="auth-card">',
     '<div class="auth-header">',
     '<div class="auth-orb"></div>',
@@ -94,8 +101,19 @@ async function doLogin(){
   var u=gv('lu').trim(),p=gv('lp'),a=$e('lal');if(!a)return;
   if(!u||!p){a.innerHTML=alrtH('er','กรุณากรอกข้อมูลให้ครบ');return}
   if(Date.now()<_loginLockedUntil){
-    var secs=Math.ceil((_loginLockedUntil-Date.now())/1000);
-    a.innerHTML=alrtH('er','โปรดรอ '+secs+' วินาทีก่อนลองใหม่');return
+    // [UX] countdown timer อัปเดตทุก 1 วินาที แทนแสดงครั้งเดียว
+    var _updateLockMsg=function(){
+      var remain=_loginLockedUntil-Date.now();
+      if(remain<=0){if(a)a.innerHTML='';return;}
+      var secs=Math.ceil(remain/1000);
+      var mins=Math.floor(secs/60);
+      var s2=secs%60;
+      var timeStr=mins>0?(mins+' นาที '+(s2>0?s2+' วินาที':'')):(secs+' วินาที');
+      if(a)a.innerHTML=alrtH('er','พยายามเข้าสู่ระบบผิดพลาดหลายครั้ง กรุณารอ '+timeStr);
+      setTimeout(_updateLockMsg,1000);
+    };
+    _updateLockMsg();
+    return;
   }
   a.innerHTML='<div class="al al-in"><span class="sp sp-dark"></span><span> กำลังตรวจสอบ...</span></div>';
   try{
@@ -136,6 +154,7 @@ async function doLogin(){
       try{await dp('document_history',{action:'login',performed_by:CU.id,note:'เข้าสู่ระบบ'});}catch(e){}
       _startSessionTimer();
       await loadDocTypes();
+      await loadAppSettings();
       await nav('dash');
       try{await sendOverdueNotifs();}catch(e){console.warn('Overdue check failed:',e)} return
     }
@@ -198,63 +217,40 @@ function showRegGnkPopup(){
   var pOpts = POSS.map(function(p){
     return '<option value="'+p+'">'+p+' — '+PTH[p]+'</option>'
   }).join('');
-  
   var el = document.createElement('div');
-  el.id = 'regpopup'; 
-  el.className = 'cpopup-overlay flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm fixed inset-0 z-[1000]';
-  
+  el.id = 'regpopup';
+  el.className = 'cpopup-overlay';
   el.innerHTML =
-    '<div class="cpopup-box bg-white w-full max-w-[480px] rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">' +
-      '' +
-      '<div class="p-6 border-b border-gray-100 flex items-center justify-between">' +
-        '<div>' +
-          '<div class="text-xl font-bold text-gray-800 text-red-600">สมัครสมาชิก กนค.</div>' +
-          '<div class="text-sm text-gray-500 mt-0.5">ต้องรอ Admin อนุมัติก่อนเข้าใช้งาน</div>' +
-        '</div>' +
-        '<button class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors text-gray-400" data-action="closeRegPopup">' +
-          svg('x', 14) +
-        '</button>' +
-      '</div>' +
-      
-      '' +
-      '<div class="p-6 max-h-[70vh] overflow-y-auto">' +
-        '<div id="reg-alert"></div>' +
-
-        '<div class="grid grid-cols-2 gap-4 mb-4">' +
-          '<div><label class="block text-sm font-medium text-gray-700 mb-1">ชื่อ <span class="text-red-500">*</span></label>' +
-          '<input id="gfn" class="fi w-full px-4 py-2 rounded-lg border border-gray-200 outline-none focus:border-orange-500" placeholder="ชื่อ"></div>' +
-          '<div><label class="block text-sm font-medium text-gray-700 mb-1">นามสกุล <span class="text-red-500">*</span></label>' +
-          '<input id="gln" class="fi w-full px-4 py-2 rounded-lg border border-gray-200 outline-none focus:border-orange-500" placeholder="นามสกุล"></div>' +
-        '</div>' +
-
-        '<div class="mb-4">' +
-          '<label class="block text-sm font-medium text-gray-700 mb-1">รหัสนิสิต <span class="text-red-500">*</span></label>' +
-          '<input id="gsid" class="fi w-full px-4 py-2 rounded-lg border border-gray-200 outline-none focus:border-orange-500" placeholder="เช่น 6601012327" maxlength="10" oninput="chkSid()">' +
-          '<p class="text-[11px] text-gray-400 mt-1" id="sidh">รหัสนิสิต 10 หลัก</p>' +
-        '</div>' +
-
-        '<div class="mb-4">' +
-          '<label class="block text-sm font-medium text-gray-700 mb-1">อีเมลติดต่อ <span class="text-red-500">*</span></label>' +
-          '<input id="gemail" class="fi w-full px-4 py-2 rounded-lg border border-gray-200 outline-none focus:border-orange-500" type="email" placeholder="ใช้สำหรับรับการแจ้งเตือน">' +
-        '</div>' +
-
-        '<div class="mb-4">' +
-          '<label class="block text-sm font-medium text-gray-700 mb-1">ตำแหน่งใน กนค. <span class="text-red-500">*</span></label>' +
-          '<select id="gpos" class="fi w-full px-4 py-2 rounded-lg border border-gray-200 bg-white outline-none cursor-pointer"><option value="">— เลือกตำแหน่ง —</option>'+pOpts+'</select>' +
-        '</div>' +
-
-        '<div class="grid grid-cols-2 gap-4 mb-6">' +
-          '<div><label class="block text-sm font-medium text-gray-700 mb-1">รหัสผ่าน <span class="text-red-500">*</span></label>' +
-          '<input id="gpw" class="fi w-full px-4 py-2 rounded-lg border border-gray-200 outline-none focus:border-orange-500" type="password" placeholder="อย่างน้อย 6 ตัว"></div>' +
-          '<div><label class="block text-sm font-medium text-gray-700 mb-1">ยืนยันรหัสผ่าน <span class="text-red-500">*</span></label>' +
-          '<input id="gpw2" class="fi w-full px-4 py-2 rounded-lg border border-gray-200 outline-none focus:border-orange-500" type="password" placeholder="ยืนยัน"></div>' +
-        '</div>' +
-
-        '' +
-        '<button class="btn btn-primary fw py-[13px] w-full" data-action="regG">สมัครสมาชิก กนค.</button>' +
-      '</div>' +
+    '<div class="cpopup-box" style="max-width:480px">'+
+      '<div class="cpopup-head">'+
+        '<div style="flex:1"><div class="cpopup-head-title">สมัครสมาชิก กนค.</div>'+
+        '<div class="cpopup-head-sub">รอผู้ดูแลระบบอนุมัติก่อนเข้าใช้งาน</div></div>'+
+        '<button class="cpopup-close" data-action="closeRegPopup">'+svg('x',14)+'</button>'+
+      '</div>'+
+      '<div class="cpopup-body" style="max-height:70vh;overflow-y:auto">'+
+        '<div id="reg-alert"></div>'+
+        '<div class="fr">'+
+          '<div class="fg"><label class="fl">ชื่อ <span class="req">*</span></label>'+
+          '<input id="gfn" class="fi" placeholder="ชื่อ"></div>'+
+          '<div class="fg"><label class="fl">นามสกุล <span class="req">*</span></label>'+
+          '<input id="gln" class="fi" placeholder="นามสกุล"></div>'+
+        '</div>'+
+        '<div class="fg"><label class="fl">รหัสนิสิต <span class="req">*</span></label>'+
+        '<input id="gsid" class="fi" placeholder="เช่น 6601012327" maxlength="10" oninput="chkSid()">'+
+        '<p class="hint muted" id="sidh">รหัสนิสิต 10 หลัก — 2 ตัวสุดท้ายต้องเป็น 27</p></div>'+
+        '<div class="fg"><label class="fl">อีเมลติดต่อ <span class="req">*</span></label>'+
+        '<input id="gemail" class="fi" type="email" placeholder="ใช้สำหรับรับการแจ้งเตือน"></div>'+
+        '<div class="fg"><label class="fl">ตำแหน่งใน กนค. <span class="req">*</span></label>'+
+        '<select id="gpos" class="fi"><option value="">— เลือกตำแหน่ง —</option>'+pOpts+'</select></div>'+
+        '<div class="fr">'+
+          '<div class="fg"><label class="fl">รหัสผ่าน <span class="req">*</span></label>'+
+          '<input id="gpw" class="fi" type="password" placeholder="อย่างน้อย 6 ตัว"></div>'+
+          '<div class="fg"><label class="fl">ยืนยันรหัสผ่าน <span class="req">*</span></label>'+
+          '<input id="gpw2" class="fi" type="password" placeholder="ยืนยัน"></div>'+
+        '</div>'+
+        '<button class="btn btn-primary fw" data-action="regG">สมัครสมาชิก กนค.</button>'+
+      '</div>'+
     '</div>';
-
   el.addEventListener('click', function(ev){ if(ev.target === el) closeRegPopup() });
   document.body.appendChild(el);
 }
@@ -264,69 +260,38 @@ function showRegStaffPopup() {
   if (document.getElementById('regpopup')) return;
   var el = document.createElement('div');
   el.id = 'regpopup';
-  el.className = 'cpopup-overlay flex items-center justify-center fixed inset-0 z-[1000] bg-black/40 backdrop-blur-sm';
-  
+  el.className = 'cpopup-overlay';
   el.innerHTML =
-    '<div class="cpopup-box bg-white w-full max-w-[480px] rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">' +
-      /* ── Header ── */
-      '<div class="p-6 border-b border-gray-100 flex items-center justify-between">' +
-        '<div>' +
-          '<div class="text-xl font-bold text-gray-800 text-red-600" >สมัครสมาชิก อาจารย์ / เจ้าหน้าที่</div>' +
-          '<div class="text-sm text-gray-500 mt-0.5">ต้องรอ Admin อนุมัติก่อนเข้าใช้งาน</div>' +
-        '</div>' +
-        '<button class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors text-gray-400" data-action="closeRegPopup">' +
-          svg('x', 14) +
-        '</button>' +
-      '</div>' +
-      
-      /* ── Body ── */
-      '<div class="p-6 max-h-[85vh] overflow-y-auto">' +
-        '<div id="reg-alert"></div>' +
-
-        /* ชื่อ-นามสกุล และ ประเภท */
-        '<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">' +
-          '<div>' +
-            '<label class="block text-sm font-medium text-gray-700 mb-1">ชื่อ-นามสกุล <span class="text-red-500">*</span></label>' +
-            '<input id="snm" class="fi w-full px-4 py-2 rounded-lg border border-gray-200 outline-none focus:border-orange-500" placeholder="ชื่อ นามสกุล">' +
-          '</div>' +
-          '<div>' +
-            '<label class="block text-sm font-medium text-gray-700 mb-1">ประเภท <span class="text-red-500">*</span></label>' +
-            '<select id="stp" class="fi w-full px-4 py-2 rounded-lg border border-gray-200 bg-white outline-none cursor-pointer focus:border-orange-500">' +
-              '<option value="advisor">อาจารย์กิจการนิสิต</option>' +
-              '<option value="staff">เจ้าหน้ากิจการ</option>' +
-            '</select>' +
-          '</div>' +
-        '</div>' +
-
-        /* อีเมล */
-        '<div class="mb-4">' +
-          '<label class="block text-sm font-medium text-gray-700 mb-1">อีเมล <span class="text-red-500">*</span></label>' +
-          '<input id="sem" class="fi w-full px-4 py-2 rounded-lg border border-gray-200 outline-none focus:border-orange-500" type="email" placeholder="email@university.ac.th">' +
-        '</div>' +
-
-        /* ฝ่าย / หน่วยงาน */
-        '<div class="mb-4">' +
-          '<label class="block text-sm font-medium text-gray-700 mb-1">ฝ่าย / หน่วยงาน</label>' +
-          '<input id="sdp" class="fi w-full px-4 py-2 rounded-lg border border-gray-200 outline-none focus:border-orange-500" placeholder="เช่น สำนักกิจการนิสิต">' +
-        '</div>' +
-
-        /* รหัสผ่าน */
-        '<div class="grid grid-cols-2 gap-4 mb-6">' +
-          '<div>' +
-            '<label class="block text-sm font-medium text-gray-700 mb-1">รหัสผ่าน <span class="text-red-500">*</span></label>' +
-            '<input id="spw" class="fi w-full px-4 py-2 rounded-lg border border-gray-200 outline-none focus:border-orange-500" type="password" placeholder="อย่างน้อย 6 ตัว">' +
-          '</div>' +
-          '<div>' +
-            '<label class="block text-sm font-medium text-gray-700 mb-1">ยืนยันรหัสผ่าน <span class="text-red-500">*</span></label>' +
-            '<input id="spw2" class="fi w-full px-4 py-2 rounded-lg border border-gray-200 outline-none focus:border-orange-500" type="password" placeholder="ยืนยัน">' +
-          '</div>' +
-        '</div>' +
-
-        /* ปุ่มกด */
-        '<button class="btn btn-primary fw py-[13px] w-full shadow-lg shadow-orange-200 active:scale-[0.98] transition-transform" data-action="regS">สมัครสมาชิก</button>' +
-      '</div>' +
+    '<div class="cpopup-box" style="max-width:480px">'+
+      '<div class="cpopup-head">'+
+        '<div style="flex:1"><div class="cpopup-head-title">สมัครสมาชิก อาจารย์ / เจ้าหน้าที่</div>'+
+        '<div class="cpopup-head-sub">รอผู้ดูแลระบบอนุมัติก่อนเข้าใช้งาน</div></div>'+
+        '<button class="cpopup-close" data-action="closeRegPopup">'+svg('x',14)+'</button>'+
+      '</div>'+
+      '<div class="cpopup-body" style="max-height:85vh;overflow-y:auto">'+
+        '<div id="reg-alert"></div>'+
+        '<div class="fr">'+
+          '<div class="fg"><label class="fl">ชื่อ-นามสกุล <span class="req">*</span></label>'+
+          '<input id="snm" class="fi" placeholder="ชื่อ นามสกุล"></div>'+
+          '<div class="fg"><label class="fl">ประเภท <span class="req">*</span></label>'+
+          '<select id="stp" class="fi">'+
+            '<option value="advisor">อาจารย์กิจการนิสิต</option>'+
+            '<option value="staff">เจ้าหน้าที่กิจการ</option>'+
+          '</select></div>'+
+        '</div>'+
+        '<div class="fg"><label class="fl">อีเมล <span class="req">*</span></label>'+
+        '<input id="sem" class="fi" type="email" placeholder="email@university.ac.th"></div>'+
+        '<div class="fg"><label class="fl">ฝ่าย / หน่วยงาน</label>'+
+        '<input id="sdp" class="fi" placeholder="เช่น สำนักกิจการนิสิต"></div>'+
+        '<div class="fr">'+
+          '<div class="fg"><label class="fl">รหัสผ่าน <span class="req">*</span></label>'+
+          '<input id="spw" class="fi" type="password" placeholder="อย่างน้อย 6 ตัว"></div>'+
+          '<div class="fg"><label class="fl">ยืนยันรหัสผ่าน <span class="req">*</span></label>'+
+          '<input id="spw2" class="fi" type="password" placeholder="ยืนยัน"></div>'+
+        '</div>'+
+        '<button class="btn btn-primary fw" data-action="regS">สมัครสมาชิก</button>'+
+      '</div>'+
     '</div>';
-
   el.addEventListener('click', function(ev) { if (ev.target === el) closeRegPopup() });
   document.body.appendChild(el);
 }
@@ -340,7 +305,8 @@ function showChangePwPopup(){
     '<div class="cpopup-box">'+
       '<div class="cpopup-head">'+
         '<div class="flex-1"><div class="cpopup-head-title">เปลี่ยนรหัสผ่าน</div>'+
-        '<div class="cpopup-head-sub">กรอกรหัสผ่านเดิมเพื่อตั้งรหัสใหม่</div></div>'+
+        /* [UX] sub-text ชัดขึ้น — ระบุว่าต้องทราบรหัสเดิม */
+        '<div class="cpopup-head-sub">ต้องทราบรหัสผ่านปัจจุบันก่อนตั้งรหัสใหม่</div></div>'+
         '<button class="cpopup-close" data-action="closeChangePwPopup">'+svg('x',14)+'</button>'+
       '</div>'+
       '<div class="cpopup-body">'+

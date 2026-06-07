@@ -13,45 +13,30 @@ async function vAdm(){
 
   /* ── User stat cards ── */
   var uCards=[
-    {
-      label:'ผู้ใช้ทั้งหมด',
-      val:cnt.total,
-      sub:'กนค. '+tc.gnk+' · อาจารย์ '+tc.advisor+' · เจ้าหน้าที่ '+tc.staff,
-      ico:'users_f',
-      grad:'linear-gradient(135deg,#1D4ED8 0%,#3B82F6 100%)',
-      shadow:'rgba(29,78,216,.30)'
-    },
-    {
-      label:'อนุมัติแล้ว',
-      val:cnt.apv,
-      sub:'บัญชีที่ใช้งานได้แล้ว',
-      ico:'check_f',
-      grad:'linear-gradient(135deg,#15803D 0%,#22C55E 100%)',
-      shadow:'rgba(21,128,61,.30)'
-    },
-    {
-      label:'รอการอนุมัติ',
-      val:cnt.pnd,
-      sub:'กรุณาตรวจสอบและดำเนินการ',
-      ico:'bell_f',
-      grad:'linear-gradient(135deg,#7C3AED 0%,#A855F7 100%)',
-      shadow:'rgba(124,58,237,.30)'
-    }
+    {label:'ผู้ใช้ทั้งหมด',
+     val:cnt.total, sub:'กนค. '+tc.gnk+' · อาจารย์ '+tc.advisor+' · เจ้าหน้าที่ '+tc.staff,
+     ico:'users_f', grad:'linear-gradient(135deg,#1D4ED8 0%,#3B82F6 100%)', shadow:'rgba(29,78,216,.30)'},
+    {label:'อนุมัติแล้ว',
+     val:cnt.apv, sub:'บัญชีที่ใช้งานได้แล้ว',
+     ico:'check_f', grad:'linear-gradient(135deg,#15803D 0%,#22C55E 100%)', shadow:'rgba(21,128,61,.30)'},
+    {label:'รอการอนุมัติ',
+     val:cnt.pnd, sub:'กรุณาตรวจสอบและดำเนินการ',
+     ico:'bell_f', grad:'linear-gradient(135deg,#7C3AED 0%,#A855F7 100%)', shadow:'rgba(124,58,237,.30)'}
   ];
   html.push('<div class="grid grid-cols-3 max-[600px]:grid-cols-1 gap-4 mb-5">');
   uCards.forEach(function(c){
     html.push(
-      '<div class="adm-stat-card" style="--card-sh-base:0 4px 16px '+c.shadow+';--card-sh-hover:0 10px 28px '+c.shadow+';border-radius:16px;padding:16px 18px;background:'+c.grad+';position:relative;overflow:hidden;cursor:default">'+
-      '<div style="position:absolute;right:-16px;bottom:-16px;width:80px;height:80px;border-radius:50%;background:rgba(255,255,255,.1);pointer-events:none"></div>'+
-      '<div style="position:absolute;right:20px;top:-20px;width:56px;height:56px;border-radius:50%;background:rgba(255,255,255,.07);pointer-events:none"></div>'+
-      '<div style="position:relative;z-index:1">'+
-        '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">'+
-          '<div style="font-size:10px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:rgba(255,255,255,.7)">'+c.label+'</div>'+
-          '<div style="width:32px;height:32px;border-radius:10px;background:rgba(255,255,255,.2);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.15),inset 0 1px 0 rgba(255,255,255,.35);color:#fff">'+svgf(c.ico,16)+'</div>'+
+      '<div class="adm-stat-card" style="border-radius:16px;padding:16px 18px;background:'+c.grad+';position:relative;overflow:hidden;box-shadow:0 4px 16px '+c.shadow+';cursor:default">'+
+        '<div style="position:absolute;right:-16px;bottom:-16px;width:80px;height:80px;border-radius:50%;background:rgba(255,255,255,.1);pointer-events:none"></div>'+
+        '<div style="position:absolute;right:20px;top:-20px;width:56px;height:56px;border-radius:50%;background:rgba(255,255,255,.07);pointer-events:none"></div>'+
+        '<div style="position:relative;z-index:1">'+
+          '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">'+
+            '<div style="font-size:10px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:rgba(255,255,255,.7)">'+c.label+'</div>'+
+            '<div style="width:32px;height:32px;border-radius:10px;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;color:#fff">'+svgf(c.ico,16)+'</div>'+
+          '</div>'+
+          '<div style="font-size:32px;font-weight:900;color:#fff;line-height:1;letter-spacing:-1.5px;margin-bottom:5px">'+c.val+'</div>'+
+          '<div style="font-size:10px;color:rgba(255,255,255,.65)">'+c.sub+'</div>'+
         '</div>'+
-        '<div style="font-size:32px;font-weight:900;color:#fff;line-height:1;letter-spacing:-1.5px;margin-bottom:5px">'+c.val+'</div>'+
-        '<div style="font-size:10px;color:rgba(255,255,255,.65)">'+c.sub+'</div>'+
-      '</div>'+
       '</div>'
     );
   });
@@ -81,11 +66,11 @@ async function vAdm(){
       '</div>'+
       (_canAddAdv?
        
-      '<button class="flex items-center gap-2 bg-[#FFB02E] hover:bg-[#F59E0B] text-white  px-4 py-1.5 rounded-lg font-bold text-sm transition-all shadow-sm shadow-amber-100 active:scale-95 shrink-0" data-action="showImport">' + 
-  svg('dn', 14) + ' นำเข้า' + 
+      '<button class="btn btn-soft sm shrink-0" data-action="showImport">' +
+        svg('dn', 14) + ' นำเข้า' +
       '</button>' +
-      '<button class="flex items-center gap-2 bg-[#D14D28] hover:bg-[#B53D1B] text-white px-4 py-1.5 rounded-lg font-bold text-sm transition-all shadow-sm shadow-orange-100 active:scale-95 shrink-0" data-action="showAddAdvisor">' + 
-        svg('plus', 14) + ' เพิ่มอาจารย์' + 
+      '<button class="btn btn-primary sm shrink-0" data-action="showAddAdvisor">' +
+        svg('plus', 14) + ' เพิ่มอาจารย์' +
       '</button>'
       :'')+
     '</div>'+
@@ -226,9 +211,20 @@ function rAdmTbl(users){
   return html.join('');
 }
 
-async function admApv(uid){
+/* [UX] แทน confirm() ดิบด้วย showConfirm ของระบบ */
+function admApv(uid){
   var u=(AUSERS||[]).filter(function(x){return x.id===uid})[0];
-  if(!confirm('อนุมัติผู้ใช้งานนี้?'))return;
+  var uType=u?(UTH[u.user_type]||u.user_type):'';
+  var uPos=u&&u.position_code?(PTH[u.position_code]||u.position_code):'';
+  showConfirm(
+    'อนุมัติบัญชีผู้ใช้?',
+    (u?u.full_name:'')+(uPos?' — '+uPos:'')+(uType?' ('+uType+')':''),
+    function(){_admApvConfirmed(uid);},
+    {confirmLabel:'อนุมัติ',confirmClass:'btn-primary',icon:'ok',iconBg:'#ECFDF5',iconColor:'#16A34A'}
+  );
+}
+async function _admApvConfirmed(uid){
+  var u=(AUSERS||[]).filter(function(x){return x.id===uid})[0];
   var _exp=u&&u.user_type==='gnk'?new Date(Date.now()+365*24*60*60*1000).toISOString():null;
   var _patch={approval_status:'approved',is_active:true,approved_at:new Date().toISOString()};
   if(_exp) _patch.expires_at=_exp;
@@ -237,35 +233,76 @@ async function admApv(uid){
   nav('adm')
 }
 
-async function admRenew(uid){
+function admRenew(uid){
   var u=(AUSERS||[]).filter(function(x){return x.id===uid})[0];
-  if(!confirm('ต่ออายุบัญชี '+(u?u.full_name:uid)+' อีก 1 ปี?'))return;
+  showConfirm(
+    'ต่ออายุบัญชี?',
+    (u?u.full_name:uid)+' — ต่ออายุอีก 1 ปี',
+    function(){_admRenewConfirmed(uid);},
+    {confirmLabel:'ต่ออายุ',confirmClass:'btn-primary',icon:'refresh',iconBg:'#EFF6FF',iconColor:'#2563EB'}
+  );
+}
+async function _admRenewConfirmed(uid){
+  var u=(AUSERS||[]).filter(function(x){return x.id===uid})[0];
   var _exp=new Date(Date.now()+365*24*60*60*1000).toISOString();
   await dpa('users',uid,{expires_at:_exp,is_active:true});
   try{await dp('document_history',{action:'ต่ออายุบัญชีผู้ใช้',performed_by:CU.id,note:'ต่ออายุ: '+(u?u.full_name:uid)+' จนถึง '+new Date(_exp).toLocaleDateString('th-TH')});}catch(e){}
   nav('adm')
 }
-async function admRej(uid){
+/* [UX] admRej: ใช้ modal แทน prompt() ดิบ */
+function admRej(uid){
   var u=(AUSERS||[]).filter(function(x){return x.id===uid})[0];
-  var r=prompt('ระบุเหตุผลในการปฏิเสธ (ถ้ามี):');if(r===null)return;
+  var mw=$e('mwrap'); if(!mw) return;
+  mw.innerHTML=
+    '<div class="mo"><div class="modal" style="max-width:400px">'+
+    '<div class="modal-head"><span class="modal-title">'+svg('x',14)+' ปฏิเสธบัญชีผู้ใช้</span>'+
+    '<button class="btn btn-soft sm btn-icon" data-action="closeModal">'+svg('x',14)+'</button></div>'+
+    '<div class="modal-body">'+
+    '<div class="text-[13.5px] font-semibold mb-3">'+esc(u?u.full_name:uid)+'</div>'+
+    '<div class="fg"><label class="fl">เหตุผล (ถ้ามี)</label>'+
+    '<input class="fi" id="rej-reason" placeholder="ระบุเหตุผล..."></div>'+
+    '</div>'+
+    '<div class="modal-foot">'+
+    '<button class="btn btn-soft" data-action="closeModal">ยกเลิก</button>'+
+    '<button class="btn btn-danger" onclick="_admRejConfirmed(\''+uid+'\')">ปฏิเสธบัญชี</button>'+
+    '</div></div></div>';
+}
+async function _admRejConfirmed(uid){
+  var u=(AUSERS||[]).filter(function(x){return x.id===uid})[0];
+  var r=gv('rej-reason')||'';
   await dpa('users',uid,{approval_status:'rejected',is_active:false,reject_reason:r||''});
   try{await dp('document_history',{action:'ปฏิเสธบัญชีผู้ใช้',performed_by:CU.id,note:'ปฏิเสธ: '+(u?u.full_name:uid)+(r?' — เหตุผล: '+r:'')});}catch(e){}
+  var mw=$e('mwrap');if(mw)mw.innerHTML='';
   nav('adm')
 }
+/* [UX] admDel: แทน confirm() ด้วย showConfirm — destructive action ต้องชัดเจน */
 async function admDel(uid){
   var u=(AUSERS||[]).filter(function(x){return x.id===uid})[0];
-  var wf=[],dcCreated=[],dcRef=[];
+  var wf=[],dcCreated=[];
   try{
     wf=await dg('workflow_steps','?assigned_to=eq.'+uid+'&select=id');
     var _allDc=await dg('documents','?or=(created_by.eq.'+uid+',forwarded_to_id.eq.'+uid+',final_recipient_id.eq.'+uid+')&select=id,created_by,forwarded_to_id,final_recipient_id');
     dcCreated=(_allDc||[]).filter(function(d){return d.created_by===uid});
-    dcRef=(_allDc||[]).filter(function(d){return d.created_by!==uid&&(d.forwarded_to_id===uid||d.final_recipient_id===uid)});
+    var dcRef=(_allDc||[]).filter(function(d){return d.created_by!==uid&&(d.forwarded_to_id===uid||d.final_recipient_id===uid)});
   }catch(e){}
 
-  var msg='ลบผู้ใช้งาน '+(u?'"'+u.full_name+'"':'')+' ?\n(ไม่สามารถเรียกคืนได้)\n\n';
-  if(dcCreated.length) msg+='⚠️ เอกสารที่ผู้ใช้นี้สร้าง '+dcCreated.length+' รายการจะถูกลบออกจากระบบด้วย\n';
-  if(wf.length) msg+='• Workflow Steps '+wf.length+' รายการจะถูกยกเลิกการมอบหมาย\n';
-  if(!confirm(msg))return;
+  var detail=(dcCreated.length?'เอกสารที่สร้างโดยผู้ใช้นี้ '+dcCreated.length+' รายการจะถูกลบด้วย':'')
+            +(wf.length?(dcCreated.length?' · ':'')+' Workflow '+wf.length+' รายการจะถูกยกเลิก':'');
+  showConfirm(
+    'ลบผู้ใช้งาน?',
+    'ลบ '+(u?'"'+u.full_name+'"':uid)+' ออกจากระบบ — ไม่สามารถเรียกคืนได้',
+    function(){_admDelConfirmed(uid,dcCreated,wf);},
+    {confirmLabel:'ลบถาวร',confirmClass:'btn-danger',icon:'trash',iconBg:'#FEF2F2',iconColor:'#DC2626',
+     detail:detail||undefined}
+  );
+}
+async function _admDelConfirmed(uid,dcCreated,wf){
+  var u=(AUSERS||[]).filter(function(x){return x.id===uid})[0];
+  var dcRef=[];
+  try{
+    var _allDc=await dg('documents','?or=(forwarded_to_id.eq.'+uid+',final_recipient_id.eq.'+uid+')&select=id,created_by,forwarded_to_id,final_recipient_id');
+    dcRef=(_allDc||[]).filter(function(d){return d.created_by!==uid});
+  }catch(e){}
 
   try{
     // ลบเอกสารที่ user นี้สร้าง
@@ -281,14 +318,14 @@ async function admDel(uid){
       if(_refFwd.length){var r2=await fetch(SU+'/rest/v1/documents?forwarded_to_id=eq.'+uid,{method:'PATCH',headers:H,body:JSON.stringify({forwarded_to_id:null})});if(!r2.ok)throw new Error('ไม่สามารถ unlink forwarded_to_id ได้')}
       if(_refFin.length){var r3=await fetch(SU+'/rest/v1/documents?final_recipient_id=eq.'+uid,{method:'PATCH',headers:H,body:JSON.stringify({final_recipient_id:null})});if(!r3.ok)throw new Error('ไม่สามารถ unlink final_recipient_id ได้')}
     }
-  }catch(e){alert(e.message||String(e));return;}
+  }catch(e){showAlert(e.message||String(e),'er');return;}
 
   try{await dp('document_history',{action:'ลบบัญชีผู้ใช้',performed_by:CU.id,note:'ลบ: '+(u?u.full_name+' ('+u.email+')':uid)+(dcCreated.length?' พร้อมเอกสาร '+dcCreated.length+' รายการ':'')});}catch(e){}
   try{
     await dd('users',uid);
     nav('adm');
   }catch(e){
-    alert('ไม่สามารถลบผู้ใช้ได้\n'+(e.message||''));
+    showAlert('ไม่สามารถลบผู้ใช้ได้ — '+(e.message||''),'er');
   }
 }
 
@@ -322,10 +359,19 @@ async function saveEU(uid,ut){
   $e('mwrap').innerHTML=''; nav('adm')
 }
 
-async function admToggle(uid, isActive){
+function admToggle(uid, isActive){
   var u=(AUSERS||[]).filter(function(x){return x.id===uid})[0];
   var label=isActive?'ปิดการใช้งาน':'เปิดการใช้งาน';
-  if(!confirm(label+'บัญชีผู้ใช้นี้?'))return;
+  showConfirm(
+    label+'บัญชีผู้ใช้?',
+    (u?u.full_name:uid),
+    function(){_admToggleConfirmed(uid,isActive,label);},
+    {confirmLabel:label,confirmClass:isActive?'btn-danger':'btn-primary',icon:isActive?'lock':'unlock',
+     iconBg:isActive?'#FEF2F2':'#ECFDF5',iconColor:isActive?'#DC2626':'#16A34A'}
+  );
+}
+async function _admToggleConfirmed(uid,isActive,label){
+  var u=(AUSERS||[]).filter(function(x){return x.id===uid})[0];
   await dpa('users',uid,{is_active:!isActive});
   try{await dp('document_history',{action:label+'บัญชี',performed_by:CU.id,note:label+': '+(u?u.full_name:uid)});}catch(e){}
   nav('adm');
@@ -365,8 +411,16 @@ async function doAdmResetPw(uid){
   setTimeout(function(){var mw=$e('mwrap');if(mw)mw.innerHTML='';},1400);
 }
 
-async function admDelDoc(docId){
-  if(!confirm('ลบเอกสารนี้ออกจากระบบ?\n(ไม่สามารถเรียกคืนได้)'))return;
+/* [UX] admDelDoc: แทน confirm() ด้วย showConfirm */
+function admDelDoc(docId){
+  showConfirm(
+    'ลบเอกสาร?',
+    'ลบเอกสารนี้ออกจากระบบถาวร — ไม่สามารถเรียกคืนได้',
+    function(){_admDelDocConfirmed(docId);},
+    {confirmLabel:'ลบถาวร',confirmClass:'btn-danger',icon:'trash',iconBg:'#FEF2F2',iconColor:'#DC2626'}
+  );
+}
+async function _admDelDocConfirmed(docId){
   try{
     var _d=(await dg('documents','?id=eq.'+docId))[0];
     await dp('document_history',{document_id:docId,action:'ลบเอกสาร',performed_by:CU.id,note:'ลบเอกสาร: '+(_d?_d.doc_number+' — '+_d.title:docId)});
@@ -390,20 +444,60 @@ function admChgStatus(docId){
     '</div></div></div>';
 }
 
-async function doAdmChgStatus(docId,status){
-  if(!confirm('เปลี่ยนสถานะเป็น "'+(STTH[status]||status)+'" ?'))return;
+function doAdmChgStatus(docId,status){
+  showConfirm(
+    'เปลี่ยนสถานะ?',
+    'เปลี่ยนเป็น "'+( STTH[status]||status)+'" — ข้ามขั้นตอน Workflow',
+    function(){_doAdmChgStatusConfirmed(docId,status);},
+    {confirmLabel:'เปลี่ยนสถานะ',confirmClass:'btn-danger',icon:'warn',iconBg:'#FFFBEB',iconColor:'#D97706'}
+  );
+}
+async function _doAdmChgStatusConfirmed(docId,status){
   await dpa('documents',docId,{status:status,updated_at:new Date().toISOString()});
   try{await dp('document_history',{document_id:docId,action:'เปลี่ยนสถานะ (Admin)',performed_by:CU.id,note:'บังคับเปลี่ยนสถานะเป็น: '+(STTH[status]||status)});}catch(e){}
   var mw=$e('mwrap');if(mw)mw.innerHTML='';
   nav('det',docId);
 }
 
+function showAddAdvisor(){
+  _gnkOpen('add-advisor',
+    '<div class="gnk-box" style="max-width:480px">'+
+      '<div class="gnk-pop-head">'+
+        '<div class="gnk-eyebrow">จัดการผู้ใช้งาน</div>'+
+        '<div class="gnk-pop-title">เพิ่มอาจารย์ / เจ้าหน้าที่</div>'+
+        '<div class="gnk-pop-sub">บัญชีจะถูกอนุมัติทันทีและสามารถเข้าสู่ระบบได้เลย</div>'+
+        '<button class="gnk-xbtn" onclick="gnkClose(\'add-advisor\')">'+svg('x',14)+'</button>'+
+      '</div>'+
+      '<div class="gnk-divider"></div>'+
+      '<div class="gnk-pop-body">'+
+        '<div id="aa-alert" style="margin-bottom:8px"></div>'+
+        '<div class="fg"><label class="fl">ชื่อ-นามสกุล <span class="req">*</span></label>'+
+        '<input id="aa-name" class="fi" placeholder="ชื่อ นามสกุล"></div>'+
+        '<div class="fg"><label class="fl">อีเมล (ใช้เข้าสู่ระบบ) <span class="req">*</span></label>'+
+        '<input id="aa-email" class="fi" type="email" placeholder="name@chula.ac.th"></div>'+
+        '<div class="fg"><label class="fl">อีเมลติดต่อ (รับการแจ้งเตือน)</label>'+
+        '<input id="aa-cemail" class="fi" type="email" placeholder="เหมือนอีเมลด้านบนถ้าไม่ระบุ"></div>'+
+        '<div class="fg"><label class="fl">ฝ่าย / หน่วยงาน</label>'+
+        '<input id="aa-dept" class="fi" placeholder="เช่น สำนักกิจการนิสิต"></div>'+
+        '<div class="fg"><label class="fl">รหัสผ่าน <span class="req">*</span></label>'+
+        '<input id="aa-pw" class="fi" type="password" placeholder="อย่างน้อย 6 ตัวอักษร"></div>'+
+      '</div>'+
+      '<div class="gnk-pop-foot">'+
+        '<button class="btn btn-soft" onclick="gnkClose(\'add-advisor\')">ยกเลิก</button>'+
+        '<button class="btn btn-primary" onclick="saveAddAdvisor()">'+svg('plus',13)+' เพิ่มบัญชี</button>'+
+      '</div>'+
+    '</div>'
+  );
+  setTimeout(function(){var el=$e('aa-name');if(el)el.focus();},80);
+}
+
 async function saveAddAdvisor(){
   var nm=gv('aa-name'),em=gv('aa-email'),dept=gv('aa-dept'),pw=gv('aa-pw'),cemail=gv('aa-cemail');
-  if(!nm||!em||!pw){alert('กรุณากรอกชื่อ อีเมล และรหัสผ่าน');return}
-  if(pw.length<6){alert('รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร');return}
+  var _aaAlert=$e('aa-alert');
+  if(!nm||!em||!pw){if(_aaAlert)_aaAlert.innerHTML=alrtH('er','กรุณากรอกชื่อ อีเมล และรหัสผ่าน');return}
+  if(pw.length<6){if(_aaAlert)_aaAlert.innerHTML=alrtH('er','รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร');return}
   var exist=await dg('users','?email=eq.'+encodeURIComponent(em));
-  if(exist.length){alert('อีเมลนี้มีในระบบแล้ว');return}
+  if(exist.length){if(_aaAlert)_aaAlert.innerHTML=alrtH('er','อีเมลนี้มีในระบบแล้ว');return}
   var pwHash=await hashPw(pw);
   await dp('users',{email:em,full_name:nm,role_code:'ROLE-ADV',department:dept||'สำนักกิจการนิสิต',
     user_type:'advisor',approval_status:'approved',is_active:true,password_hash:pwHash,
@@ -477,7 +571,7 @@ document.addEventListener('click',function(e){
     '.gnk-box{background:#FEFCFA;border-radius:20px;'+
     'box-shadow:0 8px 40px rgba(24,18,14,.18),0 2px 8px rgba(24,18,14,.10),inset 0 1px 0 rgba(255,255,255,.9);'+
     'width:100%;max-height:88vh;overflow:hidden;display:flex;flex-direction:column;'+
-    'animation:gnkBoxIn .22s cubic-bezier(.34,1.2,.64,1) both}'+
+    'animation:gnkBoxIn .22s cubic-bezier(.4,0,.2,1) both}'+
 
     '.gnk-pop-head{padding:22px 24px 0;flex-shrink:0;position:relative}'+
     '.gnk-eyebrow{font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:#C42800;margin-bottom:4px;display:flex;align-items:center;gap:6px}'+

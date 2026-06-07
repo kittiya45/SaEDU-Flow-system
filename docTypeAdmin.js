@@ -391,11 +391,19 @@ async function saveDocType(){
   }
 }
 
-async function deleteDocType(typeId,code){
-  if(!confirm('ลบประเภทเอกสาร "'+code+'" ?\n\nเอกสารที่สร้างไว้แล้วจะยังคงอยู่ แต่จะไม่สามารถเลือกประเภทนี้ในฟอร์มสร้างเอกสารได้อีก'))return;
+/* [UX] แทน confirm() + alert() ด้วย showConfirm / showAlert */
+function deleteDocType(typeId,code){
+  showConfirm(
+    'ลบประเภทเอกสาร?',
+    'ลบ "'+code+'" — เอกสารเดิมจะไม่หาย แต่จะเลือกประเภทนี้ในฟอร์มไม่ได้อีก',
+    function(){_deleteDocTypeConfirmed(typeId);},
+    {confirmLabel:'ลบ',confirmClass:'btn-danger',icon:'trash',iconBg:'#FEF2F2',iconColor:'#DC2626'}
+  );
+}
+async function _deleteDocTypeConfirmed(typeId){
   try{
     await dd('doc_types',typeId);
     await loadDocTypes();
     nav('sys');
-  }catch(e){alert('เกิดข้อผิดพลาด: '+(e&&e.message||String(e)));}
+  }catch(e){showAlert('เกิดข้อผิดพลาด: '+(e&&e.message||String(e)),'er');}
 }

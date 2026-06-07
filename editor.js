@@ -90,7 +90,7 @@ if(!PED.isPDF&&!isImg&&!isDocx){alert('รองรับ PDF, DOCX และร
     '<div class="fg"><label class="fl">ข้อความ</label><textarea id="txt-val" class="fi" rows="3" placeholder="พิมพ์ข้อความที่นี่..."></textarea></div>',
     '<div class="fg"><label class="fl">ฟอนต์</label>'+
     '<select class="fi" id="txt-font" style="font-size:12px" onchange="PED.txtFont=this.value">'+
-    '<option value=\"ChulaCharasNew\" selected>ChulaCharasNew</option>'+
+    '<option value=\"Noto Sans Thai\" selected>Noto Sans Thai</option>'+
     '<option value=\"ChulaLongkorn\">ChulaLongkorn</option>'+
     '<option value=\"TH Sarabun PSK\">TH Sarabun PSK</option>'+
     '<option value=\"Sarabun\">Sarabun</option>'+
@@ -459,7 +459,7 @@ async function pedSave(){
     if(PED.isDocxMode){
       var cd=$e('docx-content');
       var htmlContent=cd?cd.innerHTML:'';
-      var fullHtml='<!DOCTYPE html><html><head><meta charset="UTF-8"><style>body{font-family:"TH Sarabun PSK",Sarabun,sans-serif;font-size:14px;padding:40px 60px;} p{margin:0 0 8px;line-height:1.6}<\/style><\/head><body>'+htmlContent+'<\/body><\/html>';
+      var fullHtml='<!DOCTYPE html><html><head><meta charset="UTF-8"><style>body{font-family:"Noto Sans Thai",sans-serif;font-size:14px;padding:40px 60px;} p{margin:0 0 8px;line-height:1.6}<\/style><\/head><body>'+htmlContent+'<\/body><\/html>';
       var safeName=PED.name.replace(/[^a-zA-Z0-9._-]/g,'_').replace(/\.(docx|doc)$/i,'.html');
       var path='edited_'+Date.now()+'_'+safeName;
       var blob=new Blob([fullHtml],{type:'text/html'});

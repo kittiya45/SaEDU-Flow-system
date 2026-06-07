@@ -70,7 +70,7 @@ async function showNumModal(docId){
       '<span id="num-fontsize-val" style="font-size:12px;color:#6b6560;min-width:32px;text-align:right">12px</span>',
       '</div></div>',
       '<div class="fg"><label class="fl">ตัวอย่างเลขที่</label>',
-      '<div class="fi" id="num-preview" style="background:#f9f7f5;color:#1261AB;font-size:12px;font-family:\'TH Sarabun PSK\', Sarabun, sans-serif;font-weight:700;cursor:default;letter-spacing:.5px">—</div></div>',
+      '<div class="fi" id="num-preview" style="background:#f9f7f5;color:#1261AB;font-size:12px;font-family:\TH Sarabun PSK\', Sarabun, sans-serif;font-weight:700;cursor:default;letter-spacing:.5px">—</div></div>',
       '<div style="font-size:11px;color:#a89e99;margin-top:6px;line-height:1.7;display:flex;gap:6px;align-items:flex-start">',
       svg('info',12)+'<span>ลากกล่องเลขที่และวันที่บนตัวอย่างด้านขวาเพื่อปรับตำแหน่งก่อนบันทึก</span></div>',
       '</div>',
@@ -135,7 +135,7 @@ async function showNumModal(docId){
     '<span id="num-fontsize-val" style="font-size:12px;color:#6b6560;min-width:32px;text-align:right">12px</span>',
     '</div></div>',
     '<div class="fg"><label class="fl">ตัวอย่างเลขที่</label>',
-      '<div class="fi" id="num-preview" style="background:#f9f7f5;color:#1261AB;font-size:12px;font-family:\'TH Sarabun PSK\', Sarabun, sans-serif;font-weight:700;cursor:default;letter-spacing:.5px">—</div></div>',
+      '<div class="fi" id="num-preview" style="background:#f9f7f5;color:#1261AB;font-size:12px;font-family:\TH Sarabun PSK\', Sarabun, sans-serif;font-weight:700;cursor:default;letter-spacing:.5px">—</div></div>',
     '<div class="fg"><label class="fl">ส่งต่อให้ จนท.กิจนิสิต (ไม่บังคับ)</label>',
     '<select class="fi" id="num-fwd">'+uOpts+'</select></div>',
     '<div class="fg"><label class="fl">หมายเหตุ</label>',
@@ -293,67 +293,92 @@ async function _loadNumPDFPreview(docId){
   }
 }
 
-async function doSetDocNumber(docId){
+/* [UX] wrap doSetDocNumber ด้วย showConfirm ก่อน irreversible action */
+function doSetDocNumber(docId){
   var docDate=gv('num-docdate');
-  if(!docDate){alert('กรุณาเลือกวันที่หนังสือ');return}
+  if(!docDate){showAlert('กรุณาเลือกวันที่หนังสือ','wa');return}
+  // จับค่าฟอร์มทั้งหมดก่อน showConfirm เพราะ showConfirm จะ replace mwrap แล้วทำให้ elements หาย
+  var _sc=$e('num-stamp-container');
+  var _scSc=_sc?parseFloat(_sc.dataset.scale)||1:1;
+  var _scPdfH=_sc?parseFloat(_sc.dataset.pdfH)||842:842;
+  var _ns=$e('num-stamp-num'), _ds=$e('num-stamp-date');
+  var _numPdfX,_numPdfY,_datPdfX,_datPdfY;
+  if(_ns){_numPdfX=parseInt(_ns.style.left)/_scSc; _numPdfY=_scPdfH-parseInt(_ns.style.top)/_scSc-14;}
+  else    {_numPdfX=42; _numPdfY=_scPdfH-270;}
+  if(_ds){_datPdfX=parseInt(_ds.style.left)/_scSc; _datPdfY=_scPdfH-parseInt(_ds.style.top)/_scSc-14;}
+  else    {_datPdfX=42; _datPdfY=_scPdfH-290;}
+  var _cap={
+    docDate:docDate,
+    sem:gv('num-sem')||'',
+    lt:gv('num-lt')||'',
+    poscode:($e('num-poscode')||{}).value||'00',
+    club:gv('num-club')||'',
+    sendercode:($e('num-sendercode')||{}).value||'00',
+    senderclub:($e('num-senderclub')||{}).value||'',
+    note:(gv('num-note')||'').trim(),
+    fwdId:gv('num-fwd')||null,
+    docnum:(gv('num-docnum')||'').trim(),
+    fontsize:parseInt(($e('num-fontsize')||{}).value)||12,
+    numPdfX:_numPdfX, numPdfY:_numPdfY,
+    datPdfX:_datPdfX, datPdfY:_datPdfY
+  };
+  var previewNum=($e('num-preview')||{}).textContent||'—';
+  var dateDisplay=_fmtDateThai?_fmtDateThai(docDate):docDate;
+  showConfirm(
+    'ยืนยันออกเลขหนังสือ?',
+    'เลขที่: '+previewNum+'\nวันที่: '+dateDisplay,
+    function(){_doSetDocNumberConfirmed(docId,_cap);},
+    {
+      confirmLabel:'ออกเลขและเสร็จสิ้น',
+      confirmClass:'btn-primary',
+      cancelLabel:'กลับไปตรวจสอบ',
+      icon:'pen',
+      iconBg:'#EFF6FF',
+      iconColor:'#2563EB',
+      detail:'การออกเลขไม่สามารถเปลี่ยนแปลงได้ภายหลัง'
+    }
+  );
+}
+async function _doSetDocNumberConfirmed(docId,cap){
+  var docDate=cap.docDate;
   var btn=document.querySelector('[data-action="doSetDocNumber"]');
   if(btn){btn.disabled=true;btn.innerHTML='<span class="sp"></span>'}
   try{
     var doc=(await dg('documents','?id=eq.'+safeId(docId)))[0]||{};
     var docNum, note='', fwdId=null;
-    var _numPdfX=42,_numPdfY=572,_datPdfX=42,_datPdfY=550,_dateText='';
+    var _numPdfX=cap.numPdfX,_numPdfY=cap.numPdfY,_datPdfX=cap.datPdfX,_datPdfY=cap.datPdfY,_dateText='';
 
     if(doc.doc_type==='outgoing'){
-      var sem=gv('num-sem')||'1';
-      var pos=($e('num-poscode')||{}).value||'00';
-      var lt=gv('num-lt')||'';
-      var club=gv('num-club')||'';
-      if(!lt){alert('กรุณาเลือกประเภทจดหมาย');if(btn){btn.disabled=false;btn.innerHTML=svg('ok',13)+' ออกเลขและเสร็จสิ้น';}return}
+      var sem=cap.sem||'1';
+      var pos=cap.poscode||'00';
+      var lt=cap.lt||'';
+      var club=cap.club||'';
+      if(!lt){showAlert('กรุณาเลือกประเภทจดหมาย','wa');if(btn){btn.disabled=false;btn.innerHTML=svg('ok',13)+' ออกเลขและเสร็จสิ้น';}return}
       var thisYear=new Date().getFullYear();
       var thaiYear=String(thisYear+543);
       var catPfx=sem+pos+lt;
       docNum=await _nextDocNum(docId,'outgoing',catPfx,club,thisYear,thaiYear);
       note='ออกเลขหนังสือขาออก: '+docNum;
       _dateText=_fmtDateThai(docDate);
-
-      // อ่านตำแหน่ง stamp จาก draggable elements แปลงจาก canvas px → PDF points
-      var _sc=$e('num-stamp-container');
-      var _scSc=_sc?parseFloat(_sc.dataset.scale)||1:1;
-      var _scPdfH=_sc?parseFloat(_sc.dataset.pdfH)||842:842;
-      var _ns=$e('num-stamp-num');
-      var _ds=$e('num-stamp-date');
-      if(_ns){_numPdfX=parseInt(_ns.style.left)/_scSc; _numPdfY=_scPdfH-parseInt(_ns.style.top)/_scSc-14;}
-      else    {_numPdfX=42; _numPdfY=_scPdfH-270;}
-      if(_ds){_datPdfX=parseInt(_ds.style.left)/_scSc; _datPdfY=_scPdfH-parseInt(_ds.style.top)/_scSc-14;}
-      else    {_datPdfX=42; _datPdfY=_scPdfH-290;}
     } else if(doc.doc_type==='incoming'){
-      var sem=gv('num-sem')||'1';
-      var pos=($e('num-sendercode')||{}).value||'00';
-      var club=($e('num-senderclub')||{}).value||'';
-      var lt=gv('num-lt')||'';
-      note=(gv('num-note')||'').trim();
-      fwdId=gv('num-fwd')||null;
-      if(!lt){alert('กรุณาเลือกประเภทหนังสือ');if(btn){btn.disabled=false;btn.innerHTML=svg('ok',13)+' ออกเลขและเสร็จสิ้น';}return}
+      var sem=cap.sem||'1';
+      var pos=cap.sendercode||'00';
+      var club=cap.senderclub||'';
+      var lt=cap.lt||'';
+      note=cap.note||'';
+      fwdId=cap.fwdId||null;
+      if(!lt){showAlert('กรุณาเลือกประเภทหนังสือ','wa');if(btn){btn.disabled=false;btn.innerHTML=svg('ok',13)+' ออกเลขและเสร็จสิ้น';}return}
       var thisYear=new Date().getFullYear();
       var thaiYear=String(thisYear+543);
       var catPfx=sem+pos+lt;
       docNum=await _nextDocNum(docId,'incoming',catPfx,club,thisYear,thaiYear);
       note=note||('ออกเลขหนังสือขาเข้า: '+docNum);
       _dateText=_fmtDateThai(docDate);
-      var _sc=$e('num-stamp-container');
-      var _scSc=_sc?parseFloat(_sc.dataset.scale)||1:1;
-      var _scPdfH=_sc?parseFloat(_sc.dataset.pdfH)||842:842;
-      var _ns=$e('num-stamp-num');
-      var _ds=$e('num-stamp-date');
-      if(_ns){_numPdfX=parseInt(_ns.style.left)/_scSc; _numPdfY=_scPdfH-parseInt(_ns.style.top)/_scSc-14;}
-      else    {_numPdfX=42; _numPdfY=_scPdfH-270;}
-      if(_ds){_datPdfX=parseInt(_ds.style.left)/_scSc; _datPdfY=_scPdfH-parseInt(_ds.style.top)/_scSc-14;}
-      else    {_datPdfX=42; _datPdfY=_scPdfH-290;}
     } else {
-      docNum=(gv('num-docnum')||'').trim();
-      note=(gv('num-note')||'').trim();
-      fwdId=gv('num-fwd')||null;
-      if(!docNum){alert('กรุณาระบุเลขที่หนังสือ');if(btn){btn.disabled=false;btn.innerHTML=svg('ok',13)+' บันทึกและเสร็จสิ้น';}return}
+      docNum=cap.docnum||'';
+      note=cap.note||'';
+      fwdId=cap.fwdId||null;
+      if(!docNum){showAlert('กรุณาระบุเลขที่หนังสือ','wa');if(btn){btn.disabled=false;btn.innerHTML=svg('ok',13)+' บันทึกและเสร็จสิ้น';}return}
     }
 
     var upd={doc_number:docNum,doc_date:docDate,status:'completed',updated_at:new Date().toISOString()};
@@ -369,7 +394,7 @@ async function doSetDocNumber(docId){
         if(_r===2){console.warn('[docNum] 3 consecutive collisions, proceeding with last written number:',docNum,'doc:',docId);break;}
         docNum=await _nextDocNum(docId,doc.doc_type,catPfx,club,thisYear,thaiYear);
         if(doc.doc_type==='outgoing') note='ออกเลขหนังสือขาออก: '+docNum;
-        else if(doc.doc_type==='incoming'&&!gv('num-note')) note='ออกเลขหนังสือขาเข้า: '+docNum;
+        else if(doc.doc_type==='incoming'&&!cap.note) note='ออกเลขหนังสือขาเข้า: '+docNum;
         await dpa('documents',docId,{doc_number:docNum,updated_at:new Date().toISOString()});
       }
     }
@@ -409,7 +434,7 @@ async function doSetDocNumber(docId){
             var _clr=PDFLib.rgb(0.07,0.38,0.67);
             var clamp=function(v,lo,hi){return Math.max(lo,Math.min(hi,v));};
             
-            var _stampSz=parseInt(($e('num-fontsize')||{}).value)||12;
+            var _stampSz=cap.fontsize||12;
             if(docNum) _pg.drawText(docNum,{x:clamp(_numPdfX,0,_pw2-10),y:clamp(_numPdfY,10,_ph-10),size:_stampSz,font:_stampFont,color:_clr});
             if(_dateText) _pg.drawText(_dateText,{x:clamp(_datPdfX,0,_pw2-10),y:clamp(_datPdfY,10,_ph-10),size:_stampSz,font:_stampFont,color:_clr});
             
@@ -461,5 +486,5 @@ async function doSetDocNumber(docId){
       var a=$e('dal');if(a)a.innerHTML=alrtH('ok','ออกเลขเอกสารเรียบร้อยแล้ว เลขที่: <strong class="mono">'+esc(docNum)+'</strong>'+(fwdId?' และส่งต่อแล้ว':''));
     }
     setTimeout(function(){nav('det',docId)},900)
-  }catch(e){alert('เกิดข้อผิดพลาด: '+e.message);if(btn){btn.disabled=false;btn.innerHTML=svg('ok',13)+' บันทึกและเสร็จสิ้น'}}
+  }catch(e){showAlert('เกิดข้อผิดพลาด: '+e.message,'er');if(btn){btn.disabled=false;btn.innerHTML=svg('ok',13)+' บันทึกและเสร็จสิ้น'}}
 }

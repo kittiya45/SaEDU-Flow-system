@@ -26,9 +26,16 @@ async function sendNotifEmail(docId, action, newStatus, note){
   } else if(action==='approve'&&nextStep&&nextStep.assigned_to){
     var ru=await dg('users','?id=eq.'+nextStep.assigned_to);
     if(ru[0]){var em=ru[0].contact_email||ru[0].email;if(_okEmail(em))recipients.push({user:ru[0],email:em})}
-  } else if(action==='reject'&&doc.created_by){
-    var cu2=await dg('users','?id=eq.'+doc.created_by);
-    if(cu2[0]){var em2=cu2[0].contact_email||cu2[0].email;if(_okEmail(em2))recipients.push({user:cu2[0],email:em2})}
+  } else if(action==='reject'){
+    // cascade: nextStep คือ step ก่อนหน้าที่ถูก re-activate → แจ้งเขา
+    // final reject: ไม่มี active step → แจ้งผู้จัดทำ
+    if(nextStep&&nextStep.assigned_to){
+      var _ruc=await dg('users','?id=eq.'+nextStep.assigned_to);
+      if(_ruc[0]){var _emc=_ruc[0].contact_email||_ruc[0].email;if(_okEmail(_emc))recipients.push({user:_ruc[0],email:_emc})}
+    } else if(doc.created_by){
+      var cu2=await dg('users','?id=eq.'+doc.created_by);
+      if(cu2[0]){var em2=cu2[0].contact_email||cu2[0].email;if(_okEmail(em2))recipients.push({user:cu2[0],email:em2})}
+    }
   } else if((action==='create'||action==='resubmit')&&nextStep&&nextStep.assigned_to){
     var ru3=await dg('users','?id=eq.'+nextStep.assigned_to);
     if(ru3[0]){var em3=ru3[0].contact_email||ru3[0].email;if(_okEmail(em3))recipients.push({user:ru3[0],email:em3})}
@@ -56,7 +63,16 @@ async function sendNotifEmail(docId, action, newStatus, note){
     if(_sFile) signedFileUrl=furl(_sFile.file_path);
   }
 
-  var emailSubj='[กนค.] '+(newStatus==='completed'?'เสร็จสิ้น: ':newStatus==='numbering'?'🔢 รอออกเลขหนังสือ: ':action==='reject'?'↩ ส่งคืนแก้ไข: ':action==='create'?'📋 เอกสารใหม่รอดำเนินการ: ':action==='overdue'?'⚠️ เลยกำหนด: ':'')+subj;
+  // ── ดึง email template (subject_suffix + extra_note) ──
+  var _etmpl={};
+  try{
+    var _etKey=newStatus==='completed'?'completed':newStatus==='numbering'?'numbering':action;
+    var _etRows=await dg('email_templates','?key=eq.'+encodeURIComponent(_etKey)+'&limit=1');
+    if(_etRows&&_etRows[0]) _etmpl=_etRows[0];
+  }catch(e){}
+
+  var _baseSubj=(SETT.email_prefix||'[กนค.]')+' '+(newStatus==='completed'?'เสร็จสิ้น: ':newStatus==='numbering'?'🔢 รอออกเลขหนังสือ: ':action==='reject'?'↩ ส่งคืนแก้ไข: ':action==='create'?'📋 เอกสารใหม่รอดำเนินการ: ':action==='overdue'?'⚠️ เลยกำหนด: ':'')+subj;
+  var emailSubj=_baseSubj+(_etmpl.subject_suffix?' '+_etmpl.subject_suffix:'');
   var sentEmails=[];
 
   for(var ri=0;ri<recipients.length;ri++){
@@ -72,7 +88,8 @@ async function sendNotifEmail(docId, action, newStatus, note){
       note: note,
       nextStep: nextStep,
       urgency: doc.urgency,
-      signedFileUrl: signedFileUrl
+      signedFileUrl: signedFileUrl,
+      extraNote: _etmpl.extra_note||''
     });
 
     // ── ส่งอีเมลจริงผ่าน Edge Function ──
@@ -175,6 +192,7 @@ function buildEmailHtml(o){
         (rows?'<table cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse">'+rows+'</table>':'')+
       '</div>'+
       footerMsg+
+      (o.extraNote?'<div style="margin-top:14px;padding:10px 14px;background:#FFFBEB;border-left:3px solid #F59E0B;border-radius:0 6px 6px 0;font-size:12px;color:#92400E;line-height:1.6">'+esc(o.extraNote)+'</div>':'')+
     '</td></tr>'+
     // Footer
     '<tr><td style="padding:14px 28px;background:#F9F9F9;border-top:1px solid #EEE;text-align:center;font-size:11px;color:#BBB">'+

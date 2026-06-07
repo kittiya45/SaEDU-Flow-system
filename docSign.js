@@ -6,6 +6,18 @@ async function showActModal(action,docId){
   var _doc=(await dg('documents','?id=eq.'+docId))[0]||{};
   var isIncoming=_doc.doc_type==='incoming';
   var isApprove=action==='approve';
+
+  // Reject modal: หา cascade destination (step ก่อนหน้าที่จะถูก re-activate)
+  var _cascadeTargetModal=null;
+  if(!isApprove){
+    var _wfModal=await dg('workflow_steps','?document_id=eq.'+docId+'&order=step_number');
+    var _curActModal=_wfModal.filter(function(s){return s.status==='active'})[0];
+    if(_curActModal){
+      for(var _mi=0;_mi<_wfModal.length;_mi++){
+        if(_wfModal[_mi].step_number<_curActModal.step_number&&_wfModal[_mi].step_number>1) _cascadeTargetModal=_wfModal[_mi];
+      }
+    }
+  }
   _actSigPos={xFrac:null,yFrac:null};
   _actSigPdf=null; _actSigPage=1; _actSigZoom=1.0;
 
@@ -87,6 +99,8 @@ async function showActModal(action,docId){
   }
 
   // ── โหมดส่งคืน: single-column ──
+  var _cascadeTargetName=_cascadeTargetModal?esc(_cascadeTargetModal.step_name):'ผู้จัดทำ (เอกสารจะถูกส่งคืน)';
+  var _cascadeSlaNote=_cascadeTargetModal?'ผู้รับจะต้องดำเนินการภายใน 3 วัน (SLA)':'ผู้จัดทำจะต้องแก้ไขและส่งใหม่ภายใน 3 วัน (SLA)';
   var html=[
     '<div class="mo"><div class="modal">',
     '<div class="modal-head">',
@@ -94,9 +108,13 @@ async function showActModal(action,docId){
     '<button class="btn btn-soft sm btn-icon" data-action="closeModal">'+svg('x',14)+'</button>',
     '</div>',
     '<div class="modal-body">',
-    '<div class="al al-er" style="margin-bottom:14px">',
+    '<div class="al al-er" style="margin-bottom:10px">',
     '<span class="al-icon">'+svg('warn',13)+'</span>',
     '<span>คุณกำลังจะส่งคืนเอกสารเพื่อให้แก้ไข</span></div>',
+    '<div class="al al-wa" style="margin-bottom:14px;font-size:12px">',
+    '<span class="al-icon">'+svg('undo',13)+'</span>',
+    '<div><div>ส่งต่อไปยัง: <strong>'+_cascadeTargetName+'</strong></div>',
+    '<div style="color:#a89e99;font-size:11px;margin-top:2px">'+_cascadeSlaNote+'</div></div></div>',
     '<div class="fg"><label class="fl">ส่วนที่ต้องแก้ไข <span class="req">*</span></label>',
     '<select class="fi" id="rev-section">',
     '<option value="">— เลือกส่วนที่ต้องแก้ไข —</option>',

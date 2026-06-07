@@ -1,3 +1,21 @@
+/* [UX] toggle dropdown "⋮" สำหรับ admin actions ใน doc detail */
+function _toggleDetMore(){
+  var d=$e('det-more-drop');
+  if(!d) return;
+  d.style.display=d.style.display==='none'?'block':'none';
+  // ปิด dropdown เมื่อ click นอก
+  if(d.style.display==='block'){
+    setTimeout(function(){
+      document.addEventListener('click',function _close(e){
+        if(!document.getElementById('det-more-wrap').contains(e.target)){
+          d.style.display='none';
+          document.removeEventListener('click',_close,true);
+        }
+      },true);
+    },10);
+  }
+}
+
 /* ─── DOC DETAIL ─── */
 async function vDet(docId){
   var _id=safeId(docId);
@@ -38,14 +56,39 @@ async function vDet(docId){
   if(doc.status==='completed') html.push('<div class="al al-ok !m-0 !py-2 !px-3.5 text-xs !rounded-[20px]"><span class="al-icon">'+svg('ok',12)+'</span><span>เอกสารผ่านการอนุมัติทุกขั้นตอนเรียบร้อยแล้ว</span></div>');
   var _canNum=doc.status==='numbering'&&(doc.created_by===CU.id||['ROLE-SYS','ROLE-STF'].includes(CU.role_code));
   if(doc.status==='numbering') html.push('<div class="al al-wa !m-0 !py-2 !px-3.5 text-xs !rounded-[20px]"><span class="al-icon">'+svg('pen',12)+'</span><span>'+(_canNum?'ลายเซ็นครบแล้ว — กรุณาออกเลขที่หนังสือและวันที่':'รอผู้จัดทำออกเลขที่หนังสือ')+'</span></div>');
-  if(hasRejectedHistory && doc.status==='pending') html.push('<div class="al al-wa !m-0 !py-2 !px-3.5 text-xs !rounded-[20px]"><span class="al-icon">'+svg('undo',12)+'</span><span>เอกสารที่แก้ไขแล้วหลังการส่งคืน - รอการอนุมัติตามขั้นตอน</span></div>');
-  html.push('<div class="ml-auto flex gap-2 flex-wrap">');
-  if(CAN.up(CU.role_code)){
-    html.push('<button class="btn btn-soft sm" data-action="detUp">'+svg('up',13)+' อัปโหลดไฟล์</button>');
-    html.push('<input type="file" id="dup" class="hidden" multiple accept=".pdf,.doc,.docx,.png,.jpg">');
+  // Banner: cascade — แสดงเมื่อ step ที่ active ถูก re-activate เพราะ step ถัดไปตีกลับ
+  var _curActWf=wf.filter(function(s){return s.status==='active'})[0];
+  var _nextRejWf=_curActWf?wf.find(function(s){return s.step_number>_curActWf.step_number&&s.status==='rejected'}):null;
+  if(_nextRejWf&&doc.status==='pending'){
+    var _rejReason=_nextRejWf.revision_section?(' — <span class="font-semibold text-[#DC2626]">'+esc(_nextRejWf.revision_section)+'</span>'):'';
+    var _rejNote=_nextRejWf.note?(' "<em>'+esc(_nextRejWf.note)+'</em>"'):'';
+    html.push('<div class="al al-wa !m-0 !py-2 !px-3.5 text-xs !rounded-[20px]"><span class="al-icon">'+svg('undo',12)+'</span><span>ส่งคืนมาจากขั้นตอน: <strong>'+esc(_nextRejWf.step_name)+'</strong>'+_rejReason+_rejNote+' · กรุณาดำเนินการภายใน <strong>'+(SETT.sla_cascade_days||3)+' วัน</strong></span></div>');
+  } else if(hasRejectedHistory && doc.status==='pending') {
+    html.push('<div class="al al-wa !m-0 !py-2 !px-3.5 text-xs !rounded-[20px]"><span class="al-icon">'+svg('undo',12)+'</span><span>เอกสารที่แก้ไขแล้วหลังการส่งคืน - รอการอนุมัติตามขั้นตอน</span></div>');
   }
-  if(CAN.ed(CU.role_code)&&(doc.status==='draft'||(doc.status==='rejected'&&doc.created_by===CU.id))) html.push('<button class="btn btn-soft sm" data-action="nav" data-view="edit" data-id="'+docId+'">'+svg('edit',13)+' แก้ไขข้อมูล</button>');
-  if(doc.status==='rejected'&&doc.created_by===CU.id) html.push('<button class="btn btn-primary sm" data-action="doReSubmit" data-id="'+docId+'">'+svg('up',13)+' ส่งใหม่อีกครั้ง</button>');
+  // Banner: SLA countdown เมื่อเอกสารถูกส่งคืนถึงผู้จัดทำ (status=rejected)
+  if(doc.status==='rejected'){
+    var _lastRejH=hist.filter(function(h){return h.action&&(h.action.indexOf('ส่งคืน')>=0||h.action.indexOf('ตีกลับ')>=0)})[0];
+    if(_lastRejH&&_lastRejH.performed_at){
+      var _slaDays2=SETT.sla_cascade_days||3;
+      var _rejTs=new Date(_lastRejH.performed_at);
+      var _slaTs=addWorkingDays(_rejTs,_slaDays2);
+      _slaTs.setHours(23,59,0,0);
+      var _slaIsLate=new Date()>_slaTs;
+      var _slaStr=_slaTs.toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit'});
+      var _wdLeft=workingDaysLeft(_slaTs);
+      var _wdLabel=_slaIsLate?'<strong class="text-[#DC2626]">เกินกำหนดแก้ไขแล้ว!</strong> ครบกำหนด: '+_slaStr:
+        (_wdLeft<=1?'<strong class="text-[#DC2626]">วันสุดท้ายแล้ว!</strong> ครบกำหนด: '+_slaStr:
+        'กรุณาแก้ไขและส่งใหม่ภายใน <strong>'+_slaStr+'</strong> เหลืออีก '+_wdLeft+' วันทำการ (SLA '+_slaDays2+' วันทำการ)');
+      html.push('<div class="al '+(_slaIsLate?'al-er':_wdLeft<=1?'al-er':'al-wa')+' !m-0 !py-2 !px-3.5 text-xs !rounded-[20px]"><span class="al-icon">'+svg('clock',12)+'</span><span>'+_wdLabel+'</span></div>');
+    }
+  }
+  /* [UX] จัดกลุ่ม action buttons:
+     - Primary actions: อนุมัติ, ส่งคืน, ออกเลข, ส่งใหม่
+     - Secondary actions: แก้ไข, อัปโหลด, ส่งต่อ, Export
+     - Destructive actions: ลบ, เปลี่ยนสถานะ — ซ่อนใน dropdown ⋮ (admin เท่านั้น) */
+  html.push('<div class="ml-auto flex gap-2 flex-wrap items-center">');
+  // Primary — action ที่ user ต้องทำตอนนี้
   if(canAct){
     html.push('<button class="btn btn-success sm" data-action="showActModal" data-act="approve" data-id="'+docId+'">'+svg('ok',13)+' อนุมัติ / ลงนาม</button>');
     html.push('<button class="btn btn-danger sm" data-action="showActModal" data-act="reject" data-id="'+docId+'">'+svg('x',13)+' ส่งคืนแก้ไข</button>');
@@ -53,14 +96,49 @@ async function vDet(docId){
   if(_canNum){
     html.push('<button class="btn btn-primary sm" data-action="showNumModal" data-id="'+docId+'">'+svg('pen',13)+' ออกเลขหนังสือ</button>');
   }
+  if(doc.status==='rejected'&&doc.created_by===CU.id){
+    html.push('<button class="btn btn-primary sm" data-action="doReSubmit" data-id="'+docId+'">'+svg('up',13)+' ส่งใหม่อีกครั้ง</button>');
+  }
+  // Secondary
+  if(CAN.up(CU.role_code)){
+    html.push('<button class="btn btn-soft sm" data-action="detUp">'+svg('up',13)+' อัปโหลด</button>');
+    html.push('<input type="file" id="dup" class="hidden" multiple accept=".pdf,.doc,.docx,.png,.jpg">');
+  }
+  if(CAN.ed(CU.role_code)&&(doc.status==='draft'||(doc.status==='rejected'&&doc.created_by===CU.id))){
+    html.push('<button class="btn btn-soft sm" data-action="nav" data-view="edit" data-id="'+docId+'">'+svg('edit',13)+' แก้ไข</button>');
+  }
   if(doc.status==='completed'){
-    html.push('<button class="btn btn-primary sm" data-action="showFwdModal" data-id="'+docId+'">'+svg('sign',13)+' ส่งต่อเอกสาร</button>');
+    // ซ่อนปุ่มส่งต่อเมื่อรอการรับเอกสารอยู่แล้ว
+    var _fwdPending=doc.forwarded_to_id&&!hist.some(function(h){return h.action&&h.action.indexOf('เจ้าหน้าที่รับเอกสาร')>=0});
+    if(!_fwdPending){
+      html.push('<button class="btn btn-soft sm" data-action="showFwdModal" data-id="'+docId+'">'+svg('sign',13)+' ส่งต่อ</button>');
+    } else {
+      html.push('<span style="font-size:12px;color:#D97706;display:flex;align-items:center;gap:4px">'+svg('clock',13)+' รอเจ้าหน้าที่รับเอกสาร</span>');
+    }
   }
+  // Accept / Decline buttons — แสดงเฉพาะ forwarded_to_id คนนั้น และยังไม่ได้รับ
+  if(doc.status==='completed'&&doc.forwarded_to_id&&doc.forwarded_to_id===CU.id){
+    var _fwdAccepted=hist.some(function(h){return h.action&&h.action.indexOf('เจ้าหน้าที่รับเอกสาร')>=0});
+    if(!_fwdAccepted){
+      html.push('<button class="btn btn-success sm" data-action="acceptFwd" data-id="'+docId+'">'+svg('ok',13)+' รับเอกสาร / อนุมัติ</button>');
+      html.push('<button class="btn btn-danger sm" data-action="showDeclineFwdModal" data-id="'+docId+'">'+svg('x',13)+' ไม่อนุมัติ / ส่งคืน</button>');
+    } else {
+      html.push('<span class="badge b-completed" style="padding:6px 12px;display:flex;align-items:center;gap:4px">'+svg('ok',12)+' รับเอกสารแล้ว</span>');
+    }
+  }
+  html.push('<button class="btn btn-soft sm" data-action="exportDocPDF" data-id="'+docId+'">'+svg('pdf_ico',13)+' PDF</button>');
+  // Destructive — ซ่อนใน ⋮ dropdown สำหรับ admin เท่านั้น
   if(CU.role_code==='ROLE-SYS'){
-    html.push('<button class="btn btn-soft sm" data-action="admChgStatus" data-id="'+docId+'">เปลี่ยนสถานะ</button>');
-    html.push('<button class="btn btn-danger sm" data-action="admDelDoc" data-id="'+docId+'">ลบเอกสาร</button>');
+    html.push(
+      '<div style="position:relative;display:inline-block" id="det-more-wrap">'+
+      '<button class="btn btn-soft sm" onclick="_toggleDetMore()" title="เพิ่มเติม">'+svg('dots',14)+'</button>'+
+      '<div id="det-more-drop" style="display:none;position:absolute;right:0;top:100%;margin-top:4px;background:#fff;border:1px solid #EBEBEB;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.12);min-width:160px;z-index:200;overflow:hidden">'+
+        '<button class="am-item" data-action="admChgStatus" data-id="'+docId+'">'+svg('refresh',13)+' เปลี่ยนสถานะ</button>'+
+        '<div class="am-divider"></div>'+
+        '<button class="am-item am-danger" data-action="admDelDoc" data-id="'+docId+'">'+svg('trash',13)+' ลบเอกสาร</button>'+
+      '</div></div>'
+    );
   }
-  html.push('<button class="btn btn-soft sm" data-action="exportDocPDF" data-id="'+docId+'" title="ส่งออก PDF พร้อมประวัติ">'+svg('pdf_ico',13)+' Export PDF</button>');
   html.push('</div></div>');
   html.push('<div id="dal"></div>');
   html.push('<div class="two-col"><div>');
@@ -160,7 +238,7 @@ async function vDet(docId){
   if(wf.length){
     html.push('<div class="timeline">');
     wf.forEach(function(s,i){
-      var done=s.status==='done', act=s.status==='active', wait=s.status==='waiting', rej=s.status==='rejected', last=i===wf.length-1;
+      var done=s.status==='done', act=s.status==='active', rej=s.status==='rejected', last=i===wf.length-1;
       html.push('<div class="tl-item">');
       html.push('<div class="tl-spine"><div class="tl-dot '+(done?'tl-dot-done':act?'tl-dot-active':rej?'tl-dot-rejected':'tl-dot-wait')+'">'+(done?svg('ok',11):rej?svg('x',11):i+1)+'</div>'+(!last?'<div class="tl-line '+(done?'tl-line-done':'tl-line-wait')+'"></div>':'')+'</div>');
       html.push('<div class="tl-body"><div class="tl-title '+(act?'text-[#D97706]':rej?'text-[#DC2626]':'')+'">'+esc(s.step_name)+'</div>');
@@ -208,7 +286,8 @@ async function vDet(docId){
       html.push('<div class="w-[32px] h-[32px] rounded-[9px] flex items-center justify-center shrink-0" style="background:'+_hi.bg+';color:'+_hi.cl+'">'+svg(_hi.ic,15)+'</div>');
       html.push('<div class="flex-1 min-w-0"><div class="text-[13px] font-semibold leading-tight">'+esc(h.action)+'</div>');
       if(h.note) html.push('<div class="text-xs text-[#a89e99] italic mt-0.5 truncate">"'+esc(h.note)+'"</div>');
-      html.push('<div class="text-[11px] text-[#a89e99] mt-0.5">'+fd(h.performed_at)+'</div></div></div>');
+      /* [UX] แสดงเวลาด้วย fdTime() เพื่อแยก actions ที่เกิดในวันเดียวกัน */
+      html.push('<div class="text-[11px] text-[#a89e99] mt-0.5">'+fdTime(h.performed_at)+'</div></div></div>');
     })
   } else {
     html.push('<p class="text-[#a89e99] text-[13px]">ยังไม่มีประวัติการดำเนินการ</p>')
@@ -234,7 +313,7 @@ async function detUp(files,docId){
   var ALLOWED_MIME2=['application/pdf','application/msword',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     'image/png','image/jpeg'];
-  var MAX_SIZE2=10*1024*1024;
+  var MAX_SIZE2=(SETT.max_file_size_mb||10)*1024*1024;
   var errs2=[];
   for(var k=0;k<files.length;k++){
     var fk=files[k];
@@ -311,18 +390,19 @@ async function showVerHist(docId){
 
 async function showFwdModal(docId){
   var w=$e('mwrap'); if(!w)return;
-  var allUsers=await dg('users','?is_active=eq.true&approval_status=eq.approved&order=full_name');
+  // กรองเฉพาะ เจ้าหน้าที่ (ROLE-STF) และ อาจารย์กิจการ (ROLE-ADV) เท่านั้น
+  var allUsers=await dg('users','?is_active=eq.true&approval_status=eq.approved&role_code=in.(ROLE-STF,ROLE-ADV)&order=full_name');
   var doc=(await dg('documents','?id=eq.'+safeId(docId)))[0]||{};
   var uOpts=allUsers.map(function(u){
     return '<option value="'+u.id+'"'+(doc.forwarded_to_id===u.id?' selected':'')+'>'+esc(u.full_name)+' ('+RTH[u.role_code]+')</option>'
   }).join('');
   w.innerHTML=[
     '<div class="mo"><div class="modal">',
-    '<div class="modal-head"><span class="modal-title">'+svg('sign',15)+' ส่งต่อเอกสาร</span>',
+    '<div class="modal-head"><span class="modal-title">'+svg('sign',15)+' ส่งต่อเอกสารให้เจ้าหน้าที่</span>',
     '<button class="btn btn-soft sm btn-icon" data-action="closeModal">'+svg('x',14)+'</button></div>',
     '<div class="modal-body">',
     '<div class="al al-in" style="margin-bottom:14px"><span class="al-icon">'+svg('info',13)+'</span>',
-    '<span>เลือกบุคคลที่ต้องการส่งเอกสารฉบับสมบูรณ์นี้ไปให้ ระบบจะแจ้งเตือนทางอีเมล</span></div>',
+    '<span>ส่งเอกสารให้ <strong>เจ้าหน้าที่กิจการนิสิต / อาจารย์กิจการ</strong> รับทราบและอนุมัติ ระบบจะแจ้งเตือนทางอีเมล</span></div>',
     '<div class="fg"><label class="fl">ส่งเอกสารถึง <span class="req">*</span></label>',
     '<select class="fi" id="fwd-to"><option value="">— เลือกผู้รับ —</option>'+uOpts+'</select></div>',
     '<div class="fg"><label class="fl">หมายเหตุ / วัตถุประสงค์</label>',
@@ -337,7 +417,7 @@ async function showFwdModal(docId){
 
 async function doForward(docId){
   var toId=gv('fwd-to'), note=gv('fwd-note');
-  if(!toId){alert('กรุณาเลือกผู้รับ');return}
+  if(!toId){showAlert('กรุณาเลือกผู้รับ','wa');return}
   var btn=document.querySelector('[data-action="doForward"]');
   if(btn){btn.disabled=true;btn.innerHTML='<span class="sp"></span>'}
   try{
@@ -347,7 +427,7 @@ async function doForward(docId){
     var toUser=(await dg('users','?id=eq.'+safeId(toId)))[0];
     var doc2=(await dg('documents','?id=eq.'+docId))[0]||{};
     var recipEmail=toUser?(toUser.contact_email||toUser.email):'';
-    var emailSubj='[กนค.] ส่งต่อเอกสาร: '+(doc2.title||'');
+    var emailSubj=(SETT.email_prefix||'[กนค.]')+' ส่งต่อเอกสาร: '+(doc2.title||'');
     var emailBody='เรียน '+(toUser?toUser.full_name:'')+', ท่านได้รับเอกสารเรื่อง "'+(doc2.title||'')+'" ที่ผ่านการอนุมัติเรียบร้อยแล้ว'+(note?' หมายเหตุ: '+note:'');
     var fwdStatus='skipped';
     try{
@@ -361,7 +441,87 @@ async function doForward(docId){
     $e('mwrap').innerHTML='';
     var a=$e('dal');if(a)a.innerHTML=alrtH('ok','ส่งต่อเอกสารเรียบร้อยแล้ว และแจ้งเตือนทางอีเมลแล้ว');
     setTimeout(function(){nav('det',docId)},900)
-  }catch(e){alert('เกิดข้อผิดพลาด: '+e.message);if(btn)btn.disabled=false}
+  }catch(e){showAlert('เกิดข้อผิดพลาด: '+e.message,'er');if(btn)btn.disabled=false}
+}
+
+/* ─── FORWARD REVIEW (เจ้าหน้าที่/อาจารย์กิจการ อนุมัติ / ไม่อนุมัติ) ─── */
+
+function doAcceptFwd(docId){
+  showConfirm(
+    'รับเอกสาร / อนุมัติ?',
+    'ยืนยันการรับเอกสาร เอกสารจะถือว่าดำเนินการเสร็จสิ้นสมบูรณ์',
+    function(){_doAcceptFwdConfirmed(docId)},
+    {confirmLabel:'รับเอกสาร',confirmClass:'btn-success',icon:'ok',iconBg:'#D1FAE5',iconColor:'#16A34A'}
+  );
+}
+
+async function _doAcceptFwdConfirmed(docId){
+  try{
+    await dp('document_history',{document_id:docId,action:'เจ้าหน้าที่รับเอกสาร',performed_by:CU.id,note:'รับและอนุมัติเอกสารเรียบร้อยแล้ว'});
+    var a=$e('dal');if(a)a.innerHTML=alrtH('ok','รับเอกสารเรียบร้อยแล้ว');
+    setTimeout(function(){nav('det',docId)},900);
+  }catch(e){showAlert('เกิดข้อผิดพลาด: '+e.message,'er')}
+}
+
+function showDeclineFwdModal(docId){
+  var mw=$e('mwrap'); if(!mw)return;
+  mw.innerHTML=[
+    '<div class="mo"><div class="modal">',
+    '<div class="modal-head"><span class="modal-title">'+svg('x',14)+' ไม่อนุมัติ — ส่งคืนให้ดำเนินการใหม่</span>',
+    '<button class="btn btn-soft sm btn-icon" data-action="closeModal">'+svg('x',14)+'</button></div>',
+    '<div class="modal-body">',
+    '<div class="al al-er" style="margin-bottom:10px"><span class="al-icon">'+svg('warn',13)+'</span>',
+    '<span>เอกสารจะถูกส่งคืนผู้จัดทำและต้องเริ่มกระบวนการอนุมัติใหม่ทั้งหมดตั้งแต่ต้น</span></div>',
+    '<div class="al al-wa" style="margin-bottom:14px;font-size:12px"><span class="al-icon">'+svg('info',13)+'</span>',
+    '<span>ผู้จัดทำจะได้รับแจ้งทางอีเมล และต้องแก้ไขเอกสารก่อนส่งใหม่</span></div>',
+    '<div class="fg"><label class="fl">เหตุผลที่ไม่อนุมัติ <span class="req">*</span></label>',
+    '<textarea class="fi" id="decline-fwd-note" rows="3" placeholder="ระบุเหตุผลที่ต้องแก้ไขหรือส่งคืน..."></textarea></div>',
+    '</div>',
+    '<div class="modal-foot">',
+    '<button class="btn btn-soft" data-action="closeModal">ยกเลิก</button>',
+    '<button class="btn btn-danger" data-action="doDeclineFwd" data-id="'+docId+'">'+svg('x',13)+' ยืนยันไม่อนุมัติ</button>',
+    '</div></div></div>'
+  ].join('');
+}
+
+var _declineFwdBusy=false;
+async function doDeclineFwd(docId){
+  if(_declineFwdBusy)return;
+  var note=(gv('decline-fwd-note')||'').trim();
+  if(!note){showAlert('กรุณาระบุเหตุผลที่ไม่อนุมัติ','wa');return}
+  _declineFwdBusy=true;
+  var mw=$e('mwrap');
+  if(mw)mw.innerHTML='<div class="mo"><div class="modal"><div class="modal-body text-center py-10"><div class="sp sp-dark w-8 h-8 border-[3px] mx-auto"></div><p class="mt-4 text-[#a89e99]">กำลังดำเนินการ...</p></div></div></div>';
+  try{
+    // เปลี่ยนสถานะเอกสารเป็น rejected และล้าง forwarded state
+    await dpa('documents',docId,{status:'rejected',forwarded_to_id:null,forwarded_at:null,updated_at:new Date().toISOString()});
+
+    // Reset workflow steps: step แรกของ reviewer → rejected (ให้ resubmit ทำงานได้), ที่เหลือ → waiting
+    var _wfR=await dg('workflow_steps','?document_id=eq.'+safeId(docId)+'&order=step_number');
+    // หา reviewer step แรก; ถ้าไม่มีให้ใช้ step 1 (creator) เป็น fallback เพื่อให้ resubmit ทำงานได้
+    var _firstRev=_wfR.find(function(s){return s.step_number>1})||(_wfR.length?_wfR[0]:null);
+    for(var _ri=0;_ri<_wfR.length;_ri++){
+      var _ru={action_taken:null,note:null,revision_section:null,action_at:null,completed_at:null,rejected_by:null};
+      if(_firstRev&&_wfR[_ri].id===_firstRev.id){
+        _ru.status='rejected'; _ru.rejected_by=CU.id;
+      } else {
+        _ru.status='waiting';
+      }
+      await dpa('workflow_steps',_wfR[_ri].id,_ru);
+    }
+
+    await dp('document_history',{document_id:docId,action:'ไม่อนุมัติ — ส่งคืนให้ดำเนินการใหม่',performed_by:CU.id,note:note});
+    try{await sendNotifEmail(docId,'reject','rejected',note)}catch(ne){console.warn('Notify failed:',ne)}
+    if(mw)mw.innerHTML='';
+    var _a=$e('dal');
+    if(_a)_a.innerHTML=alrtH('ok','ส่งคืนเรียบร้อย ผู้จัดทำจะได้รับแจ้งให้แก้ไขและส่งใหม่');
+    _declineFwdBusy=false;
+    setTimeout(function(){nav('docs')},1200);
+  }catch(e){
+    _declineFwdBusy=false;
+    if(mw)mw.innerHTML='';
+    showAlert('เกิดข้อผิดพลาด: '+e.message,'er');
+  }
 }
 
 async function loadNotifLog(docId){
@@ -386,15 +546,15 @@ async function doAct(action,docId){
   _actBusy=true;
   var note=gv('anote');
   var revSection=action==='reject'?(gv('rev-section')||''):'';
-  if(action==='reject'&&!revSection){alert('กรุณาเลือกส่วนที่ต้องแก้ไข');_actBusy=false;return}
+  if(action==='reject'&&!revSection){showAlert('กรุณาเลือกส่วนที่ต้องแก้ไข','wa');_actBusy=false;return}
   var fullNote=revSection?(revSection+(note?' — '+note:'')):(note||'');
   note=fullNote;
   // Capture signature before closing modal
   var sigSrc=action==='approve'?getActSigSrc():null;
-  var docs=await dg('documents','?id=eq.'+docId); var doc=docs[0]; if(!doc)return;
+  var docs=await dg('documents','?id=eq.'+docId); var doc=docs[0]; if(!doc){_actBusy=false;return}
   // Incoming docs require a signature
   if(action==='approve'&&doc.doc_type==='incoming'&&!sigSrc){
-    alert('กรุณาวาดหรืออัปโหลดลายเซ็นก่อนยืนยัน');_actBusy=false;return
+    showAlert('กรุณาวาดหรืออัปโหลดลายเซ็นก่อนยืนยัน','wa');_actBusy=false;return
   }
   var mw=$e('mwrap'); if(mw) mw.innerHTML='<div class="mo"><div class="modal"><div class="modal-body text-center py-10"><div class="sp sp-dark w-8 h-8 border-[3px] mx-auto"></div><p class="mt-4 text-[#a89e99]">กำลังดำเนินการ...</p></div></div></div>';
   var wf=await dg('workflow_steps','?document_id=eq.'+docId+'&order=step_number');
@@ -402,17 +562,45 @@ async function doAct(action,docId){
   if(cur){
     await dpa('workflow_steps',cur.id,{status:action==='approve'?'done':'rejected',action_taken:action,note:note,revision_section:revSection||null,action_at:new Date().toISOString(),completed_at:action==='approve'?new Date().toISOString():null,rejected_by:action==='reject'?CU.id:null});
     if(action==='approve'){
-      // หาขั้นตอนถัดไปที่ยังไม่เสร็จ (ไม่ใช่ done หรือ rejected)
-      var nx=wf.find(function(s){return s.step_number>cur.step_number && s.status!=='done' && s.status!=='rejected'});
-      if(nx)await dpa('workflow_steps',nx.id,{status:'active'});
+      // หาขั้นตอนถัดไป รวม rejected steps ที่อยู่ใน cascade (ต้อง re-activate)
+      var nx=wf.find(function(s){return s.step_number>cur.step_number&&s.status!=='done'});
+      if(nx){
+        var _nxUpd={status:'active'};
+        if(nx.status==='rejected'){
+          // ล้างข้อมูลตีกลับเมื่อ re-activate กลับขึ้นไปใน cascade
+          Object.assign(_nxUpd,{action_taken:null,note:null,revision_section:null,action_at:null,completed_at:null,rejected_by:null});
+        }
+        await dpa('workflow_steps',nx.id,_nxUpd);
+      }
     }
   }
   var ns=Math.min((doc.current_step||1)+1,doc.total_steps||1);
-  var allDone=action==='approve'&&cur.step_number>=(doc.total_steps||1);
-  // เมื่อลงนามครบ: ขาเข้าและขาออก → numbering (รอออกเลขหนังสือ)
-  var nst=action==='approve'?(allDone?(doc.doc_type==='incoming'?'numbering':'completed'):'pending'):'rejected';
+  // allDone: ไม่มี step ใดหลัง step ปัจจุบันที่ยังไม่ done (รวม rejected steps ใน cascade)
+  var allDone=action==='approve'&&!wf.some(function(s){return s.step_number>cur.step_number&&s.status!=='done'});
+
+  // Cascade reject: หา step ก่อนหน้า (step_number > 1 = ไม่ใช่ step ผู้จัดทำ)
+  var _cascadePrev=null;
+  if(action==='reject'){
+    for(var _cpi=0;_cpi<wf.length;_cpi++){
+      if(wf[_cpi].step_number<cur.step_number&&wf[_cpi].step_number>1) _cascadePrev=wf[_cpi];
+    }
+  }
+
+  // เมื่อลงนามครบ: ขาเข้า → numbering, ขาออก → completed
+  // เมื่อตีกลับ: มี step ก่อนหน้า → cascade (pending), ไม่มี → rejected (ถึงผู้จัดทำ)
+  var nst=action==='approve'?(allDone?(doc.doc_type==='incoming'?'numbering':'completed'):'pending'):(_cascadePrev?'pending':'rejected');
   await dpa('documents',docId,{status:nst,current_step:ns,updated_at:new Date().toISOString()});
-  await dp('document_history',{document_id:docId,action:action==='approve'?'อนุมัติ / ลงนาม':'ส่งคืนแก้ไข',performed_by:CU.id,note:note});
+
+  // Cascade: re-activate ขั้นตอนก่อนหน้าพร้อม SLA (วันทำการ)
+  if(action==='reject'&&_cascadePrev){
+    var _slaDays=SETT.sla_cascade_days||3;
+    var _slaDt=addWorkingDays(new Date(),_slaDays);
+    _slaDt.setHours(23,59,0,0);
+    await dpa('workflow_steps',_cascadePrev.id,{status:'active',deadline_datetime:_slaDt.toISOString(),deadline_days:_slaDays,action_taken:null,note:null,revision_section:null,action_at:null,completed_at:null});
+  }
+
+  var _histAct=action==='approve'?'อนุมัติ / ลงนาม':(_cascadePrev?'ส่งคืนแก้ไข — ส่งต่อ: '+(_cascadePrev.step_name||'ขั้นตอนก่อนหน้า'):'ส่งคืนแก้ไขไปยังผู้จัดทำ');
+  await dp('document_history',{document_id:docId,action:_histAct,performed_by:CU.id,note:note});
   if(action==='reject'){
     var _rejFile=$e('rej-file');
     if(_rejFile&&_rejFile.files&&_rejFile.files.length){
@@ -487,14 +675,15 @@ async function doAct(action,docId){
       }
     } catch(sigErr){
       console.warn('Signature embed failed:',sigErr.message);
-      var _sa=$e('dal');if(_sa)_sa.innerHTML=alrtH('wr','ฝังลายเซ็นไม่สำเร็จ: '+sigErr.message);
+      var _sa=$e('dal');if(_sa)_sa.innerHTML=alrtH('wa','ฝังลายเซ็นไม่สำเร็จ: '+sigErr.message);
     }
   }
   // Send email notification
   try{ await sendNotifEmail(docId, action, nst, note); }catch(ne){console.warn('Email notif failed:',ne)}
   if(mw) mw.innerHTML='';
   var a=$e('dal');
-  var _okMsg=nst==='numbering'?'ลายเซ็นครบทุกขั้นตอนแล้ว! ระบบส่งคืนผู้จัดทำเพื่อออกเลขที่หนังสือ':nst==='completed'?'เอกสารผ่านทุกขั้นตอนแล้ว! สถานะเปลี่ยนเป็น "เสร็จสิ้น" และส่งอีเมลแจ้งทุกคนแล้ว':action==='approve'?'อนุมัติเรียบร้อยแล้ว และส่งอีเมลแจ้งผู้รับผิดชอบขั้นตอนถัดไปแล้ว':'ส่งคืนพร้อมระบุส่วนที่แก้ไขแล้ว และแจ้งผู้จัดทำทางอีเมลแล้ว';
+  var _slaD=SETT.sla_cascade_days||3;
+  var _okMsg=nst==='numbering'?'ลายเซ็นครบทุกขั้นตอนแล้ว! ระบบส่งคืนผู้จัดทำเพื่อออกเลขที่หนังสือ':nst==='completed'?'เอกสารผ่านทุกขั้นตอนแล้ว! สถานะเปลี่ยนเป็น "เสร็จสิ้น" และส่งอีเมลแจ้งทุกคนแล้ว':action==='approve'?'อนุมัติเรียบร้อยแล้ว และส่งอีเมลแจ้งผู้รับผิดชอบขั้นตอนถัดไปแล้ว':(_cascadePrev?'ส่งคืนแก้ไขไปยัง "'+(_cascadePrev.step_name||'ขั้นตอนก่อนหน้า')+'" แล้ว — ผู้รับต้องดำเนินการภายใน '+_slaD+' วัน (SLA)':'ส่งคืนพร้อมระบุส่วนที่แก้ไขแล้ว — แจ้งผู้จัดทำทางอีเมลแล้ว (SLA '+_slaD+' วัน)');
   if(a) a.innerHTML=alrtH('ok',_okMsg);
   _actBusy=false;
   setTimeout(function(){nav('det',docId)},1200)
@@ -502,29 +691,42 @@ async function doAct(action,docId){
 
 var _resubBusy=false;
 /* ── RE-SUBMIT หลัง reject ── */
-async function doReSubmit(docId){
+/* [UX] แทน confirm() ดิบด้วย showConfirm ของระบบ */
+function doReSubmit(docId){
   if(_resubBusy)return;
-  if(!confirm('ยืนยันการส่งเอกสารใหม่อีกครั้ง?')) return;
+  showConfirm(
+    'ส่งเอกสารใหม่อีกครั้ง?',
+    'เอกสารจะเริ่มขั้นตอนอนุมัติใหม่ตั้งแต่ต้น กรุณาแน่ใจว่าแก้ไขครบถ้วนแล้ว',
+    function(){_doReSubmitConfirmed(docId);},
+    {confirmLabel:'ส่งใหม่',confirmClass:'btn-primary',icon:'up',iconBg:'#EFF6FF',iconColor:'#2563EB'}
+  );
+}
+async function _doReSubmitConfirmed(docId){
+  if(_resubBusy)return;
   _resubBusy=true;
-  var wf=await dg('workflow_steps','?document_id=eq.'+docId+'&order=step_number');
-  var rejStep=wf.find(function(s){return s.status==='rejected'});
-  if(!rejStep){alert('ไม่พบขั้นตอนที่ถูกส่งคืน');_resubBusy=false;return}
+  try{
+    var wf=await dg('workflow_steps','?document_id=eq.'+docId+'&order=step_number');
+    // รีเซ็ตทุก step ตั้งแต่ step 2 ขึ้นไปทั้งหมด เพื่อเริ่มใหม่จริงตั้งแต่ต้น
+    // (รวม step ที่ status='done' ด้วย — ไม่ข้ามผู้อนุมัติที่เคย approve ไปแล้ว)
+    var _firstRevStep=wf.find(function(s){return s.step_number>1});
+    if(!_firstRevStep){showAlert('ไม่พบขั้นตอนที่ต้องอนุมัติ','wa');_resubBusy=false;return}
 
-  // รีเซ็ตขั้นตอนที่ถูก reject กลับเป็น active โดยเก็บ assigned_to เดิมไว้
-  await dpa('workflow_steps',rejStep.id,{status:'active',action_taken:null,note:null,revision_section:null,action_at:null,completed_at:null});
-
-  // ตั้งขั้นตอนอื่นๆ ที่อาจ active อยู่เป็น waiting หรือ pending
-  for(var i=0;i<wf.length;i++){
-    var step=wf[i];
-    if(step.id !== rejStep.id && step.status === 'active'){
-      await dpa('workflow_steps',step.id,{status:'waiting'});
+    for(var i=0;i<wf.length;i++){
+      var step=wf[i];
+      if(step.step_number===1) continue; // step ผู้จัดทำ auto-done ตอน submit ไม่ต้อง reset
+      var _upd={action_taken:null,note:null,revision_section:null,action_at:null,completed_at:null,rejected_by:null,deadline_datetime:null,deadline_days:null};
+      _upd.status=(step.id===_firstRevStep.id)?'active':'waiting';
+      await dpa('workflow_steps',step.id,_upd);
     }
-  }
 
-  await dpa('documents',docId,{status:'pending',updated_at:new Date().toISOString()});
-  await dp('document_history',{document_id:docId,action:'ส่งใหม่อีกครั้ง',performed_by:CU.id,note:'ผู้จัดทำส่งเอกสารใหม่หลังแก้ไขแล้ว - รอการอนุมัติจากผู้ส่งคืน'});
-  try{await sendNotifEmail(docId,'resubmit','pending','')}catch(ne){console.warn('Email notif failed:',ne)}
-  _resubBusy=false;
-  nav('det',docId);
+    await dpa('documents',docId,{status:'pending',updated_at:new Date().toISOString()});
+    await dp('document_history',{document_id:docId,action:'ส่งใหม่อีกครั้ง',performed_by:CU.id,note:'ผู้จัดทำส่งเอกสารใหม่หลังแก้ไขแล้ว — เริ่มขั้นตอนอนุมัติใหม่ทั้งหมด'});
+    try{await sendNotifEmail(docId,'resubmit','pending','')}catch(ne){console.warn('Email notif failed:',ne)}
+    nav('det',docId);
+  }catch(e){
+    showAlert('เกิดข้อผิดพลาด: '+e.message,'er');
+  }finally{
+    _resubBusy=false;
+  }
 }
 

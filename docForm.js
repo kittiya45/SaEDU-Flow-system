@@ -1,5 +1,9 @@
 /* ─── DOC FORM ─── */
+/* [UX] flag ติดตามว่า user เริ่มกรอกฟอร์มแล้วหรือยัง */
+var _formDirty=false;
+
 async function vForm(editId){
+  _saveBusy=false; // reset ทุกครั้งที่ render form ใหม่
   var doc={title:'',doc_type:'outgoing',urgency:'normal',description:'',doc_date:new Date().toISOString().slice(0,10),due_date:''};
   FS=[{step_name:'ผู้จัดทำ',role_required:'ROLE-CRT',assigned_to:CU.id,deadline_days:1}];
   FF=[]; FDI=editId||null; PF=[];
@@ -17,9 +21,25 @@ async function vForm(editId){
     return '<option value="'+e[0]+'"'+(doc.doc_type===e[0]?' selected':'')+'>'+e[1]+'</option>'
   }).join('');
   var uOpts=Object.entries(URG).map(function(e){return '<option value="'+e[0]+'"'+(doc.urgency===e[0]?' selected':'')+'>'+e[1]+'</option>'}).join('');
-  var wfPersonOpts='<option value="">— เลือกผู้ดำเนินการ —</option>'+(FU||[]).filter(function(u){return u.id!==CU.id&&u.role_code!=='ROLE-SYS'}).map(function(u){
-    return '<option value="'+u.id+'">'+esc(u.full_name)+' · '+(RTH[u.role_code]||u.role_code)+'</option>'
-  }).join('');
+  /* [UX] จัดกลุ่ม dropdown workflow ตาม role ลดความสับสน */
+  var _wfGroups=[
+    {role:'ROLE-SGN', label:'ผู้ลงนาม'},
+    {role:'ROLE-REV', label:'ผู้ตรวจทาน'},
+    {role:'ROLE-ADV', label:'อาจารย์กิจการ'},
+    {role:'ROLE-STF', label:'เจ้าหน้าที่'},
+    {role:'ROLE-CRT', label:'ผู้จัดทำ'}
+  ];
+  var _wfFiltered=(FU||[]).filter(function(u){return u.id!==CU.id&&u.role_code!=='ROLE-SYS'});
+  var wfPersonOpts='<option value="">— เลือกผู้ดำเนินการ —</option>';
+  _wfGroups.forEach(function(g){
+    var members=_wfFiltered.filter(function(u){return u.role_code===g.role});
+    if(!members.length) return;
+    wfPersonOpts+='<optgroup label="'+g.label+'">';
+    members.forEach(function(u){
+      wfPersonOpts+='<option value="'+u.id+'">'+esc(u.full_name)+'</option>';
+    });
+    wfPersonOpts+='</optgroup>';
+  });
 
   var _ico=function(i,bg,cl){return '<div style="width:26px;height:26px;border-radius:7px;background:'+bg+';display:flex;align-items:center;justify-content:center;color:'+cl+'">'+svg(i,13)+'</div>'};
 
@@ -32,7 +52,9 @@ async function vForm(editId){
   ];
 
   // ── Step 1: เลือกประเภทเอกสาร — Dropdown ──
-  var _VISIBLE_TYPES=['incoming','outgoing'];
+  // SYS, STF, ADV เห็นทุกประเภท; ROLE-CRT เห็นเฉพาะ incoming/outgoing
+  var _extRoles=['ROLE-SYS','ROLE-STF','ROLE-ADV'];
+  var _VISIBLE_TYPES=_extRoles.includes(CU.role_code)?Object.keys(DTYPES):['incoming','outgoing'];
   var dtOpts='<option value="">— กรุณาเลือกประเภทเอกสาร —</option>'+Object.entries(DTYPES).filter(function(e){return _VISIBLE_TYPES.includes(e[0])}).map(function(e){
     return '<option value="'+e[0]+'"'+(editId&&doc.doc_type===e[0]?' selected':'')+'>'+e[1]+'</option>';
   }).join('');
@@ -70,7 +92,7 @@ html.push(`
       </div>
 
       <div class="upload-zone-text">คลิกหรือลากไฟล์มาวางที่นี่</div>
-      <div class="upload-zone-hint">PDF, DOCX, PNG, JPG สูงสุด 10 MB</div>
+      <div class="upload-zone-hint">PDF, DOCX, PNG, JPG สูงสุด ${SETT.max_file_size_mb||10} MB</div>
 
     </div>
   </div>
@@ -97,7 +119,15 @@ html.push('<div id="fprog"></div></div></div>');
     html.push('<div id="wfwrap"></div>');
     html.push('</div></div>');
   }
-  html.push('<div class="card"><div class="card-head">'+_ico('bell','#FFF3EE','#E83A00')+'<span class="card-head-title">การแจ้งเตือน</span></div>');
+  // Info card สำหรับขาออก (ซ่อนสำหรับประเภทอื่น)
+  html.push('<div class="card" id="out-info-card" style="display:none;border:1.5px solid #D1FAE5;background:#F0FDF4">');
+  html.push('<div class="card-body py-3">');
+  html.push('<div class="flex items-start gap-2.5"><div class="w-8 h-8 rounded-lg bg-[#DCFCE7] flex items-center justify-center shrink-0 text-[#16A34A]">'+svg('up',16)+'</div>');
+  html.push('<div><div class="text-[12px] font-bold text-[#15803D] mb-1">ไฟล์พร้อมดาวน์โหลดทันที</div>');
+  html.push('<div class="text-[11px] text-[#166534] leading-[1.7]">หนังสือขาออกจะออกเลขหนังสือและเผยแพร่ให้ผู้รับดาวน์โหลดได้ทันทีเมื่อกด "อัปโหลดและแชร์ไฟล์" — ไม่มีขั้นตอนอนุมัติ</div>');
+  html.push('</div></div></div></div>');
+
+  html.push('<div class="card" id="notif-card"><div class="card-head">'+_ico('bell','#FFF3EE','#E83A00')+'<span class="card-head-title">การแจ้งเตือน</span></div>');
   html.push('<div class="card-body flex flex-col gap-[11px]">');
   var _ns=doc&&doc.notify_step===false?'':'checked';
   var _no=doc&&doc.notify_overdue===false?'':'checked';
@@ -107,17 +137,29 @@ html.push('<div id="fprog"></div></div></div>');
   var _staffOpts='<option value="">— ส่งคืนผู้จัดทำเอกสาร (ค่าเริ่มต้น) —</option>'+(FU||[]).filter(function(u){return u.id!==CU.id}).map(function(u){
     return '<option value="'+u.id+'"'+(doc.final_recipient_id===u.id?' selected':'')+'>'+esc(u.full_name)+' ('+RTH[u.role_code]+')</option>'
   }).join('');
-  html.push('<div class="card"><div class="card-head">'+_ico('sign','#FFF3EE','#E83A00')+'<span class="card-head-title">ผู้รับเอกสารเมื่อเสร็จสิ้น</span></div>');
+  html.push('<div class="card" id="final-card"><div class="card-head">'+_ico('sign','#FFF3EE','#E83A00')+
+    '<span class="card-head-title" id="final-card-title">ผู้รับเอกสารเมื่อเสร็จสิ้น</span></div>');
   html.push('<div class="card-body">');
-  html.push('<div class="al al-in text-xs mb-3"><span class="al-icon">'+svg('info',13)+'</span><span>เมื่อทุกขั้นตอนอนุมัติครบ ระบบจะส่งเอกสารกลับให้บุคคลนี้ พร้อมแจ้งเตือนทางอีเมล</span></div>');
-  html.push('<div class="fg"><label class="fl">ส่งเอกสารเสร็จสิ้นถึง</label><select class="fi" id="ffinalrec">'+_staffOpts+'</select></div>');
-  html.push('<div class="fg"><label class="fl">หมายเหตุเพิ่มเติม</label><input class="fi" id="ffinalnote" value="'+esc(doc.final_recipient_note||'')+'" placeholder="เช่น สำหรับเก็บเข้าแฟ้ม / นำเสนออาจารย์ที่ปรึกษา"></div>');
+  html.push('<div class="al al-in text-xs mb-3"><span class="al-icon">'+svg('info',13)+'</span>'+
+    '<span id="final-card-desc">เมื่อทุกขั้นตอนอนุมัติครบ ระบบจะส่งเอกสารกลับให้บุคคลนี้ พร้อมแจ้งเตือนทางอีเมล</span></div>');
+  html.push('<div class="fg"><label class="fl">ส่งไฟล์ให้ดาวน์โหลด</label><select class="fi" id="ffinalrec">'+_staffOpts+'</select></div>');
+  html.push('<div class="fg"><label class="fl">หมายเหตุ</label><input class="fi" id="ffinalnote" value="'+esc(doc.final_recipient_note||'')+'" placeholder="เช่น สำหรับเก็บเข้าแฟ้ม / ส่งอาจารย์ที่ปรึกษา"></div>');
   html.push('</div></div>'); // close final recipient card-body + card
   html.push('</div>'); // close right col
   html.push('</div>'); // close two-col
   html.push('</div>'); // close form-rest
 
-  setTimeout(function(){attachFormEvents();calcDeadline()}, 100);
+  /* [UX] ตั้ง unsaved changes flag — เตือนก่อน navigate ออกจากฟอร์มที่กรอกค้างไว้ */
+  setTimeout(function(){
+    attachFormEvents();
+    calcDeadline();
+    _formDirty=false;
+    // ติด listener ทุก input/select/textarea ในฟอร์ม
+    document.querySelectorAll('#form-rest input,#form-rest select,#form-rest textarea').forEach(function(el){
+      el.addEventListener('input',function(){_formDirty=true},{once:false});
+      el.addEventListener('change',function(){_formDirty=true},{once:false});
+    });
+  }, 100);
   return html.join('')
 }
 
@@ -126,32 +168,46 @@ function renderTypeFields(type, doc){
   var cfg=DTYPE_CFG[type]||DTYPE_CFG.outgoing||{};
   var html=[];
 
-  /* ── หนังสือขาออก: อัปโหลดเอกสารอนุมัติแล้ว ──  */
+  /* ── หนังสือขาออก: อัปโหลดและแขวนไฟล์ให้ดาวน์โหลด ──  */
   if(type==='outgoing'){
     var _curDesc2=(doc&&doc.description)||'';
     var _curTo2=(doc&&doc.addressed_to)||'';
     var _curDate2=(doc&&doc.doc_date)||new Date().toISOString().slice(0,10);
     var _curEv2=(doc&&doc.due_date)||'';
-    var _posOpts='<option value="">— เลือกตำแหน่งในกนค. —</option>'+POSS.map(function(p){
-      return '<option value="'+esc(p)+'"'+(_curTo2===p?' selected':'')+'>'+esc(PTH[p]||p)+'</option>'
-    }).join('');
     var _curLt2=(doc&&doc.subject_line)||'';
     var _curClub2=(doc&&doc.from_department)||'';
-    var _lt2Opts='<option value="">— กรุณาเลือกประเภทจดหมาย —</option>'+OUT_LTYPES.slice(1).map(function(l,i){
+
+    // 1. ชมรม — เลือกก่อน เพื่อ auto-filter โครงการ
+    var _clubOpts='<option value="">— กนค. (ไม่ใช่ชมรม) —</option>'+Object.keys(CLUBS).map(function(code){
+      return '<option value="'+code+'"'+(_curClub2===code?' selected':'')+'>'+esc(CLUBS[code])+'</option>';
+    }).join('');
+
+    // 2. ประเภทจดหมาย
+    var _lt2Opts='<option value="">— กรุณาเลือกประเภท —</option>'+OUT_LTYPES.slice(1).map(function(l,i){
       var code=String(i+1);
-      return '<option value="'+code+'"'+(_curLt2===code?' selected':'')+'>'+code+'. '+esc(l)+'</option>';
+      return '<option value="'+code+'"'+(_curLt2===code?' selected':'')+'>'+esc(l)+'</option>';
     }).join('');
-    var _clubOpts='<option value="">— ไม่เกี่ยวข้องกับชมรม —</option>'+Object.keys(CLUBS).map(function(code){
-      return '<option value="'+code+'"'+(_curClub2===code?' selected':'')+'>'+code+' — '+esc(CLUBS[code])+'</option>';
+
+    // 3. ตำแหน่งผู้รับ
+    var _posOpts='<option value="">— เลือกตำแหน่งที่ส่งถึง —</option>'+POSS.map(function(p){
+      return '<option value="'+esc(p)+'"'+(_curTo2===p?' selected':'')+'>'+esc(PTH[p]||p)+'</option>'
     }).join('');
+
+    // layout: ชมรม → โครงการ → ประเภท → ผู้รับ → วันที่
+    html.push(
+      '<div class="al al-in" style="margin-bottom:14px"><span class="al-icon">'+svg('up',13)+'</span>'+
+      '<span class="text-[12px]">เอกสารขาออกจะออกเลขหนังสือและพร้อมดาวน์โหลดทันทีเมื่อบันทึก</span></div>'
+    );
+    html.push('<div class="fg"><label class="fl">สังกัด / ชมรม</label>'+
+      '<select class="fi" id="fclub" onchange="_populateProjectList(this.value);_PROJ_FILTER_CLUB=this.value">'+_clubOpts+'</select></div>');
     html.push('<div class="fg"><label class="fl">โครงการ / กิจกรรม <span class="req">*</span></label>');
-    html.push('<input class="fi" id="fdsc" value="'+esc(_curDesc2)+'" list="project-list" placeholder="ชื่อโครงการหรือกิจกรรม" autocomplete="off">');
-    html.push('<datalist id="project-list"></datalist></div>');
+    html.push('<input class="fi" id="fdsc" value="'+esc(_curDesc2)+'" list="project-list" placeholder="พิมพ์หรือเลือกจากรายการที่เคยใช้" autocomplete="off">');
+    html.push('<datalist id="project-list"></datalist>');
+    html.push('<div class="text-[10px] text-[#a89e99] mt-1">เลือกสังกัด/ชมรมก่อนเพื่อกรองรายการโครงการที่เคยใช้</div></div>');
     html.push('<div class="fg"><label class="fl">ประเภทจดหมาย <span class="req">*</span></label><select class="fi" id="foutltype">'+_lt2Opts+'</select></div>');
-    html.push('<div class="fg"><label class="fl">ชมรม (ถ้ามี)</label><select class="fi" id="fclub">'+_clubOpts+'</select></div>');
-    html.push('<div class="fg"><label class="fl">ส่งให้ตำแหน่งในกนค. <span class="req">*</span></label><select class="fi" id="fto">'+_posOpts+'</select></div>');
-    html.push('<div class="fg"><label class="fl">วันที่หนังสือ</label><input type="date" class="fi" id="fdate" value="'+esc(_curDate2)+'"></div>');
-    html.push('<div class="fg"><label class="fl">วันที่กิจกรรม / วันที่ต้องใช้เอกสาร</label><input type="date" class="fi" id="feventdate" value="'+esc(_curEv2)+'" oninput="calcDeadline()"></div>');
+    html.push('<div class="fg"><label class="fl">ส่งถึงตำแหน่ง <span class="req">*</span></label><select class="fi" id="fto">'+_posOpts+'</select></div>');
+    html.push('<div class="two-col-sm"><div class="fg"><label class="fl">วันที่หนังสือ</label><input type="date" class="fi" id="fdate" value="'+esc(_curDate2)+'"></div>');
+    html.push('<div class="fg"><label class="fl">วันที่กิจกรรม / ต้องใช้เอกสาร</label><input type="date" class="fi" id="feventdate" value="'+esc(_curEv2)+'" oninput="calcDeadline()"></div></div>');
     html.push('<div id="deadline-info"></div>');
     html.push('<input type="hidden" id="ffromdept" value=""><input type="hidden" id="fsubject" value="">');
     return html.join('');
@@ -259,7 +315,15 @@ function selectDocType(type){
   var hint=$e('ftype-hint'); if(hint) hint.style.display='none';
   var fr=$e('form-rest');
   if(fr){
+    /* [UX] animate form reveal แทน pop ทันที */
     fr.style.display='block';
+    fr.style.opacity='0';
+    fr.style.transform='translateY(8px)';
+    requestAnimationFrame(function(){
+      fr.style.transition='opacity .22s ease,transform .22s ease';
+      fr.style.opacity='1';
+      fr.style.transform='translateY(0)';
+    });
     var tf=$e('dtype-fields');
     if(tf){
       var curDoc={from_department:gv('ffromdept'),addressed_to:gv('fto'),subject_line:gv('fsubject'),doc_date:gv('fdate'),due_date:gv('feventdate'),description:gv('fdsc')};
@@ -275,23 +339,56 @@ function selectDocType(type){
     }
     var wfc=$e('wf-card');
     var fsub=$e('fsub');
+    var _notifCard=$e('notif-card');
+    var _finalCard=$e('final-card');
+    var _outInfoCard=$e('out-info-card');
     if(type==='outgoing'){
       if(wfc) wfc.style.display='none';
-      if(fsub) fsub.innerHTML=svg('upload',14)+' อัพโหลดและส่งเอกสาร';
+      if(_notifCard) _notifCard.style.display='none';
+      if(_outInfoCard) _outInfoCard.style.display='';
+      if(_finalCard) _finalCard.style.display='';
+      if(fsub) fsub.innerHTML=svg('up',14)+' อัปโหลดและแชร์ไฟล์';
     }else{
       if(wfc) wfc.style.display='';
+      if(_notifCard) _notifCard.style.display='';
+      if(_outInfoCard) _outInfoCard.style.display='none';
+      if(_finalCard) _finalCard.style.display='';
       if(fsub) fsub.innerHTML=svg('sign',14)+' ส่งเข้าขั้นตอนอนุมัติ';
     }
     var ww=$e('wfwrap'); if(ww) ww.innerHTML=rWfPeople();
-    if(type==='outgoing') _populateProjectList();
+    if(type==='outgoing'){_PROJ_FILTER_CLUB='';_populateProjectList();}
+    else _applyWfTemplate(type);
     calcDeadline();
     attachFormEvents();
   }
 }
 
-async function _populateProjectList(){
+/* โหลด Workflow Template default สำหรับประเภทเอกสารที่เลือก (ถ้ามี) */
+async function _applyWfTemplate(docType){
   try{
-    var rows=await dg('documents','?doc_type=eq.outgoing&select=description&not.description=is.null&order=created_at.desc&limit=200');
+    var tmpls=await dg('workflow_templates','?doc_type=eq.'+encodeURIComponent(docType)+'&is_default=eq.true&limit=1');
+    if(!tmpls||!tmpls.length) return;
+    var tmpl=tmpls[0];
+    var steps=await dg('workflow_template_steps','?template_id=eq.'+tmpl.id+'&order=step_number');
+    if(!steps||!steps.length) return;
+    // เก็บ step แรก (ผู้จัดทำ) ไว้, เพิ่ม template steps ถัดไป
+    var creatorStep=FS.find(function(s){return s.step_name==='ผู้จัดทำ'||s.assigned_to===CU.id})||FS[0]||{step_name:'ผู้จัดทำ',role_required:'ROLE-CRT',assigned_to:CU.id,deadline_days:1};
+    FS=[creatorStep];
+    steps.forEach(function(s){
+      FS.push({step_name:s.step_name,role_required:s.role_required||'',assigned_to:s.assigned_to||null,deadline_days:s.deadline_days||2,locked:!!s.locked});
+    });
+    var ww=$e('wfwrap'); if(ww) ww.innerHTML=rWfPeople();
+    showAlert('โหลด Template "'+esc(tmpl.name)+'" แล้ว','ok');
+  }catch(e){}
+}
+
+var _PROJ_FILTER_CLUB=''; // club code ที่เลือกอยู่ใน outgoing form
+async function _populateProjectList(clubCode){
+  if(clubCode!==undefined) _PROJ_FILTER_CLUB=clubCode||'';
+  try{
+    var q='?doc_type=eq.outgoing&select=description,from_department&not.description=is.null&order=created_at.desc&limit=400';
+    if(_PROJ_FILTER_CLUB) q='?doc_type=eq.outgoing&from_department=eq.'+encodeURIComponent(_PROJ_FILTER_CLUB)+'&select=description&not.description=is.null&order=created_at.desc&limit=200';
+    var rows=await dg('documents',q);
     var projs=[...new Set(rows.map(function(r){return r.description}).filter(Boolean))];
     var dl=$e('project-list');
     if(dl) dl.innerHTML=projs.map(function(p){return '<option value="'+esc(p)+'"></option>'}).join('');
@@ -366,10 +463,10 @@ function attachFormEvents(){
     fz.onclick=function(){$e('finp')&&$e('finp').click()};
     fz.ondragover=function(e){e.preventDefault();fz.classList.add('drag')};
     fz.ondragleave=function(){fz.classList.remove('drag')};
-    fz.ondrop=function(e){e.preventDefault();fz.classList.remove('drag');doUp(Array.from(e.dataTransfer.files))}
+    fz.ondrop=function(e){e.preventDefault();fz.classList.remove('drag');_formDirty=true;doUp(Array.from(e.dataTransfer.files))}
   }
   var fi=$e('finp');
-  if(fi) fi.onchange=function(){doUp(Array.from(fi.files))}
+  if(fi) fi.onchange=function(){_formDirty=true;doUp(Array.from(fi.files))}
 }
 
 /* ─── DOC NUMBER GENERATOR ─── */
@@ -415,7 +512,20 @@ async function genOutDocNumber(){
   }catch(e){return prefix+String(startSeq).padStart(2,'0')}
 }
 
+/* [UX] เรียกก่อน navigate ออกจากฟอร์ม — คืน true ถ้าไปได้, false ถ้า user ยกเลิก */
+function confirmLeaveForm(onLeave){
+  if(!_formDirty){onLeave();return;}
+  showConfirm(
+    'ออกจากฟอร์ม?',
+    'ข้อมูลที่กรอกไว้จะหายหมด ยืนยันออกจากหน้านี้หรือไม่',
+    function(){_formDirty=false;onLeave();},
+    {confirmLabel:'ออก ไม่บันทึก',confirmClass:'btn-danger',cancelLabel:'อยู่ต่อ',icon:'warn',iconBg:'#FEF3C7',iconColor:'#D97706'}
+  );
+}
+
+var _saveBusy=false;
 async function saveDoc(status){
+  if(_saveBusy)return;
   var a=$e('fal'), title=gv('ftit').trim();
   if(!title){a.innerHTML=alrtH('er','กรุณาระบุชื่อเรื่องเอกสาร');return}
   var _dtype=gv('ftype'), _dcfg=DTYPE_CFG[_dtype]||{};
@@ -437,6 +547,7 @@ async function saveDoc(status){
     if(!(gv('fdsc')||'').trim()){a.innerHTML=alrtH('er','กรุณาระบุชื่อโครงการ / กิจกรรม');return}
     if(!(gv('fto')||'').trim()){a.innerHTML=alrtH('er','กรุณาเลือกตำแหน่งกนค. ที่รับเอกสาร');return}
   }
+  _saveBusy=true;
   var btn=$e('fsub');
   if(btn){btn.disabled=true;btn.innerHTML='<span class="sp"></span> กำลังบันทึก...'}
   try{
@@ -454,7 +565,7 @@ async function saveDoc(status){
   await dpa('documents',FDI,Object.assign({},body,{updated_at:new Date().toISOString()}));
   if(status==='pending'){
     var _wfRej=await dg('workflow_steps','?document_id=eq.'+FDI+'&status=eq.rejected&order=step_number&limit=1');
-    if(_wfRej.length) await dpa('workflow_steps',_wfRej[0].id,{status:'active',action_taken:null,note:null,revision_section:null,action_at:null,completed_at:null});
+    if(_wfRej.length) await dpa('workflow_steps',_wfRej[0].id,{status:'active',action_taken:null,note:null,revision_section:null,action_at:null,completed_at:null,deadline_datetime:null,deadline_days:null});
   }
   await dp('document_history',{document_id:FDI,action:'แก้ไขเอกสาร',performed_by:CU.id});
   a.innerHTML=alrtH('ok','บันทึกเรียบร้อยแล้ว');
@@ -513,7 +624,7 @@ async function saveDoc(status){
           if(_posUser){
             var _posEmail=_posUser.contact_email||_posUser.email;
             if(_posEmail&&!_posEmail.includes('@gnk.student')){
-              var _eSubj='[กนค.] หนังสือขาออก: '+title;
+              var _eSubj=(SETT.email_prefix||'[กนค.]')+' หนังสือขาออก: '+title;
               var _eBody='เรียน '+_posUser.full_name+', มีเอกสารขาออกสำหรับท่าน เรื่อง "'+title+'" โครงการ '+body.description;
               var _er=await fetch(SU+'/functions/v1/send-email',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+SK,'apikey':SK},body:JSON.stringify({to:_posEmail,subject:_eSubj,html:_eBody})});
               if(_er.ok&&typeof showEmailToast==='function') showEmailToast(_posEmail,_eSubj);
@@ -525,11 +636,19 @@ async function saveDoc(status){
         try{await sendNotifEmail(did,'create','pending','');}catch(e2){}
       }
       a.innerHTML=alrtH('ok',_dtype==='outgoing'?'อัพโหลดเอกสารและส่งเรียบร้อยแล้ว':'สร้างเอกสารเรียบร้อยแล้ว');
-      setTimeout(function(){nav('det',did)},900)
+      var _successMsg=finalStatus==='pending'?'ส่งเอกสารเข้าระบบเรียบร้อยแล้ว รอการอนุมัติตามขั้นตอน':
+                      finalStatus==='completed'?'อัพโหลดและส่งเรียบร้อยแล้ว เอกสารถูกบันทึกในระบบ':
+                      'บันทึกร่างเรียบร้อยแล้ว';
+      setTimeout(function(){
+        nav('det',did).then(function(){
+          showAlert(_successMsg,'ok');
+        }).catch(function(){});
+      },600)
     }
   } catch(e){
+    _saveBusy=false;
     a.innerHTML=alrtH('er','เกิดข้อผิดพลาด: '+e.message);
-    if(btn){btn.disabled=false;btn.innerHTML=_dtype==='outgoing'?svg('upload',14)+' อัพโหลดและส่งเอกสาร':svg('sign',14)+' ส่งเข้าขั้นตอนอนุมัติ'}
+    if(btn){btn.disabled=false;btn.innerHTML=_dtype==='outgoing'?svg('up',14)+' อัพโหลดและส่งเอกสาร':svg('sign',14)+' ส่งเข้าขั้นตอนอนุมัติ'}
   }
 }
 

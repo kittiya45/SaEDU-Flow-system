@@ -7,7 +7,10 @@ var _calEvts=[];
 var _calAddMode=false;
 
 async function _loadEvtsDB(){
-  _calEvts=await dg('calendar_events','?order=date')
+  try{
+    var _ev=await dg('calendar_events','?order=date');
+    _calEvts=Array.isArray(_ev)?_ev:[];
+  }catch(e){_calEvts=[];}
 }
 function _calNav(dir){
   _calM+=dir;
@@ -203,9 +206,9 @@ async function vDash(){
     else if(d.status==='draft') cnt.draft++;
   });
 
+  /* [UX] เปลี่ยน greeting เป็นภาษาไทยให้ consistent กับ locale ของระบบ */
   var hr=new Date().getHours();
-  var greet=hr<12?'Good Morning':'Good Afternoon';
-  if(hr>=17) greet='Good Evening';
+  var greet=hr<12?'สวัสดีตอนเช้า':(hr<17?'สวัสดีตอนบ่าย':'สวัสดีตอนเย็น');
   var today=new Date().toLocaleDateString('th-TH',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
   var html=[];
 
@@ -222,34 +225,31 @@ async function vDash(){
     '</div>'
   );
 
-  // ── 4 Stat cards ──
+  // ── 4 Stat cards — white neutral ──
   var cards=[
-    {label:'เอกสารทั้งหมด', val:cnt.total, sub:'ร่าง '+cnt.draft+' · ส่งคืน '+cnt.rej,   ico:'doc_f',
-     grad:'linear-gradient(135deg,#1D4ED8 0%,#3B82F6 100%)', shadow:'rgba(29,78,216,.30)'},
-    {label:'รอลงนาม',        val:cnt.pnd,   sub:'รอการอนุมัติจากผู้รับผิดชอบ',             ico:'pen_f',
-     grad:'linear-gradient(135deg,#D97706 0%,#F59E0B 100%)', shadow:'rgba(217,119,6,.30)'},
-    {label:'เสร็จสิ้นแล้ว', val:cnt.cplt,  sub:'ผ่านทุกขั้นตอนเรียบร้อย',               ico:'check_f',
-     grad:'linear-gradient(135deg,#15803D 0%,#22C55E 100%)', shadow:'rgba(21,128,61,.30)'},
-    {label:'งานรอฉัน',       val:_myActive, sub:'ขั้นตอนที่ต้องดำเนินการ',               ico:'bell_f',
-     grad:'linear-gradient(135deg,#7C3AED 0%,#A855F7 100%)', shadow:'rgba(124,58,237,.30)'}
+    {label:'เอกสารทั้งหมด', val:cnt.total, sub:'ร่าง '+cnt.draft+' · ส่งคืน '+cnt.rej,
+     ico:'doc_f', color:'#2563EB', bg:'#EFF6FF', navTarget:'docs'},
+    {label:'รอลงนาม',        val:cnt.pnd,   sub:'รอการอนุมัติจากผู้รับผิดชอบ',
+     ico:'pen_f', color:'#D97706', bg:'#FFFBEB', navTarget:'docs'},
+    {label:'เสร็จสิ้นแล้ว', val:cnt.cplt,  sub:'ผ่านทุกขั้นตอนเรียบร้อย',
+     ico:'check_f', color:'#16A34A', bg:'#F0FDF4', navTarget:'docs'},
+    {label:'งานรอฉัน',       val:_myActive, sub:'ขั้นตอนที่ต้องดำเนินการ',
+     ico:'bell_f', color:'#E83A00', bg:'#FFF5F0', navTarget:'todo'}
   ];
 
   html.push('<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:28px">');
   cards.forEach(function(c){
     html.push(
-      '<div style="border-radius:16px;padding:16px 18px;background:'+c.grad+';position:relative;overflow:hidden;box-shadow:0 4px 16px '+c.shadow+';cursor:default;transition:transform .18s,box-shadow .18s" '+
-      'onmouseover="this.style.transform=\'translateY(-3px)\';this.style.boxShadow=\'0 10px 28px '+c.shadow+'\'" '+
-      'onmouseout="this.style.transform=\'\';this.style.boxShadow=\'0 4px 16px '+c.shadow+'\'">'+
-      '<div style="position:absolute;right:-16px;bottom:-16px;width:80px;height:80px;border-radius:50%;background:rgba(255,255,255,.1);pointer-events:none"></div>'+
-      '<div style="position:absolute;right:20px;top:-20px;width:56px;height:56px;border-radius:50%;background:rgba(255,255,255,.07);pointer-events:none"></div>'+
-      '<div style="position:relative;z-index:1">'+
-        '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">'+
-          '<div style="font-size:10px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:rgba(255,255,255,.7)">'+c.label+'</div>'+
-          '<div style="width:32px;height:32px;border-radius:10px;background:rgba(255,255,255,.2);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.15),inset 0 1px 0 rgba(255,255,255,.35);color:#fff">'+svgf(c.ico,16)+'</div>'+
+      '<div style="border-radius:16px;padding:16px 18px;background:#fff;border:1px solid #EBEBEB;box-shadow:0 1px 3px rgba(0,0,0,.05),0 4px 12px rgba(0,0,0,.06);cursor:pointer;transition:transform .18s,box-shadow .18s" '+
+      'onclick="nav(\''+c.navTarget+'\')" '+
+      'onmouseover="this.style.transform=\'translateY(-2px)\';this.style.boxShadow=\'0 6px 20px rgba(0,0,0,.1)\'" '+
+      'onmouseout="this.style.transform=\'\';this.style.boxShadow=\'0 1px 3px rgba(0,0,0,.05),0 4px 12px rgba(0,0,0,.06)\'">'+
+        '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">'+
+          '<div style="font-size:11px;font-weight:600;color:#a89e99;letter-spacing:.2px">'+c.label+'</div>'+
+          '<div style="width:32px;height:32px;border-radius:10px;background:'+c.bg+';display:flex;align-items:center;justify-content:center;color:'+c.color+'">'+svgf(c.ico,16)+'</div>'+
         '</div>'+
-        '<div style="font-size:32px;font-weight:900;color:#fff;line-height:1;letter-spacing:-1.5px;margin-bottom:5px">'+c.val+'</div>'+
-        '<div style="font-size:10px;color:rgba(255,255,255,.65)">'+c.sub+'</div>'+
-      '</div>'+
+        '<div style="font-size:32px;font-weight:900;color:'+c.color+';line-height:1;letter-spacing:-1.5px;margin-bottom:5px">'+c.val+'</div>'+
+        '<div style="font-size:11px;color:#a89e99">'+c.sub+'</div>'+
       '</div>'
     );
   });
@@ -278,7 +278,7 @@ async function vDash(){
       var isMyTask=_myIds2.indexOf(d.id)!==-1;
       html.push(
         '<div style="display:flex;align-items:center;gap:14px;padding:14px 20px;cursor:pointer;transition:background 120ms'+(idx>0?';border-top:1px solid #F5F3F0':'')+'" '+
-        'onclick="nav(\'det\',\''+d.id+'\')" '+
+        'data-action="nav" data-view="det" data-id="'+d.id+'" '+
         'onmouseover="this.style.background=\'#FDFBF9\'" onmouseout="this.style.background=\'\'">'+
           '<div style="width:3px;height:36px;border-radius:2px;flex-shrink:0;background:'+(isMyTask?'#E83A00':'transparent')+'"></div>'+
           '<span class="mono" style="font-size:11px;flex-shrink:0;min-width:88px">'+esc(d.doc_number||'—')+'</span>'+
@@ -288,7 +288,7 @@ async function vDash(){
           '</div>'+
           '<div style="flex-shrink:0">'+sBadge(d.status)+'</div>'+
           '<div style="font-size:12px;color:#a89e99;white-space:nowrap;flex-shrink:0;min-width:72px;text-align:right">'+fd(d.created_at)+'</div>'+
-          '<button style="width:30px;height:30px;border-radius:8px;border:2px solid #3b82f6;background:#eff6ff;color:#3b82f6;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0" data-action="nav" data-view="det" data-id="'+d.id+'">'+svg('eye',13)+'</button>'+
+          '<div style="width:30px;height:30px;border-radius:8px;background:#F5F3F0;color:#6b6560;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0">'+svg('eye',13)+'</div>'+
         '</div>'
       );
     });
@@ -355,27 +355,24 @@ async function vTodo(){
     }
   });
 
-  /* ── 4 stat cards ── */
+  /* ── 4 stat cards — white neutral ── */
   var statCards=[
-    {label:'งานทั้งหมด',   val:mySteps.length,   ico:'clip_f',  grad:'linear-gradient(135deg,#1D4ED8,#3B82F6)', shadow:'rgba(29,78,216,.28)'},
-    {label:'เลยกำหนด',    val:overdue.length,   ico:'warn_f',  grad:'linear-gradient(135deg,#DC2626,#EF4444)', shadow:'rgba(220,38,38,.28)'},
-    {label:'ต้องทำวันนี้', val:todayList.length,  ico:'bell_f',  grad:'linear-gradient(135deg,#D97706,#F59E0B)', shadow:'rgba(217,119,6,.28)'},
-    {label:'ภายใน 3 วัน', val:soon.length,      ico:'cal_f',   grad:'linear-gradient(135deg,#7C3AED,#A855F7)', shadow:'rgba(124,58,237,.28)'}
+    {label:'งานทั้งหมด',   val:mySteps.length,   ico:'clip_f',  color:'#2563EB', bg:'#EFF6FF'},
+    {label:'เลยกำหนด',    val:overdue.length,   ico:'warn_f',  color:'#DC2626', bg:'#FEF2F2'},
+    {label:'ต้องทำวันนี้', val:todayList.length,  ico:'bell_f',  color:'#D97706', bg:'#FFFBEB'},
+    {label:'ภายใน 3 วัน', val:soon.length,       ico:'cal_f',   color:'#7C3AED', bg:'#F5F3FF'}
   ];
   html.push('<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:28px">');
   statCards.forEach(function(c){
     html.push(
-      '<div style="border-radius:18px;padding:22px;background:'+c.grad+';position:relative;overflow:hidden;box-shadow:0 8px 24px '+c.shadow+';cursor:default;transition:transform .2s,box-shadow .2s" '+
-      'onmouseover="this.style.transform=\'translateY(-3px)\';this.style.boxShadow=\'0 16px 40px '+c.shadow+'\'" '+
-      'onmouseout="this.style.transform=\'\';this.style.boxShadow=\'0 8px 24px '+c.shadow+'\'">'+
-        '<div style="position:absolute;right:-20px;bottom:-20px;width:90px;height:90px;border-radius:50%;background:rgba(255,255,255,.1);pointer-events:none"></div>'+
-        '<div style="position:relative;z-index:1">'+
-          '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">'+
-            '<div style="font-size:10px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:rgba(255,255,255,.7)">'+c.label+'</div>'+
-            '<div style="width:38px;height:38px;border-radius:12px;background:rgba(255,255,255,.2);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;box-shadow:0 2px 10px rgba(0,0,0,.18),inset 0 1px 0 rgba(255,255,255,.35);color:#fff">'+svgf(c.ico,20)+'</div>'+
-          '</div>'+
-          '<div style="font-size:44px;font-weight:900;color:#fff;line-height:1;letter-spacing:-2.5px;margin-bottom:8px">'+c.val+'</div>'+
+      '<div style="border-radius:16px;padding:16px 18px;background:#fff;border:1px solid #EBEBEB;box-shadow:0 1px 3px rgba(0,0,0,.05),0 4px 12px rgba(0,0,0,.06);transition:transform .18s,box-shadow .18s" '+
+      'onmouseover="this.style.transform=\'translateY(-2px)\';this.style.boxShadow=\'0 6px 20px rgba(0,0,0,.1)\'" '+
+      'onmouseout="this.style.transform=\'\';this.style.boxShadow=\'0 1px 3px rgba(0,0,0,.05),0 4px 12px rgba(0,0,0,.06)\'">'+
+        '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">'+
+          '<div style="font-size:11px;font-weight:600;color:#a89e99;letter-spacing:.2px">'+c.label+'</div>'+
+          '<div style="width:32px;height:32px;border-radius:10px;background:'+c.bg+';display:flex;align-items:center;justify-content:center;color:'+c.color+'">'+svgf(c.ico,16)+'</div>'+
         '</div>'+
+        '<div style="font-size:36px;font-weight:900;color:'+c.color+';line-height:1;letter-spacing:-2px;margin-bottom:5px">'+c.val+'</div>'+
       '</div>'
     );
   });

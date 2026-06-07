@@ -23,7 +23,21 @@ function furl(p){return SU+'/storage/v1/object/public/documents/'+encodeURICompo
 /* ─── CONSTANTS ─── */
 var DTYPES={incoming:'หนังสือขาเข้า',outgoing:'หนังสือขาออก',certificate:'หนังสือรับรอง',memo:'บันทึกข้อความ'};
 var URG={normal:'ปกติ',urgent:'เร่งด่วน',very_urgent:'ด่วนมาก'};
-var LETTER_TYPES=['ขออนุมัติ','ขออนุเคราะห์','เบิกเงินรองจ่าย','เบิกเงินค่าใช้จ่าย','ขอคืนเงินสํารองจ่าย','ขอติดประกาศ','ขอเชิญประชุม','แจ้งให้ทราบ/แต่งตั้ง','จดหมายอื่น ๆ'];
+var LETTER_TYPES=[
+  'ขออนุมัติจัดกิจกรรมและงบประมาณโครงการ',
+  'ขออนุมัติจัดกิจกรรมโครงการ',
+  'ขอความอนุเคราะห์ใช้สถานที่และโสตทัศนูปกรณ์',
+  'ขอความอนุเคราะห์ออกจดหมายเชิญวิทยากร',
+  'ขอความอนุเคราะห์ออกจดหมายขอการสนับสนุน',
+  'ขอความอนุเคราะห์ประชาสัมพันธ์',
+  'แบบรับรองการปฏิบัติงานต่างจังหวัด',
+  'ขออนุมัติเบิกเงินรองจ่าย',
+  'ขออนุมัติเบิกเงินค่าใช้จ่าย',
+  'ขอคืนเงินสำรองจ่าย',
+  'ขอเชิญประชุม',
+  'แจ้งให้ทราบ/แต่งตั้ง',
+  'จดหมายอื่น ๆ'
+];
 var SENDER_POS=[
   {name:'หัวหน้านิสิต',code:'01',isClub:false},
   {name:'ชมรมต้นกล้าคณิตศาสตร์',code:'01',isClub:true},
@@ -145,6 +159,28 @@ async function loadDocTypes(){
     Object.keys(DTYPE_CFG).forEach(function(k){delete DTYPE_CFG[k]});
     Object.assign(DTYPE_CFG,newCFG);
   }catch(e){console.warn('loadDocTypes failed, using defaults',e)}
+}
+
+/* ─── APP SETTINGS (โหลดจาก Supabase — มี fallback ค่า default เสมอ) ─── */
+var SETT={
+  sla_cascade_days:3,
+  session_timeout_min:30,
+  max_file_size_mb:10,
+  email_prefix:'[กนค.]',
+  system_announcement:'',
+  system_announcement_type:'info'
+};
+async function loadAppSettings(){
+  try{
+    var rows=await dg('app_settings','?');
+    if(!Array.isArray(rows)) return;
+    rows.forEach(function(r){
+      var v=r.value;
+      if(r.value_type==='number') v=+v||0;
+      if(r.value_type==='boolean') v=(v==='true');
+      SETT[r.key]=v;
+    });
+  }catch(e){}
 }
 
 /* ─── STATE ─── */

@@ -1,6 +1,9 @@
 /* ─── STATISTICS PAGE ─── */
+// ปีที่เลือกสำหรับ annual summary (null = ปีปัจจุบัน)
+if(typeof window._statYear==='undefined') window._statYear=null;
+
 async function vStat(){
-  var docs=await dg('documents','?select=id,status,doc_type,urgency,created_at,updated_at,due_date,title,doc_number&order=updated_at.desc,created_at.desc');
+  var docs=await dg('documents','?select=id,status,doc_type,urgency,created_at,updated_at,due_date,title,doc_number,description,from_department&order=updated_at.desc,created_at.desc');
   var today=new Date().toISOString().substring(0,10);
   var total=docs.length;
   var byStatus={draft:0,pending:0,completed:0,rejected:0,signed:0};
@@ -54,7 +57,7 @@ async function vStat(){
 
   var html=[];
 
-  /* ══ ROW 1 — 4 stat cards ══ */
+  /* ══ ROW 1 — 4 stat tiles ══ */
   var statCards=[
     {label:'เอกสารทั้งหมด', val:total,              sub:'ร่าง '+byStatus.draft+' รายการ',
      ico:'doc_f',   grad:'linear-gradient(135deg,#1D4ED8 0%,#3B82F6 100%)', sh:'rgba(29,78,216,.30)'},
@@ -78,7 +81,7 @@ async function vStat(){
         '<div style="position:relative;z-index:1">'+
           '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">'+
             '<div style="font-size:10px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:rgba(255,255,255,.7)">'+c.label+'</div>'+
-            '<div style="width:32px;height:32px;border-radius:10px;background:rgba(255,255,255,.2);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.15),inset 0 1px 0 rgba(255,255,255,.35);color:#fff">'+svgf(c.ico,16)+'</div>'+
+            '<div style="width:32px;height:32px;border-radius:10px;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;color:#fff">'+svgf(c.ico,16)+'</div>'+
           '</div>'+
           '<div style="font-size:32px;font-weight:900;color:#fff;line-height:1;letter-spacing:-1.5px;margin-bottom:5px">'+c.val+'</div>'+
           '<div style="font-size:10px;color:rgba(255,255,255,.6)">'+c.sub+'</div>'+
@@ -104,8 +107,8 @@ async function vStat(){
           var isMax=m.cnt>0&&m.cnt===maxM;
           return '<div style="width:'+BAR_W+'px;display:flex;flex-direction:column;align-items:center;gap:4px">'+
             '<span style="font-size:10px;font-weight:700;color:'+(m.cnt>0?(isMax?'#E83A00':'#6b6560'):'#ddd')+'">'+m.cnt+'</span>'+
-            '<div style="width:'+BAR_W+'px;height:'+(barH||3)+'px;background:'+(m.cnt>0?(isMax?'linear-gradient(180deg,#E83A00,#FF7043)':'linear-gradient(180deg,#FBBFA8,#FFCFBD)'):'#F0EDE9')+';border-radius:6px 6px 0 0;align-self:flex-end"></div>'+
-            '<span style="font-size:9px;color:#a89e99;white-space:nowrap">'+m.label+'</span>'+
+            '<div style="width:'+BAR_W+'px;height:'+(barH||3)+'px;background:'+(m.cnt>0?(isMax?'#E83A00':'#FBBFA8'):'#F0EDE9')+';border-radius:6px 6px 0 0;align-self:flex-end"></div>'+
+            '<span style="font-size:11px;color:#a89e99;white-space:nowrap">'+m.label+'</span>'+
           '</div>';
         }).join('')+
         '</div>'+
@@ -186,7 +189,7 @@ async function vStat(){
   window._sfm=fmForScript;
   window._sdl=function(docId){
     var fs=window._sfm[docId]||[];
-    if(!fs.length){alert('ไม่มีไฟล์แนบในเอกสารนี้');return;}
+    if(!fs.length){showAlert('ไม่มีไฟล์แนบในเอกสารนี้','wa');return;}
     var f=fs[0];
     var a=document.createElement('a');
     a.href=f.url;a.download=f.name||'file';a.target='_blank';
@@ -214,7 +217,7 @@ if(!recentLimited.length){
   html.push(
     '<div style="display:grid;grid-template-columns:112px 1fr auto auto auto;gap:8px;padding:7px 18px;border-bottom:1px solid #F5F3F0;flex-shrink:0">'+
       ['เลขที่','ชื่อเอกสาร','สถานะ','',''].map(function(h){
-        return '<div style="font-size:9px;font-weight:700;color:#c0bab4;text-transform:uppercase;letter-spacing:.5px">'+h+'</div>';
+        return '<div style="font-size:10px;font-weight:700;color:#c0bab4;text-transform:uppercase;letter-spacing:.5px">'+h+'</div>';
       }).join('')+
     '</div>'
   );
@@ -251,7 +254,7 @@ if(!recentLimited.length){
         (
           hasFls
           ? '<button data-action="openViewer" data-url="'+firstFile.url+'" data-name="'+esc(firstFile.name)+'" title="พรีวิวเอกสาร" '+
-              'style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:8px;border:2px solid #3b82f6;background:#eff6ff;color:#3b82f6;cursor:pointer">'+
+              'style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:8px;border:1px solid #EBEBEB;background:#F5F3F0;color:#6b6560;cursor:pointer">'+
                 svg('eye',12)+
             '</button>'
           : '<div style="width:28px"></div>'
@@ -317,5 +320,101 @@ html.push('</div>');
   );
 
   html.push('</div>'); /* row 3 */
+
+  /* ══ ROW 4 — สรุปโครงการประจำปี ══ */
+  var _nowCE=new Date().getFullYear();
+  var _selYear=window._statYear||_nowCE;
+  var _selThYear=_selYear+543;
+  var _yearStart=_selYear+'-01-01T00:00:00';
+  var _yearEnd=(_selYear+1)+'-01-01T00:00:00';
+
+  // กรองเฉพาะ outgoing docs ในปีที่เลือก
+  var _yrDocs=docs.filter(function(d){
+    return d.doc_type==='outgoing'&&(d.created_at||'')>=_yearStart&&(d.created_at||'')<_yearEnd;
+  });
+
+  // จัดกลุ่มตาม description (ชื่อโครงการ)
+  var _projMap={};
+  _yrDocs.forEach(function(d){
+    var key=(d.description||'').trim()||'(ไม่ระบุโครงการ)';
+    if(!_projMap[key]) _projMap[key]={name:key,docs:[]};
+    _projMap[key].docs.push(d);
+  });
+  var _projects=Object.keys(_projMap).map(function(k){return _projMap[k]}).sort(function(a,b){
+    var aLast=a.docs.reduce(function(m,d){return d.created_at>m?d.created_at:m},'');
+    var bLast=b.docs.reduce(function(m,d){return d.created_at>m?d.created_at:m},'');
+    return bLast>aLast?1:-1;
+  });
+
+  // Year select options (ย้อนหลัง 4 ปี)
+  var _yearOpts='';
+  for(var _yi=0;_yi<4;_yi++){
+    var _y=_nowCE-_yi;
+    _yearOpts+='<option value="'+_y+'"'+(_y===_selYear?' selected':'')+'>พ.ศ. '+(_y+543)+'</option>';
+  }
+
+  html.push('<div style="margin-top:14px">');
+  html.push('<div style="'+CS+'">');
+  html.push(cardHead(
+    'สรุปโครงการประจำปี',
+    'หนังสือขาออกทั้งหมด ปีพ.ศ. '+_selThYear,
+    '<div style="display:flex;align-items:center;gap:8px">'+
+      '<span style="font-size:11px;color:#a89e99">'+_yrDocs.length+' เอกสาร · '+_projects.length+' โครงการ</span>'+
+      '<select onchange="window._statYear=+this.value;nav(\'stat\')" style="height:28px;padding:0 8px 0 10px;border-radius:8px;border:1.5px solid #EBEBEB;background:#fff;font-size:12px;cursor:pointer;color:#18120E;outline:none">'+_yearOpts+'</select>'+
+    '</div>'
+  ));
+
+  if(!_projects.length){
+    html.push('<div style="padding:40px 20px;text-align:center;color:#a89e99;font-size:12px">'+
+      '<div style="margin-bottom:8px">'+svg('doc',32)+'</div>'+
+      'ยังไม่มีโครงการในปีพ.ศ. '+_selThYear+
+    '</div>');
+  } else {
+    // Header row
+    html.push('<div style="display:grid;grid-template-columns:36px 1fr 64px 90px 96px;gap:8px;padding:7px 18px;border-bottom:1px solid #F5F3F0;flex-shrink:0">'+
+      ['#','ชื่อโครงการ / กิจกรรม','เอกสาร','สถานะล่าสุด','วันที่'].map(function(h){
+        return '<div style="font-size:9px;font-weight:700;color:#c0bab4;text-transform:uppercase;letter-spacing:.5px">'+h+'</div>';
+      }).join('')+
+    '</div>');
+
+    _projects.forEach(function(proj,idx){
+      var _lastDoc=proj.docs.reduce(function(a,b){return(a.created_at||'')>=(b.created_at||'')?a:b});
+      var _doneCnt=proj.docs.filter(function(d){return d.status==='completed'}).length;
+      var _latestDate=_lastDoc.created_at?new Date(_lastDoc.created_at).toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit'}):'—';
+      var _allDone=_doneCnt===proj.docs.length;
+      html.push(
+        '<div style="display:grid;grid-template-columns:36px 1fr 64px 90px 96px;gap:8px;padding:11px 18px;align-items:center;border-top:1px solid #F9F8F7" '+
+        'onmouseover="this.style.background=\'#FDFBF9\'" onmouseout="this.style.background=\'\'">'+
+        // ลำดับ
+        '<div style="font-size:11px;font-weight:700;color:#a89e99;text-align:center">'+(idx+1)+'</div>'+
+        // ชื่อโครงการ
+        '<div style="overflow:hidden">'+
+          '<div style="font-size:12.5px;font-weight:600;color:#18120E;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+esc(proj.name)+'">'+esc(proj.name)+'</div>'+
+          (proj.docs.length>1?'<div style="font-size:10px;color:'+(_allDone?'#16A34A':'#a89e99')+';margin-top:1px">'+_doneCnt+'/'+proj.docs.length+' เสร็จสิ้น</div>':'')+
+        '</div>'+
+        // จำนวน
+        '<div style="font-size:13px;font-weight:700;color:#18120E;text-align:center">'+proj.docs.length+'</div>'+
+        // สถานะล่าสุด
+        '<div>'+sBadge(_lastDoc.status)+'</div>'+
+        // วันที่
+        '<div style="font-size:11px;color:#a89e99;white-space:nowrap">'+_latestDate+'</div>'+
+        '</div>'
+      );
+    });
+
+    // Footer summary
+    var _totalDone=_yrDocs.filter(function(d){return d.status==='completed'}).length;
+    var _totalPct=_yrDocs.length?Math.round(_totalDone/_yrDocs.length*100):0;
+    html.push('<div style="padding:12px 18px;border-top:1px solid #F5F3F0;background:#FAFAF8;display:flex;align-items:center;gap:12px;border-radius:0 0 16px 16px">'+
+      '<div style="flex:1;background:#EBEBEB;border-radius:99px;height:6px;overflow:hidden">'+
+        '<div style="height:100%;background:#16A34A;border-radius:99px;transform:scaleX('+(_totalPct/100)+');transform-origin:left;transition:transform .4s cubic-bezier(.4,0,.2,1)"></div>'+
+      '</div>'+
+      '<span style="font-size:11px;font-weight:700;color:#16A34A;white-space:nowrap">'+_totalDone+'/'+_yrDocs.length+' เสร็จสิ้น ('+_totalPct+'%)</span>'+
+    '</div>');
+  }
+
+  html.push('</div>');
+  html.push('</div>'); /* row 4 */
+
   return html.join('');
 }

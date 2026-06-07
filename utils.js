@@ -24,7 +24,8 @@ function fsz(b){
 }
 function ini(n){return(n||'').split(' ').map(function(w){return w[0]||''}).join('').slice(0,2).toUpperCase()||'??'}
 function esc(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
-function rdr(h){document.getElementById('app').innerHTML=h}
+function _lcr(){if(window.lucide)window.lucide.createIcons()}
+function rdr(h){document.getElementById('app').innerHTML=h;_lcr()}
 function gv(id){var el=document.getElementById(id);return el?el.value:''}
 function $e(id){return document.getElementById(id)}
 function alrtH(t,m){
@@ -75,52 +76,25 @@ function urgCls(u){if(u==='urgent')return'urg-urgent';if(u==='very_urgent')retur
 
 function svg(n,s){
   s=s||16;
-  var P={
-    home:'<path d="M2 8L8 2l6 6v8h-4v-5H6v5H2V8z"/>',
-    doc:'<path d="M4 2h7l4 4v11H4V2z"/><path d="M11 2v4h4"/><line x1="7" y1="9" x2="11" y2="9"/><line x1="7" y1="12" x2="11" y2="12"/>',
-    plus:'<circle cx="8" cy="8" r="6"/><line x1="8" y1="5" x2="8" y2="11"/><line x1="5" y1="8" x2="11" y2="8"/>',
-    users:'<circle cx="5.5" cy="5" r="2.5"/><path d="M1 14.5c0-2.8 2-4.5 4.5-4.5"/><circle cx="11.5" cy="5" r="2.5"/><path d="M9 14.5c0-2.8 2-4.5 4.5-4.5"/>',
-    user:'<circle cx="8" cy="5.5" r="3"/><path d="M2 15c0-3.5 2.7-5.5 6-5.5s6 2 6 5.5"/>',
-    sign:'<path d="M2.5 11c1-2.5 2.5-4 4-2.5 1 .9.5 3.5-1.5 3 1.5-.5 2.5-4 4.5-3s-.5 3.5 0 3c1.5-1.5 3-2.5 4.5-1.5" stroke-linecap="round"/><line x1="2" y1="14.5" x2="14" y2="14.5"/>',
-    up:'<path d="M4 14v3h8v-3"/><polyline points="8,3 8,11"/><polyline points="5,6 8,3 11,6"/>',
-    dn:'<path d="M4 12v3h8v-3"/><polyline points="8,5 8,13"/><polyline points="5,10 8,13 11,10"/>',
-    edit:'<path d="M11.5 2.5a1 1 0 011.5 1.5L4.5 12.5l-2.5.5.5-2.5L11.5 2.5z"/><line x1="9.5" y1="4.5" x2="11.5" y2="6.5"/><line x1="2" y1="12.5" x2="4.5" y2="13"/>',
-    trash:'<polyline points="3,5 5,5 13,5"/><path d="M12 5l-1 10H5L4 5"/><path d="M6 5V3h4v2"/>',
-    ok:'<polyline points="2,8 6,12 14,4"/>',
-    x:'<line x1="3" y1="3" x2="13" y2="13"/><line x1="13" y1="3" x2="3" y2="13"/>',
-    back:'<polyline points="10,4 4,8 10,12"/><line x1="4" y1="8" x2="14" y2="8"/>',
-    eye:'<path d="M1 8s3-5 7-5 7 5 7 5-3 5-7 5-7-5-7-5z"/><circle cx="8" cy="8" r="2"/>',
-    srch:'<circle cx="7" cy="7" r="5"/><line x1="12" y1="12" x2="15" y2="15"/>',
-    out:'<path d="M10 3H5a1 1 0 00-1 1v8a1 1 0 001 1h5"/><polyline points="13,10 16,7 13,4"/><line x1="7" y1="7" x2="16" y2="7"/>',
-    save:'<path d="M13 2H4a1 1 0 00-1 1v10a1 1 0 001 1h9l2-2V3a1 1 0 00-1-1z"/><path d="M10 2v4H5V2"/><rect x="5" y="9" width="6" height="4"/>',
-    bell:'<path d="M6 9a4 4 0 018 0c0 3.5 1.5 4.5 1.5 4.5H4.5S6 12.5 6 9"/><path d="M7 15.5a1.5 1.5 0 003 0"/>',
-    img2:'<rect x="1" y="3" width="14" height="10" rx="1"/><circle cx="5" cy="7" r="1.5"/><path d="M1 10l4-4 3 3 2-2 4 4"/>',
-    undo:'<path d="M4 7h7a4 4 0 010 8H7"/><polyline points="4,4 4,7 7,7"/>',
-    zin:'<circle cx="7" cy="7" r="5"/><line x1="11" y1="11" x2="15" y2="15"/><line x1="7" y1="4" x2="7" y2="10"/><line x1="4" y1="7" x2="10" y2="7"/>',
-    zout:'<circle cx="7" cy="7" r="5"/><line x1="11" y1="11" x2="15" y2="15"/><line x1="4" y1="7" x2="10" y2="7"/>',
-    bold:'<path d="M5 4h4a2.5 2.5 0 010 5H5z"/><path d="M5 9h4.5a3 3 0 010 6H5z"/>',
-    italic:'<line x1="10" y1="3" x2="6" y2="13"/><line x1="7" y1="3" x2="13" y2="3"/><line x1="3" y1="13" x2="9" y2="13"/>',
-    underline:'<path d="M4 3v5a4 4 0 008 0V3"/><line x1="2" y1="14" x2="14" y2="14"/>',
-    word_ico:'<path d="M3 1h7l4 4v10H3V1z"/><path d="M10 1v4h4"/><path d="M5 7.5l1 4 2-3 2 3 1-4" stroke-width="1.3"/>',
-    pdf_ico:'<path d="M3 1h7l4 4v10H3V1z"/><path d="M10 1v4h4"/><line x1="5.5" y1="8" x2="10.5" y2="8"/><line x1="5.5" y1="10.5" x2="10.5" y2="10.5"/><line x1="5.5" y1="13" x2="8" y2="13"/>',
-    lock:'<rect x="3" y="7" width="10" height="8" rx="2"/><path d="M5 7V5a3 3 0 016 0v2"/>',
-    unlock:'<rect x="3" y="7" width="10" height="8" rx="2"/><path d="M5 7V4.5A3 3 0 0111 4.5"/>',
-    key:'<circle cx="5.5" cy="8" r="3.5"/><path d="M8.5 8H14"/><line x1="12" y1="6" x2="12" y2="10"/><line x1="14" y1="7" x2="14" y2="9"/>',
-    shield:'<path d="M8 1l6 2.5v4C14 11 11.5 14 8 15 4.5 14 2 11 2 7.5v-4L8 1z"/>',
-    cal:'<rect x="2" y="3" width="12" height="11" rx="1.5"/><line x1="5" y1="1" x2="5" y2="5"/><line x1="11" y1="1" x2="11" y2="5"/><line x1="2" y1="7" x2="14" y2="7"/>',
-    chart:'<line x1="2" y1="14" x2="14" y2="14"/><rect x="3" y="8" width="3" height="6" rx="0.5"/><rect x="7" y="5" width="3" height="9" rx="0.5"/><rect x="11" y="2" width="3" height="12" rx="0.5"/>',
-    warn:'<path d="M8 2.5L14 13.5H2L8 2.5z"/><line x1="8" y1="7" x2="8" y2="10"/><circle cx="8" cy="12" r="0.6" fill="currentColor" stroke="none"/>',
-    info:'<circle cx="8" cy="8" r="6"/><line x1="8" y1="8" x2="8" y2="11.5"/><circle cx="8" cy="5.5" r="0.6" fill="currentColor" stroke="none"/>',
-    folder:'<path d="M1 4.5a1 1 0 011-1h4l1.5 1.5H14a1 1 0 011 1v6a1 1 0 01-1 1H2a1 1 0 01-1-1V4.5z"/>',
-    refresh:'<path d="M13.5 3.5a7 7 0 11-1.8 7.7"/><polyline points="13.5,1 13.5,5.5 9,5.5"/>',
-    pen:'<path d="M11.5 2l2.5 2.5-8 8H3.5v-2.5L11.5 2z"/><line x1="9.5" y1="4" x2="12" y2="6.5"/>',
-    dots:'<circle cx="4" cy="8" r="1.5" fill="currentColor" stroke="none"/><circle cx="8" cy="8" r="1.5" fill="currentColor" stroke="none"/><circle cx="12" cy="8" r="1.5" fill="currentColor" stroke="none"/>',
-    gear:'<line x1="3" y1="5" x2="13" y2="5"/><circle cx="7" cy="5" r="2" fill="white" stroke="currentColor"/><line x1="3" y1="11" x2="13" y2="11"/><circle cx="10" cy="11" r="2" fill="white" stroke="currentColor"/>',
-    clock:'<circle cx="8" cy="8" r="6"/><polyline points="8,5 8,8 10.5,10.5"/>',
-    tri:'<polygon points="5,4 12,8 5,12" fill="currentColor" stroke="none"/>',
-    tasks:'<rect x="2" y="2" width="12" height="12" rx="1.5"/><polyline points="5,8 7,10.5 11,6"/>'
+  var M={
+    home:'home',doc:'file-text',plus:'circle-plus',
+    users:'users',user:'user',sign:'pen-line',
+    up:'upload',dn:'download',edit:'pencil',
+    trash:'trash-2',ok:'check',x:'x',
+    back:'arrow-left',eye:'eye',srch:'search',
+    out:'log-out',save:'save',bell:'bell',
+    img2:'image',undo:'undo-2',zin:'zoom-in',
+    zout:'zoom-out',bold:'bold',italic:'italic',
+    underline:'underline',word_ico:'file-text',pdf_ico:'file',
+    lock:'lock',unlock:'unlock',key:'key-round',
+    shield:'shield',cal:'calendar',chart:'bar-chart-2',
+    warn:'alert-triangle',info:'info',folder:'folder',
+    refresh:'refresh-cw',pen:'pen',dots:'more-horizontal',
+    gear:'settings',clock:'clock',tri:'chevron-right',
+    tasks:'clipboard-list',inbox:'inbox'
   };
-  return '<svg width="'+s+'" height="'+s+'" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">'+(P[n]||'')+'</svg>'
+  var ln=M[n]||n;
+  return '<i data-lucide="'+ln+'" width="'+s+'" height="'+s+'" stroke-width="1.6" style="display:inline-flex;vertical-align:middle;flex-shrink:0;pointer-events:none"></i>'
 }
 
 /* solid/filled icon variants — used for stat-card icons on coloured backgrounds */
@@ -175,3 +149,107 @@ function loadSc(src){
   return new Promise(function(res,rej){var s=document.createElement('script');s.src=src;s.onload=res;s.onerror=rej;document.head.appendChild(s)})
 }
 function debounce(fn,ms){var t=null;return function(){var args=arguments;clearTimeout(t);t=setTimeout(function(){fn.apply(null,args)},ms)}}
+
+/* ─── addWorkingDays: บวกวันทำการ (ข้ามเสาร์-อาทิตย์) ─── */
+function addWorkingDays(fromDate, days){
+  var d=new Date(fromDate); var added=0;
+  while(added<days){
+    d.setDate(d.getDate()+1);
+    var dow=d.getDay();
+    if(dow!==0&&dow!==6) added++; // 0=อาทิตย์, 6=เสาร์
+  }
+  return d;
+}
+/* คำนวณจำนวนวันทำการที่เหลือจากวันนี้ถึง targetDate */
+function workingDaysLeft(targetDate){
+  var now=new Date(); now.setHours(0,0,0,0);
+  var end=new Date(targetDate); end.setHours(0,0,0,0);
+  if(end<=now) return 0;
+  var count=0; var cur=new Date(now);
+  while(cur<end){cur.setDate(cur.getDate()+1);var d=cur.getDay();if(d!==0&&d!==6)count++;}
+  return count;
+}
+
+/* ─── fdTime: แสดงวันที่ + เวลา HH:MM (ใช้ใน history log) ─── */
+function fdTime(d){
+  if(!d) return '—';
+  var dt=new Date(d);
+  var dateStr=dt.toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit'});
+  var timeStr=dt.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'});
+  return dateStr+' '+timeStr;
+}
+
+/* ─── showConfirm: แทน browser confirm() ด้วย modal ของระบบ ─── */
+// opts: { confirmLabel, confirmClass, cancelLabel, icon, detail }
+function showConfirm(title, msg, onConfirm, opts){
+  opts=opts||{};
+  var mw=$e('mwrap'); if(!mw) return;
+  var icon=opts.icon||'warn';
+  var iconBg=opts.iconBg||'#FEF3C7';
+  var iconColor=opts.iconColor||'#D97706';
+  var confirmLabel=opts.confirmLabel||'ยืนยัน';
+  var confirmClass=opts.confirmClass||'btn-danger';
+  var cancelLabel=opts.cancelLabel||'ยกเลิก';
+  var detail=opts.detail?'<div class="text-xs text-[#a89e99] mt-1.5 leading-relaxed">'+esc(opts.detail)+'</div>':'';
+  var cbId='_sc_'+Date.now();
+  // ฝัง callback ลง window ชั่วคราว
+  window[cbId]=function(){
+    delete window[cbId];
+    mw.innerHTML='';
+    onConfirm();
+  };
+  mw.innerHTML=
+    '<div class="mo">'+
+    '<div class="modal" style="max-width:400px">'+
+      '<div class="modal-body" style="padding:28px 24px 20px;text-align:center">'+
+        '<div style="width:52px;height:52px;border-radius:14px;background:'+iconBg+';display:flex;align-items:center;justify-content:center;margin:0 auto 16px;color:'+iconColor+'">'+svg(icon,24)+'</div>'+
+        '<div style="font-size:16px;font-weight:800;color:#18120E;margin-bottom:8px">'+esc(title)+'</div>'+
+        '<div style="font-size:13.5px;color:#6b6560;line-height:1.65">'+esc(msg)+'</div>'+
+        detail+
+      '</div>'+
+      '<div class="modal-foot" style="justify-content:center;gap:10px">'+
+        '<button class="btn btn-soft" data-action="closeModal">'+esc(cancelLabel)+'</button>'+
+        '<button class="btn '+confirmClass+'" onclick="window[\''+cbId+'\']()">'+esc(confirmLabel)+'</button>'+
+      '</div>'+
+    '</div></div>';
+  _lcr();
+}
+
+/* ─── showAlert: แทน browser alert() ด้วย modal ของระบบ ─── */
+function showAlert(msg, type){
+  type=type||'er';
+  var mw=$e('mwrap'); if(!mw) { alert(msg); return; }
+  var iconMap={ok:'ok',er:'x',wa:'warn',in:'info'};
+  var titleMap={ok:'สำเร็จ',er:'เกิดข้อผิดพลาด',wa:'คำเตือน',in:'ข้อมูล'};
+  var bgMap={ok:'#ECFDF5',er:'#FEF2F2',wa:'#FFFBEB',in:'#EFF6FF'};
+  var clrMap={ok:'#16A34A',er:'#DC2626',wa:'#D97706',in:'#2563EB'};
+  mw.innerHTML=
+    '<div class="mo">'+
+    '<div class="modal" style="max-width:380px">'+
+      '<div class="modal-body" style="padding:28px 24px 20px;text-align:center">'+
+        '<div style="width:52px;height:52px;border-radius:14px;background:'+bgMap[type]+';display:flex;align-items:center;justify-content:center;margin:0 auto 16px;color:'+clrMap[type]+'">'+svg(iconMap[type]||'info',24)+'</div>'+
+        '<div style="font-size:14px;color:#6b6560;line-height:1.65">'+esc(msg)+'</div>'+
+      '</div>'+
+      '<div class="modal-foot" style="justify-content:center">'+
+        '<button class="btn btn-primary" data-action="closeModal">ตกลง</button>'+
+      '</div>'+
+    '</div></div>';
+  _lcr();
+}
+
+/* ─── auto-init Lucide icons on any DOM mutation inside #app ─── */
+;(function(){
+  if(!window.MutationObserver) return;
+  var _lt=null;
+  var _lo=new MutationObserver(function(muts){
+    var need=muts.some(function(m){
+      return Array.from(m.addedNodes).some(function(n){
+        return n.nodeType===1&&(n.dataset&&n.dataset.lucide||(n.querySelector&&n.querySelector('[data-lucide]')));
+      });
+    });
+    if(!need) return;
+    clearTimeout(_lt);
+    _lt=setTimeout(function(){if(window.lucide)window.lucide.createIcons();},0);
+  });
+  _lo.observe(document.body||document.documentElement,{childList:true,subtree:true});
+})();

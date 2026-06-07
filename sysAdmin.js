@@ -1,10 +1,23 @@
 /* ─── SYSTEM ADMIN (จัดการระบบ) ─── */
 
+var _sysTab='docnum'; // tab ที่เปิดอยู่
+
 async function vSys(){
   if(CU.role_code!=='ROLE-SYS') return '<div class="card-empty"><div class="card-empty-text">ไม่มีสิทธิ์เข้าถึง</div></div>';
-  var _docNumCfgs=[], _docTypes=[];
+  var _docNumCfgs=[], _docTypes=[], _settings=[], _emailTmpls=[], _wfTmpls=[];
   try{_docNumCfgs=await dg('doc_number_settings','?order=year.desc');}catch(e){}
   try{_docTypes=await dg('doc_types','?order=sort_order,created_at');}catch(e){}
+  try{_settings=await dg('app_settings','?order=key');}catch(e){}
+  try{_emailTmpls=await dg('email_templates','?order=key');}catch(e){}
+  try{_wfTmpls=await dg('workflow_templates','?order=doc_type,created_at');}catch(e){}
+  if(_wfTmpls.length){
+    try{
+      var _wfSteps=await dg('workflow_template_steps','?select=template_id');
+      var _wfCnts={};
+      (_wfSteps||[]).forEach(function(s){_wfCnts[s.template_id]=(_wfCnts[s.template_id]||0)+1;});
+      _wfTmpls.forEach(function(t){t._stepCount=_wfCnts[t.id]||0;});
+    }catch(e){}
+  }
   if(_docTypes.length){
     try{
       var flds=await dg('doc_type_fields','?select=doc_type_id');
@@ -13,7 +26,53 @@ async function vSys(){
       _docTypes.forEach(function(t){t._fieldCount=cnts[t.id]||0;});
     }catch(e){}
   }
-  return rDocNumCard(_docNumCfgs)+rDocTypesCard(_docTypes);
+
+  // ── Tab navigation ──
+  var _sysAnnouncement=((Array.isArray(_settings)?_settings:[]).find(function(s){return s.key==='system_announcement'})||{}).value||'';
+  var _annBadge=_sysAnnouncement?'<span style="width:7px;height:7px;border-radius:50%;background:#E83A00;display:inline-block;margin-left:5px;vertical-align:middle"></span>':'';
+  var _tabs=[
+    {k:'docnum',   ico:'edit',    label:'เลขที่เอกสาร'},
+    {k:'doctypes', ico:'doc',     label:'ประเภทเอกสาร'},
+    {k:'settings', ico:'gear',    label:'ตั้งค่าระบบ'+_annBadge},
+    {k:'email',    ico:'bell',    label:'แม่แบบอีเมล'},
+    {k:'workflow', ico:'refresh', label:'Workflow'}
+  ];
+
+  var tabNav='<div style="display:flex;gap:2px;border-bottom:2px solid #EBEBEB;margin-bottom:20px;overflow-x:auto;flex-wrap:nowrap">';
+  _tabs.forEach(function(t){
+    var isAct=t.k===_sysTab;
+    tabNav+='<button class="ptab'+(isAct?' on':'')+'" style="white-space:nowrap;display:flex;align-items:center;gap:6px" '+
+      'onclick="setSysTab(\''+t.k+'\')" data-systab="'+t.k+'">'+
+      svg(t.ico,12)+' '+t.label+'</button>';
+  });
+  tabNav+='</div>';
+
+  var _panelContent={
+    docnum:   rDocNumCard(_docNumCfgs),
+    doctypes: rDocTypesCard(_docTypes),
+    settings: rAppSettingsCard(_settings),
+    email:    rEmailTemplatesCard(_emailTmpls),
+    workflow: rWfTemplatesCard(_wfTmpls)
+  };
+
+  var html=tabNav;
+  _tabs.forEach(function(t){
+    html+='<div id="sys-tab-'+t.k+'" style="display:'+(t.k===_sysTab?'block':'none')+'">'+_panelContent[t.k]+'</div>';
+  });
+  return html;
+}
+
+function setSysTab(tab){
+  _sysTab=tab;
+  ['docnum','doctypes','settings','email','workflow'].forEach(function(t){
+    var el=$e('sys-tab-'+t);
+    if(el) el.style.display=t===tab?'block':'none';
+  });
+  document.querySelectorAll('[data-systab]').forEach(function(btn){
+    var isAct=btn.dataset.systab===tab;
+    btn.className='ptab'+(isAct?' on':'');
+    btn.style.cssText='white-space:nowrap;display:inline-flex;align-items:center;gap:6px';
+  });
 }
 
 /* ─── DOC NUMBER CARD ─── */
@@ -36,17 +95,13 @@ function rDocNumCard(cfgs){
       '</div>'+
       '<div class="card-body">'+
         '<div class="flex gap-4 flex-wrap mb-4">'+
-          '<div class="flex items-center gap-6 px-6 py-4 rounded-2xl border border-amber-200/60 shadow-sm flex-1" style="background:linear-gradient(135deg,#ffffff 0%,#fffbeb 100%);">'+
-            '<div>'+
-              '<div class="text-[11px] font-bold uppercase tracking-[0.1em] text-amber-800/70 mb-1.5">ขาเข้า ('+thYear+')</div>'+
-              '<div class="font-mono text-xl font-black tracking-widest" style="color:#92400E;">'+esc(curPrefix)+'-'+thYear+'-001</div>'+
-            '</div>'+
+          '<div style="flex:1;background:#FFF5F0;border-radius:12px;padding:14px 18px;border:1.5px solid #ffc9a8">'+
+            '<div style="font-size:10px;color:#a89e99;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px;font-weight:700">ขาเข้า ('+thYear+')</div>'+
+            '<div style="font-family:\'IBM Plex Mono\',monospace;font-size:15px;color:#C42800;font-weight:800;letter-spacing:.5px">'+esc(curPrefix)+'-'+thYear+'-001</div>'+
           '</div>'+
-          '<div class="flex items-center gap-6 px-6 py-4 rounded-2xl border border-blue-200/60 shadow-sm flex-1" style="background:linear-gradient(135deg,#ffffff 0%,#eff6ff 100%);">'+
-            '<div>'+
-              '<div class="text-[11px] font-bold uppercase tracking-[0.1em] text-blue-800/70 mb-1.5">ขาออก ('+thYear+')</div>'+
-              '<div class="font-mono text-xl font-black tracking-widest" style="color:#1d4ed8;">กนค.'+thYear+'.'+String(curOutStart).padStart(2,'0')+'</div>'+
-            '</div>'+
+          '<div style="flex:1;background:#EFF6FF;border-radius:12px;padding:14px 18px;border:1.5px solid #BFDBFE">'+
+            '<div style="font-size:10px;color:#a89e99;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px;font-weight:700">ขาออก ('+thYear+')</div>'+
+            '<div style="font-family:\'IBM Plex Mono\',monospace;font-size:15px;color:#1D4ED8;font-weight:800;letter-spacing:.5px">กนค.'+thYear+'.'+String(curOutStart).padStart(2,'0')+'</div>'+
           '</div>'+
         '</div>'
   );
@@ -132,13 +187,13 @@ var box = [
 
       // Preview Box (incoming + outgoing)
       '<div style="display:flex;gap:10px;margin-bottom:8px">',
-        '<div style="flex:1;background:linear-gradient(135deg,#E83A00 0%,#B32D00 100%);border-radius:16px;padding:16px 20px;position:relative;overflow:hidden;box-shadow:0 10px 20px -5px rgba(232,58,0,0.3)">',
-          '<div style="font-size:9px;color:rgba(255,255,255,0.8);text-transform:uppercase;letter-spacing:0.12em;margin-bottom:4px;font-weight:600">ขาเข้า</div>',
-          '<div id="dn-preview" style="font-family:monospace;font-size:16px;color:#fff;font-weight:700">'+esc(curPrefix)+'-'+thYear+'-001</div>',
+        '<div style="flex:1;background:#FFF5F0;border-radius:12px;padding:14px 18px;border:1.5px solid #ffc9a8">',
+          '<div style="font-size:10px;color:#a89e99;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px;font-weight:700">ขาเข้า</div>',
+          '<div id="dn-preview" style="font-family:\'IBM Plex Mono\',monospace;font-size:15px;color:#C42800;font-weight:800;letter-spacing:.5px">'+esc(curPrefix)+'-'+thYear+'-001</div>',
         '</div>',
-        '<div style="flex:1;background:linear-gradient(135deg,#1d4ed8 0%,#1e3a8a 100%);border-radius:16px;padding:16px 20px;position:relative;overflow:hidden;box-shadow:0 10px 20px -5px rgba(29,78,216,0.3)">',
-          '<div style="font-size:9px;color:rgba(255,255,255,0.8);text-transform:uppercase;letter-spacing:0.12em;margin-bottom:4px;font-weight:600">ขาออก</div>',
-          '<div id="dn-out-preview" style="font-family:monospace;font-size:16px;color:#fff;font-weight:700">กนค.'+thYear+'.'+String(curOutStart).padStart(2,'0')+'</div>',
+        '<div style="flex:1;background:#EFF6FF;border-radius:12px;padding:14px 18px;border:1.5px solid #BFDBFE">',
+          '<div style="font-size:10px;color:#a89e99;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px;font-weight:700">ขาออก</div>',
+          '<div id="dn-out-preview" style="font-family:\'IBM Plex Mono\',monospace;font-size:15px;color:#1D4ED8;font-weight:800;letter-spacing:.5px">กนค.'+thYear+'.'+String(curOutStart).padStart(2,'0')+'</div>',
         '</div>',
       '</div>',
     '</div>',
@@ -188,6 +243,396 @@ async function saveDocNumSetting(){
     setTimeout(function(){nav('sys');},220);
   }catch(e){
     if(btn){btn.disabled=false;btn.innerHTML=_OKSVG+'บันทึกการตั้งค่า';}
-    alert('เกิดข้อผิดพลาด: '+(e.message||e));
+    showAlert('เกิดข้อผิดพลาด: '+(e.message||e),'er');
   }
+}
+
+/* ─── Announcement preview helpers ─── */
+function _buildAnnPreview(text, type){
+  if(!text) return '';
+  var clsMap={info:'al-in',warning:'al-wa',error:'al-er'};
+  var icoMap={info:'info',warning:'warn',error:'warn'};
+  var cls=clsMap[type]||'al-in';
+  var ico=icoMap[type]||'info';
+  return '<div style="margin-top:0"><div class="text-[10px] text-[#a89e99] font-bold uppercase tracking-wider mb-1.5">ตัวอย่างบน Dashboard</div>'+
+    '<div class="al '+cls+'" style="margin-bottom:0"><span class="al-icon">'+svg(ico,13)+'</span><span style="font-size:12px">'+esc(text)+'</span></div></div>';
+}
+function _updateAnnPreview(){
+  var textEl=document.querySelector('[data-key="system_announcement"]');
+  var typeEl=document.querySelector('[data-key="system_announcement_type"]');
+  var previewEl=$e('ann-preview');
+  if(!previewEl) return;
+  var text=textEl?textEl.value:'';
+  var type=typeEl?typeEl.value:'info';
+  previewEl.innerHTML=text?_buildAnnPreview(text,type):'<div class="text-[11px] text-[#a89e99]">— ไม่มีประกาศ —</div>';
+}
+async function _clearAnnouncement(){
+  var textEl=document.querySelector('[data-key="system_announcement"]');
+  if(textEl) textEl.value='';
+  var previewEl=$e('ann-preview');
+  if(previewEl) previewEl.innerHTML='<div style="font-size:11px;color:#a89e99;padding:8px 0">— ไม่มีประกาศในขณะนี้ —</div>';
+  try{
+    var ex=await dg('app_settings','?key=eq.system_announcement&select=key&limit=1');
+    if(ex&&ex.length){
+      await fetch(SU+'/rest/v1/app_settings?key=eq.system_announcement',{method:'PATCH',headers:H,body:JSON.stringify({value:'',updated_by:CU.id,updated_at:new Date().toISOString()})});
+    }
+    SETT.system_announcement='';
+    showAlert('ล้างประกาศเรียบร้อยแล้ว','ok');
+    _sysTab='settings'; // คงอยู่ที่ tab settings หลัง reload
+    setTimeout(function(){nav('sys');},500);
+  }catch(e){showAlert('เกิดข้อผิดพลาด: '+(e.message||e),'er');}
+}
+
+/* ══════════════════════════════════════════════
+   ⚙️  APP SETTINGS CARD
+   ══════════════════════════════════════════════ */
+function rAppSettingsCard(settings){
+  var sMap={};
+  (Array.isArray(settings)?settings:[]).forEach(function(r){sMap[r.key]=r;});
+
+  function _val(key,def){
+    var cur=sMap[key]; return cur?cur.value:(SETT[key]!==undefined?String(SETT[key]):(def||''));
+  }
+
+  var curAnnouncement=_val('system_announcement','');
+  var curAnnType=_val('system_announcement_type','info');
+
+  // ── กลุ่ม 1: ค่าตัวเลขระบบ ──
+  var numFields=[
+    {key:'sla_cascade_days',    id:'sett-0', label:'SLA ตีกลับ',             unit:'วัน',  desc:'จำนวนวันที่ให้แก้ไขเมื่อถูกตีกลับ', min:1,max:30},
+    {key:'session_timeout_min', id:'sett-1', label:'Session หมดอายุ',         unit:'นาที', desc:'เวลาไม่ใช้งานก่อน logout อัตโนมัติ', min:5,max:480},
+    {key:'max_file_size_mb',    id:'sett-2', label:'ขนาดไฟล์สูงสุด',          unit:'MB',   desc:'ต่อไฟล์ที่อนุญาตให้อัปโหลด',          min:1,max:100},
+  ];
+  var numRow=numFields.map(function(f){
+    return '<div style="background:#FAFAF8;border-radius:12px;padding:14px 16px;border:1px solid #EBEBEB">'+
+      '<div style="font-size:11px;font-weight:700;color:#18120E;margin-bottom:2px">'+f.label+'</div>'+
+      '<div style="font-size:10px;color:#a89e99;margin-bottom:8px">'+f.desc+'</div>'+
+      '<div style="display:flex;align-items:center;gap:8px">'+
+        '<input id="'+f.id+'" data-key="'+f.key+'" type="number" class="fi text-[13px]" style="flex:1;font-weight:700" value="'+esc(_val(f.key,''))+'" min="'+f.min+'" max="'+f.max+'">'+
+        '<span style="font-size:11px;color:#a89e99;white-space:nowrap">'+f.unit+'</span>'+
+      '</div>'+
+    '</div>';
+  }).join('');
+
+  // ── กลุ่ม 2: อีเมล prefix ──
+  var emailRow='<div style="background:#FAFAF8;border-radius:12px;padding:14px 16px;border:1px solid #EBEBEB;margin-top:12px">'+
+    '<div style="font-size:11px;font-weight:700;color:#18120E;margin-bottom:2px">คำนำหน้า Subject อีเมล</div>'+
+    '<div style="font-size:10px;color:#a89e99;margin-bottom:8px">ใส่วงเล็บด้วย เช่น [กนค.] หรือ [EDU]</div>'+
+    '<input id="sett-3" data-key="email_prefix" type="text" class="fi text-[13px]" value="'+esc(_val('email_prefix',''))+'">'+
+  '</div>';
+
+  // ── กลุ่ม 3: ประกาศระบบ ──
+  var annTypeOpts=['info','warning','error'].map(function(o){
+    var labels={info:'ℹ️ ข้อมูล',warning:'⚠️ คำเตือน',error:'🔴 ข้อผิดพลาด'};
+    return '<option value="'+o+'"'+(o===curAnnType?' selected':'')+'>'+labels[o]+'</option>';
+  }).join('');
+
+  var annRow='<div style="background:#FAFAF8;border-radius:12px;padding:16px;border:1px solid #EBEBEB;margin-top:12px">'+
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'+
+      '<div>'+
+        '<div style="font-size:11px;font-weight:700;color:#18120E">ประกาศระบบ</div>'+
+        '<div style="font-size:10px;color:#a89e99;margin-top:2px">แสดงบน Dashboard ทุกคน — เว้นว่างเพื่อปิดประกาศ</div>'+
+      '</div>'+
+      (curAnnouncement?'<button class="btn btn-soft xs" onclick="_clearAnnouncement()" style="color:#DC2626;border-color:#FECACA">'+svg('x',12)+' ล้างประกาศ</button>':'')+
+    '</div>'+
+    '<div style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:flex-start">'+
+      '<textarea id="sett-4" data-key="system_announcement" rows="3" class="fi text-[12px]" style="resize:vertical" oninput="_updateAnnPreview()" placeholder="พิมพ์ข้อความประกาศที่นี่...">'+esc(curAnnouncement)+'</textarea>'+
+      '<select id="sett-5" data-key="system_announcement_type" class="fi text-[12px]" style="width:130px" onchange="_updateAnnPreview()">'+annTypeOpts+'</select>'+
+    '</div>'+
+    '<div id="ann-preview" style="margin-top:10px">'+(curAnnouncement?_buildAnnPreview(curAnnouncement,curAnnType):'<div style="font-size:11px;color:#a89e99;padding:8px 0">— ไม่มีประกาศในขณะนี้ —</div>')+'</div>'+
+  '</div>';
+
+  return '<div class="card" style="margin-bottom:0">'+
+    '<div class="card-head">'+
+      '<div style="width:26px;height:26px;border-radius:7px;background:#FFF3EE;display:flex;align-items:center;justify-content:center;color:#E83A00;flex-shrink:0">'+svg('gear',13)+'</div>'+
+      '<span class="card-head-title">ตั้งค่าระบบ</span>'+
+      '<button class="btn btn-primary sm ml-auto" data-action="saveAppSettings">'+svg('ok',12)+' บันทึก</button>'+
+    '</div>'+
+    '<div id="sett-al"></div>'+
+    '<div style="padding:16px 20px 20px">'+
+      '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:#a89e99;margin-bottom:10px">ค่าตัวเลขระบบ</div>'+
+      '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">'+numRow+'</div>'+
+      emailRow+
+      '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:#a89e99;margin:18px 0 8px">ประกาศระบบ</div>'+
+      annRow+
+    '</div>'+
+  '</div>';
+}
+
+async function saveAppSettings(){
+  var btn=document.querySelector('[data-action="saveAppSettings"]');
+  if(btn){btn.disabled=true;btn.innerHTML=_SPINSVG+'กำลังบันทึก...';}
+  var al=$e('sett-al');
+  try{
+    var inputs=document.querySelectorAll('[id^="sett-"][data-key]');
+    for(var i=0;i<inputs.length;i++){
+      var el=inputs[i], key=el.dataset.key, val=el.value;
+      var ex=await dg('app_settings','?key=eq.'+encodeURIComponent(key)+'&select=key&limit=1');
+      if(ex&&ex.length){
+        await fetch(SU+'/rest/v1/app_settings?key=eq.'+encodeURIComponent(key),{method:'PATCH',headers:H,body:JSON.stringify({value:val,updated_by:CU.id,updated_at:new Date().toISOString()})});
+      }else{
+        var _vtype=el.type==='number'?'number':(val==='true'||val==='false'?'boolean':'text');
+        await dp('app_settings',{key:key,value:val,label:key,value_type:_vtype,updated_by:CU.id,updated_at:new Date().toISOString()});
+      }
+      SETT[key]=isNaN(+val)||val===''?val:+val;
+    }
+    if(al) al.innerHTML='<div class="al al-ok mb-2"><span class="al-icon">'+svg('ok',13)+'</span><span>บันทึกการตั้งค่าเรียบร้อยแล้ว</span></div>';
+    await loadAppSettings();
+  }catch(e){
+    if(al) al.innerHTML='<div class="al al-er mb-2"><span class="al-icon">'+svg('warn',13)+'</span><span>เกิดข้อผิดพลาด: '+esc(e.message||String(e))+'</span></div>';
+  }finally{
+    if(btn){btn.disabled=false;btn.innerHTML=svg('ok',12)+' บันทึกทั้งหมด';}
+  }
+}
+
+/* ══════════════════════════════════════════════
+   📧  EMAIL TEMPLATES CARD
+   ══════════════════════════════════════════════ */
+function rEmailTemplatesCard(templates){
+  var tMap={};
+  (Array.isArray(templates)?templates:[]).forEach(function(t){tMap[t.key]=t;});
+  var _ACTIONS=[
+    {key:'approve',   ico:'ok',      bg:'#F0FDF4', ic:'#15803D', label:'อนุมัติ / ส่งต่อ'},
+    {key:'reject',    ico:'undo',    bg:'#FEF2F2', ic:'#DC2626', label:'ส่งคืนแก้ไข'},
+    {key:'create',    ico:'plus',    bg:'#EFF6FF', ic:'#2563EB', label:'เอกสารใหม่รอดำเนินการ'},
+    {key:'completed', ico:'ok',      bg:'#F0FDF4', ic:'#15803D', label:'เอกสารเสร็จสิ้น'},
+    {key:'numbering', ico:'pen',     bg:'#FFF5F0', ic:'#E83A00', label:'รอออกเลขหนังสือ'},
+    {key:'overdue',   ico:'clock',   bg:'#FFFBEB', ic:'#D97706', label:'เตือนเลยกำหนด'}
+  ];
+  var rows=_ACTIONS.map(function(a,i){
+    var t=tMap[a.key]||{};
+    return '<tr>'+
+      '<td style="white-space:nowrap">'+
+        '<div style="display:inline-flex;align-items:center;gap:7px">'+
+          '<div style="width:22px;height:22px;border-radius:6px;background:'+a.bg+';display:flex;align-items:center;justify-content:center;color:'+a.ic+';flex-shrink:0">'+svg(a.ico,11)+'</div>'+
+          '<span style="font-size:12px;font-weight:600;color:#18120E">'+a.label+'</span>'+
+        '</div>'+
+      '</td>'+
+      '<td><input id="et-sfx-'+i+'" data-etkey="'+a.key+'" data-field="subject_suffix" class="fi" style="font-size:12px;min-width:160px" placeholder="ต่อท้าย subject อีเมล" value="'+esc(t.subject_suffix||'')+'"></td>'+
+      '<td><input id="et-note-'+i+'" data-etkey="'+a.key+'" data-field="extra_note" class="fi" style="font-size:12px;min-width:200px" placeholder="ข้อความเพิ่มในเนื้อหาอีเมล" value="'+esc(t.extra_note||'')+'"></td>'+
+    '</tr>';
+  }).join('');
+
+  return '<div class="card" style="margin-bottom:0">'+
+    '<div class="card-head">'+
+      '<div style="width:26px;height:26px;border-radius:7px;background:#EFF6FF;display:flex;align-items:center;justify-content:center;color:#2563EB;flex-shrink:0">'+svg('bell',13)+'</div>'+
+      '<span class="card-head-title">ตั้งค่าอีเมลแจ้งเตือน</span>'+
+      '<button class="btn btn-primary sm ml-auto" data-action="saveEmailTemplates">'+svg('ok',12)+' บันทึก</button>'+
+    '</div>'+
+    '<div style="padding:14px 20px 0">'+
+      '<div class="al al-in" style="margin-bottom:0"><span class="al-icon">'+svg('info',13)+'</span>'+
+        '<span style="font-size:12px"><strong>Subject suffix</strong> ต่อท้าย subject อีเมลหลักโดยอัตโนมัติ · <strong>Extra note</strong> แสดงในเนื้อหาอีเมลเป็น callout สีส้มอ่อน</span>'+
+      '</div>'+
+    '</div>'+
+    '<div id="et-al"></div>'+
+    '<div class="tbl-wrap" style="margin:12px 0 0">'+
+      '<table><thead><tr>'+
+        '<th>เหตุการณ์</th>'+
+        '<th>Subject suffix</th>'+
+        '<th>Extra note ในเนื้ออีเมล</th>'+
+      '</tr></thead><tbody>'+rows+'</tbody></table>'+
+    '</div>'+
+  '</div>';
+}
+
+async function saveEmailTemplates(){
+  var btn=document.querySelector('[data-action="saveEmailTemplates"]');
+  if(btn){btn.disabled=true;btn.innerHTML=_SPINSVG+'กำลังบันทึก...';}
+  var al=$e('et-al');
+  try{
+    var sfxEls=document.querySelectorAll('[data-field="subject_suffix"]');
+    for(var i=0;i<sfxEls.length;i++){
+      var k=sfxEls[i].dataset.etkey;
+      var sfx=sfxEls[i].value;
+      var note=document.getElementById('et-note-'+i);
+      var noteVal=note?note.value:'';
+      var ex=await dg('email_templates','?key=eq.'+encodeURIComponent(k)+'&select=key&limit=1');
+      if(ex&&ex.length){
+        await fetch(SU+'/rest/v1/email_templates?key=eq.'+encodeURIComponent(k),{method:'PATCH',headers:H,body:JSON.stringify({subject_suffix:sfx,extra_note:noteVal,updated_by:CU.id,updated_at:new Date().toISOString()})});
+      }else{
+        await dp('email_templates',{key:k,label:k,subject_suffix:sfx,extra_note:noteVal,updated_by:CU.id,updated_at:new Date().toISOString()});
+      }
+    }
+    if(al) al.innerHTML='<div class="al al-ok mx-4 mb-2"><span class="al-icon">'+svg('ok',13)+'</span><span>บันทึกเรียบร้อยแล้ว</span></div>';
+  }catch(e){
+    if(al) al.innerHTML='<div class="al al-er mx-4 mb-2"><span class="al-icon">'+svg('warn',13)+'</span><span>เกิดข้อผิดพลาด: '+esc(e.message||String(e))+'</span></div>';
+  }finally{
+    if(btn){btn.disabled=false;btn.innerHTML=svg('ok',12)+' บันทึก';}
+  }
+}
+
+/* ══════════════════════════════════════════════
+   🔄  WORKFLOW TEMPLATES CARD
+   ══════════════════════════════════════════════ */
+var _wfTplSteps=[];  // working steps array สำหรับ modal ที่เปิดอยู่
+var _wfTplUsers=[];  // users list สำหรับ dropdown ใน modal
+
+function rWfTemplatesCard(templates){
+  var byType={incoming:[],outgoing:[],certificate:[],memo:[]};
+  (Array.isArray(templates)?templates:[]).forEach(function(t){
+    if(byType[t.doc_type]) byType[t.doc_type].push(t);
+  });
+  var dtLabels={incoming:'หนังสือขาเข้า',outgoing:'หนังสือขาออก',certificate:'หนังสือรับรอง',memo:'บันทึกข้อความ'};
+
+  var sections=Object.keys(byType).map(function(dt){
+    var tmpls=byType[dt];
+    var rows=tmpls.length?tmpls.map(function(t){
+      var _sc=t._stepCount||0;
+      var _scBadge='<span style="font-size:10px;color:#a89e99;background:#F5F3F0;border-radius:6px;padding:1px 7px;white-space:nowrap">'+
+        (_sc>0?_sc+' step':(_sc===0?'— ยังไม่มี step':''))+
+      '</span>';
+      return '<div style="display:flex;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid #F5F5F5">'+
+        (t.is_default?'<span class="badge b-signed" style="font-size:10px;padding:2px 8px;flex-shrink:0">Default</span>':
+          '<button class="btn btn-soft xs" data-action="setDefaultWfTemplate" data-id="'+t.id+'" data-doctype="'+dt+'" title="ตั้งเป็น Default" style="flex-shrink:0">'+svg('ok',10)+' ตั้ง default</button>')+
+        '<span style="flex:1;font-size:12px;font-weight:600;color:#18120E">'+esc(t.name)+'</span>'+
+        _scBadge+
+        '<button class="btn btn-soft xs" data-action="showWfTemplateModal" data-id="'+t.id+'" data-doctype="'+dt+'" title="แก้ไข">'+svg('edit',12)+'</button>'+
+        '<button class="btn btn-soft xs" style="color:#DC2626" data-action="deleteWfTemplate" data-id="'+t.id+'" title="ลบ">'+svg('trash',12)+'</button>'+
+      '</div>';
+    }).join(''):'<div style="font-size:12px;color:#a89e99;padding:12px 0">ยังไม่มี template — กด "+ เพิ่ม" เพื่อสร้าง</div>';
+
+    var dtIcoMap={incoming:'doc',outgoing:'sign',certificate:'ok',memo:'edit'};
+    return '<div style="padding:16px 20px;border-bottom:1px solid #F5F3F0">'+
+      '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">'+
+        '<div style="width:22px;height:22px;border-radius:6px;background:#F5F3F0;display:flex;align-items:center;justify-content:center;color:#6b6560;flex-shrink:0">'+svg(dtIcoMap[dt]||'doc',12)+'</div>'+
+        '<span style="font-size:12px;font-weight:700;color:#18120E">'+dtLabels[dt]+'</span>'+
+        '<span style="font-size:11px;color:#a89e99;margin-left:2px">('+tmpls.length+' template)</span>'+
+        '<button class="btn btn-primary xs ml-auto" data-action="showWfTemplateModal" data-id="" data-doctype="'+dt+'">'+svg('plus',11)+' เพิ่ม</button>'+
+      '</div>'+
+      rows+
+    '</div>';
+  }).join('');
+
+  return '<div class="card" style="margin-bottom:16px">'+
+    '<div class="card-head">'+
+      '<div class="w-[26px] h-[26px] rounded-[7px] bg-[#F0FDF4] flex items-center justify-center text-[#16A34A] shrink-0">'+svg('refresh',13)+'</div>'+
+      '<span class="card-head-title">Workflow Templates</span>'+
+    '</div>'+
+    '<div class="card-body pb-0">'+
+      '<div class="al al-in mb-3"><span class="al-icon">'+svg('info',13)+'</span><span class="text-[12px]">Template ที่ตั้งเป็น Default จะถูกโหลดอัตโนมัติเมื่อผู้ใช้เลือกประเภทเอกสาร</span></div>'+
+    '</div>'+
+    sections+
+  '</div>';
+}
+
+async function showWfTemplateModal(tmplId, docType){
+  var w=$e('mwrap'); if(!w)return;
+  _wfTplSteps=[];
+  _wfTplUsers=await dg('users','?is_active=eq.true&approval_status=eq.approved&role_code=neq.ROLE-SYS&order=full_name&select=id,full_name,role_code');
+  var tmplName='';
+  if(tmplId){
+    try{
+      var tmpl=(await dg('workflow_templates','?id=eq.'+safeId(tmplId)))[0]||{};
+      tmplName=tmpl.name||'';
+      _wfTplSteps=await dg('workflow_template_steps','?template_id=eq.'+safeId(tmplId)+'&order=step_number');
+    }catch(e){}
+  }
+  var dtLabels={incoming:'หนังสือขาเข้า',outgoing:'หนังสือขาออก',certificate:'หนังสือรับรอง',memo:'บันทึกข้อความ'};
+  w.innerHTML=[
+    '<div class="mo"><div class="modal" style="max-width:580px">',
+    '<div class="modal-head"><span class="modal-title">'+svg('refresh',14)+(tmplId?' แก้ไข':' สร้าง')+' Workflow Template — '+esc(dtLabels[docType]||docType)+'</span>',
+    '<button class="btn btn-soft sm btn-icon" data-action="closeModal">'+svg('x',14)+'</button></div>',
+    '<div class="modal-body">',
+    '<div class="fg"><label class="fl">ชื่อ Template <span class="req">*</span></label>',
+    '<input class="fi" id="wft-name" value="'+esc(tmplName)+'" placeholder="เช่น วาระปกติ, ด่วน, บริษัทนอก..."></div>',
+    '<div class="fg">',
+    '<label class="fl">ขั้นตอนใน Workflow</label>',
+    '<div class="al al-in mb-2"><span class="al-icon">'+svg('info',12)+'</span><span class="text-[11px]">Step ผู้จัดทำ (Step 1) จะถูกเพิ่มอัตโนมัติ — ระบุเฉพาะขั้นตอนหลังจากนั้น</span></div>',
+    '<div id="wft-steps">'+_renderWfTplSteps()+'</div>',
+    '<button class="btn btn-soft sm mt-2" data-action="addWfTplStep">'+svg('plus',12)+' เพิ่มขั้นตอน</button>',
+    '</div>',
+    '</div>',
+    '<div class="modal-foot">',
+    '<button class="btn btn-soft" data-action="closeModal">ยกเลิก</button>',
+    '<button class="btn btn-primary" data-action="saveWfTemplate" data-tmplid="'+(tmplId||'')+'" data-doctype="'+docType+'">'+svg('ok',13)+' บันทึก Template</button>',
+    '</div></div></div>'
+  ].join('');
+}
+
+function _renderWfTplSteps(){
+  if(!_wfTplSteps.length){
+    return '<div class="text-[12px] text-[#a89e99] py-2 px-1">— ยังไม่มีขั้นตอน (template จะมีแค่ Step ผู้จัดทำ) —</div>';
+  }
+  var uOpts='<option value="">— ไม่ระบุ (ผู้สร้างเอกสารเลือกเอง) —</option>'+
+    (Array.isArray(_wfTplUsers)?_wfTplUsers:[]).map(function(u){
+      return '<option value="'+u.id+'">'+esc(u.full_name)+' ('+esc(RTH[u.role_code]||u.role_code)+')</option>';
+    }).join('');
+  return _wfTplSteps.map(function(s,i){
+    return '<div class="flex gap-2 items-start mb-2 p-2 bg-[#FAFAFA] rounded-[10px] border border-[#EBEBEB]">'+
+      '<div class="text-[10px] font-bold text-[#a89e99] mt-2 shrink-0 w-8 text-center">'+svg('grip',14)+'</div>'+
+      '<div class="flex-1 flex flex-col gap-1.5">'+
+        '<input class="fi text-[12px]" value="'+esc(s.step_name)+'" placeholder="ชื่อขั้นตอน" oninput="_wfTplSteps['+i+'].step_name=this.value">'+
+        '<select class="fi text-[12px]" onchange="_wfTplSteps['+i+'].assigned_to=this.value||null">'+
+          uOpts.replace('value="'+(s.assigned_to||'')+'"','value="'+(s.assigned_to||'')+'" selected')+
+        '</select>'+
+        '<div class="flex gap-2 items-center">'+
+          '<label class="text-[11px] text-[#a89e99]">SLA:</label>'+
+          '<input type="number" class="fi text-[12px]" style="width:60px" min="1" max="30" value="'+(s.deadline_days||2)+'" oninput="_wfTplSteps['+i+'].deadline_days=+this.value||2">'+
+          '<span class="text-[11px] text-[#a89e99]">วัน</span>'+
+        '</div>'+
+      '</div>'+
+      '<button class="btn btn-soft xs mt-1 shrink-0" style="color:#ef4444" data-action="rmWfTplStep" data-id="'+i+'">'+svg('x',12)+'</button>'+
+    '</div>';
+  }).join('');
+}
+
+function addWfTplStep(){
+  _wfTplSteps.push({step_name:'',role_required:'',assigned_to:null,deadline_days:2,locked:false});
+  var el=$e('wft-steps'); if(el) el.innerHTML=_renderWfTplSteps();
+}
+function rmWfTplStep(idx){
+  _wfTplSteps.splice(idx,1);
+  var el=$e('wft-steps'); if(el) el.innerHTML=_renderWfTplSteps();
+}
+
+async function saveWfTemplate(existingId){
+  var name=(gv('wft-name')||'').trim();
+  if(!name){showAlert('กรุณาระบุชื่อ Template','wa');return}
+  var btn=document.querySelector('[data-action="saveWfTemplate"]');
+  var docType=btn?btn.dataset.doctype:'';
+  if(btn){btn.disabled=true;btn.innerHTML='<span class="sp"></span> กำลังบันทึก...';}
+  try{
+    var tmplId=existingId;
+    if(tmplId){
+      await fetch(SU+'/rest/v1/workflow_templates?id=eq.'+safeId(tmplId),{method:'PATCH',headers:H,body:JSON.stringify({name:name})});
+      // ลบ steps เก่า
+      await fetch(SU+'/rest/v1/workflow_template_steps?template_id=eq.'+safeId(tmplId),{method:'DELETE',headers:{apikey:SK,'Authorization':'Bearer '+SK}});
+    }else{
+      var nr=await dp('workflow_templates',{doc_type:docType,name:name,is_default:false,created_by:CU.id});
+      tmplId=nr&&nr[0]?nr[0].id:null;
+    }
+    if(!tmplId) throw new Error('ไม่สามารถสร้าง Template ได้');
+    for(var i=0;i<_wfTplSteps.length;i++){
+      var s=_wfTplSteps[i];
+      if(!s.step_name.trim()) continue;
+      await dp('workflow_template_steps',{template_id:tmplId,step_number:i+1,step_name:s.step_name.trim(),role_required:s.role_required||'',assigned_to:s.assigned_to||null,deadline_days:s.deadline_days||2,locked:!!s.locked});
+    }
+    var mw=$e('mwrap'); if(mw) mw.innerHTML='';
+    setTimeout(function(){nav('sys');},200);
+  }catch(e){
+    showAlert('เกิดข้อผิดพลาด: '+(e.message||String(e)),'er');
+    if(btn){btn.disabled=false;btn.innerHTML=svg('ok',13)+' บันทึก Template';}
+  }
+}
+
+async function deleteWfTemplate(tmplId){
+  showConfirm('ลบ Template?','Template นี้จะถูกลบถาวรพร้อม steps ทั้งหมด',
+    async function(){
+      try{
+        await fetch(SU+'/rest/v1/workflow_templates?id=eq.'+safeId(tmplId),{method:'DELETE',headers:{apikey:SK,'Authorization':'Bearer '+SK}});
+        nav('sys');
+      }catch(e){showAlert('เกิดข้อผิดพลาด: '+(e.message||e),'er');}
+    },
+    {confirmLabel:'ลบ',confirmClass:'btn-danger',icon:'trash',iconBg:'#FEF2F2',iconColor:'#DC2626'}
+  );
+}
+
+async function setDefaultWfTemplate(tmplId, docType){
+  try{
+    // ถอด default จาก template อื่นใน doc type เดียวกัน
+    await fetch(SU+'/rest/v1/workflow_templates?doc_type=eq.'+encodeURIComponent(docType),{method:'PATCH',headers:H,body:JSON.stringify({is_default:false})});
+    // ตั้ง default ใหม่
+    await fetch(SU+'/rest/v1/workflow_templates?id=eq.'+safeId(tmplId),{method:'PATCH',headers:H,body:JSON.stringify({is_default:true})});
+    nav('sys');
+  }catch(e){showAlert('เกิดข้อผิดพลาด: '+(e.message||e),'er');}
 }

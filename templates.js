@@ -14,6 +14,23 @@ async function vTmpl(){
   }
   var rows=result;
   var isAdm=CU.role_code==='ROLE-SYS'||CU.role_code==='ROLE-STF'||CU.position_code==='GNK-SEC';
+
+  // Batch-fetch ชื่อผู้อัปโหลด (เฉพาะ admin/เจ้าหน้าที่/เลขา)
+  var _uploaderMap={};
+  var _latestTmplId=null;
+  if(isAdm&&rows.length){
+    var _uIds=[].concat.apply([],rows.filter(function(r){return r.uploaded_by}).map(function(r){return r.uploaded_by}));
+    var _uUniq=_uIds.filter(function(v,i,a){return a.indexOf(v)===i});
+    if(_uUniq.length){
+      try{
+        var _uRows=await dg('users','?id=in.('+_uUniq.map(safeId).join(',')+')'+'&select=id,full_name');
+        if(Array.isArray(_uRows)) _uRows.forEach(function(u){_uploaderMap[u.id]=u.full_name});
+      }catch(e){}
+    }
+    // หา template ที่อัปโหลดล่าสุด
+    _latestTmplId=rows.reduce(function(a,b){return(a.created_at||'')>=(b.created_at||'')?a:b}).id;
+  }
+
   var html=['<div id="tal"></div>'];
 
   // ── Toolbar (search + admin button) — same pattern as docList ──
@@ -59,12 +76,27 @@ async function vTmpl(){
       html.push('<div class="tmpl-card" data-name="'+esc((t.name||'').toLowerCase())+'" style="display:flex;align-items:center;gap:12px;padding:10px 2px;'+divider+'">');
       html.push('<div style="width:36px;height:36px;border-radius:9px;background:'+icoClr.bg+';display:flex;align-items:center;justify-content:center;color:'+icoClr.ic+';flex-shrink:0">'+svg(icoName,18)+'</div>');
       html.push('<div style="flex:1;min-width:0">');
+      // ชื่อ + badge ล่าสุด
+      html.push('<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">');
       html.push('<div style="font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#18120E">'+esc(t.name)+'</div>');
+      if(isAdm&&t.id===_latestTmplId) html.push('<span class="badge b-completed" style="font-size:9px;padding:2px 7px;flex-shrink:0">ล่าสุด</span>');
+      html.push('</div>');
+      // description + fileinfo
       html.push('<div style="font-size:11px;color:var(--text-3);margin-top:2px">');
       if(t.description) html.push(esc(t.description)+' · ');
       html.push('<span class="mono">'+ext.toUpperCase()+'</span>');
       if(t.file_size) html.push(' · '+fsz(t.file_size));
-      html.push('</div></div>');
+      html.push('</div>');
+      // Uploader metadata (เฉพาะ เจ้าหน้าที่ / เลขา / Admin)
+      if(isAdm){
+        var _uName=t.uploaded_by&&_uploaderMap[t.uploaded_by]?_uploaderMap[t.uploaded_by]:'';
+        var _uDate=t.created_at?new Date(t.created_at).toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
+        html.push('<div style="font-size:10px;color:#a89e99;margin-top:4px;display:flex;align-items:center;gap:5px;flex-wrap:wrap">');
+        if(_uName) html.push(svg('user',10)+'<span>'+esc(_uName)+'</span>');
+        if(_uDate) html.push('<span style="color:#d0cac6">·</span>'+svg('cal',10)+'<span>'+_uDate+'</span>');
+        html.push('</div>');
+      }
+      html.push('</div>');
       html.push('<div style="display:flex;gap:8px;align-items:center;flex-shrink:0">');
       html.push('<button style="width:36px;height:36px;border-radius:10px;border:2px solid #3b82f6;background:#eff6ff;color:#3b82f6;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0" data-action="tmplPreview" data-url="'+esc(furl(t.file_path))+'" data-name="'+esc(t.name)+'" data-ext="'+esc(ext)+'" title="ดูตัวอย่าง">'+svg('eye',15)+'</button>');
       html.push('<button style="height:36px;padding:0 14px;border-radius:10px;border:2px solid #ea580c;background:#fff7ed;color:#ea580c;font-size:12.5px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;flex-shrink:0" data-action="dlFile" data-url="'+furl(t.file_path)+'" data-name="'+esc(t.file_name)+'">'+svg('dn',13)+'<span>ดาวน์โหลด</span></button>');
@@ -353,11 +385,20 @@ async function doTmplUpload(){
   }
 }
 
-async function doTmplDelete(id,path){
-  if(!confirm('ลบแบบฟอร์มนี้ออกจากระบบ?')) return;
+/* [UX] แทน confirm() + alert() ด้วย showConfirm / showAlert */
+function doTmplDelete(id){
+  showConfirm(
+    'ลบแบบฟอร์ม?',
+    'ลบแบบฟอร์มนี้ออกจากระบบ',
+    function(){_doTmplDeleteConfirmed(id);},
+    {confirmLabel:'ลบ',confirmClass:'btn-danger',icon:'trash',iconBg:'#FEF2F2',iconColor:'#DC2626'}
+  );
+}
+async function _doTmplDeleteConfirmed(id){
   try{
     await dpa('form_templates',id,{is_active:false});
+    var mw=$e('mwrap');if(mw)mw.innerHTML='';
     var a=$e('tal'); if(a) a.innerHTML=alrtH('ok','ลบแบบฟอร์มเรียบร้อยแล้ว');
     setTimeout(function(){nav('tmpl')},800);
-  }catch(e){alert('เกิดข้อผิดพลาด: '+e.message)}
+  }catch(e){showAlert('เกิดข้อผิดพลาด: '+e.message,'er')}
 }

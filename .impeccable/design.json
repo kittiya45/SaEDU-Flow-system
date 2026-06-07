@@ -1,0 +1,166 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2025-06-03T00:00:00.000Z",
+  "title": "Design System: SaEDU Flow",
+  "extensions": {
+    "colorMeta": {
+      "primary":           { "role": "primary",  "displayName": "Chulalongkorn Ember",  "canonical": "oklch(57% 0.21 32)",  "tonalRamp": ["oklch(15% 0.08 32)","oklch(25% 0.13 32)","oklch(35% 0.17 32)","oklch(45% 0.19 32)","oklch(57% 0.21 32)","oklch(68% 0.16 32)","oklch(78% 0.10 32)","oklch(90% 0.04 32)"] },
+      "primary-deep":      { "role": "primary",  "displayName": "Deep Ember",           "canonical": "oklch(47% 0.19 30)",  "tonalRamp": ["oklch(12% 0.07 30)","oklch(22% 0.11 30)","oklch(32% 0.15 30)","oklch(42% 0.17 30)","oklch(47% 0.19 30)","oklch(58% 0.15 30)","oklch(72% 0.09 30)","oklch(88% 0.03 30)"] },
+      "primary-light":     { "role": "primary",  "displayName": "Ember Blush",          "canonical": "oklch(97% 0.01 32)",  "tonalRamp": ["oklch(60% 0.12 32)","oklch(70% 0.09 32)","oklch(78% 0.07 32)","oklch(85% 0.05 32)","oklch(90% 0.03 32)","oklch(93% 0.02 32)","oklch(96% 0.01 32)","oklch(97% 0.01 32)"] },
+      "primary-mid":       { "role": "primary",  "displayName": "Warm Copper",          "canonical": "oklch(82% 0.09 45)",  "tonalRamp": ["oklch(40% 0.12 45)","oklch(52% 0.12 45)","oklch(62% 0.11 45)","oklch(70% 0.10 45)","oklch(77% 0.09 45)","oklch(82% 0.09 45)","oklch(89% 0.06 45)","oklch(95% 0.03 45)"] },
+      "primary-pale":      { "role": "primary",  "displayName": "Morning Warmth",       "canonical": "oklch(98% 0.007 40)", "tonalRamp": ["oklch(65% 0.07 40)","oklch(74% 0.06 40)","oklch(82% 0.04 40)","oklch(88% 0.03 40)","oklch(92% 0.02 40)","oklch(95% 0.01 40)","oklch(97% 0.008 40)","oklch(98% 0.007 40)"] },
+      "text-dark":         { "role": "neutral",  "displayName": "Charred Brown",        "canonical": "oklch(11% 0.015 40)", "tonalRamp": ["oklch(11% 0.015 40)","oklch(22% 0.018 40)","oklch(35% 0.018 40)","oklch(46% 0.016 40)","oklch(58% 0.014 40)","oklch(70% 0.012 40)","oklch(82% 0.009 40)","oklch(93% 0.006 40)"] },
+      "text-secondary":    { "role": "neutral",  "displayName": "Weathered Stone",      "canonical": "oklch(46% 0.012 38)", "tonalRamp": ["oklch(15% 0.01 38)","oklch(25% 0.01 38)","oklch(35% 0.011 38)","oklch(46% 0.012 38)","oklch(58% 0.011 38)","oklch(70% 0.010 38)","oklch(82% 0.008 38)","oklch(93% 0.005 38)"] },
+      "text-muted":        { "role": "neutral",  "displayName": "Pale Stone",           "canonical": "oklch(66% 0.012 33)", "tonalRamp": ["oklch(20% 0.009 33)","oklch(32% 0.010 33)","oklch(44% 0.011 33)","oklch(55% 0.012 33)","oklch(66% 0.012 33)","oklch(76% 0.009 33)","oklch(86% 0.006 33)","oklch(94% 0.004 33)"] },
+      "border":            { "role": "neutral",  "displayName": "Linen Fold",           "canonical": "oklch(93% 0.003 75)", "tonalRamp": ["oklch(50% 0.005 75)","oklch(62% 0.005 75)","oklch(72% 0.004 75)","oklch(80% 0.004 75)","oklch(87% 0.003 75)","oklch(93% 0.003 75)","oklch(96% 0.002 75)","oklch(98% 0.001 75)"] },
+      "surface-bg":        { "role": "neutral",  "displayName": "Faculty Paper",        "canonical": "oklch(95% 0.006 75)", "tonalRamp": ["oklch(55% 0.008 75)","oklch(65% 0.007 75)","oklch(74% 0.007 75)","oklch(82% 0.007 75)","oklch(89% 0.006 75)","oklch(95% 0.006 75)","oklch(97% 0.004 75)","oklch(99% 0.002 75)"] },
+      "surface-card-head": { "role": "neutral",  "displayName": "Warm Canvas",          "canonical": "oklch(98% 0.004 80)", "tonalRamp": ["oklch(60% 0.006 80)","oklch(70% 0.005 80)","oklch(78% 0.005 80)","oklch(85% 0.005 80)","oklch(90% 0.004 80)","oklch(95% 0.004 80)","oklch(98% 0.004 80)","oklch(99% 0.002 80)"] },
+      "surface-white":     { "role": "neutral",  "displayName": "Document White",       "canonical": "oklch(99% 0.002 80)", "tonalRamp": ["oklch(70% 0.004 80)","oklch(78% 0.003 80)","oklch(84% 0.003 80)","oklch(89% 0.003 80)","oklch(93% 0.002 80)","oklch(96% 0.002 80)","oklch(98% 0.002 80)","oklch(99% 0.002 80)"] },
+      "nav-dark":          { "role": "neutral",  "displayName": "Midnight Carbon",      "canonical": "oklch(7% 0.01 35)",  "tonalRamp": ["oklch(7% 0.01 35)","oklch(14% 0.012 35)","oklch(22% 0.013 35)","oklch(32% 0.014 35)","oklch(44% 0.013 35)","oklch(57% 0.012 35)","oklch(72% 0.009 35)","oklch(88% 0.005 35)"] },
+      "status-ok":         { "role": "semantic", "displayName": "Registrar Green",      "canonical": "oklch(53% 0.16 142)", "tonalRamp": ["oklch(20% 0.08 142)","oklch(30% 0.10 142)","oklch(40% 0.13 142)","oklch(53% 0.16 142)","oklch(63% 0.14 142)","oklch(74% 0.11 142)","oklch(85% 0.07 142)","oklch(94% 0.04 142)"] },
+      "status-error":      { "role": "semantic", "displayName": "Rejection Red",        "canonical": "oklch(50% 0.21 25)",  "tonalRamp": ["oklch(18% 0.10 25)","oklch(28% 0.14 25)","oklch(38% 0.17 25)","oklch(50% 0.21 25)","oklch(60% 0.18 25)","oklch(72% 0.13 25)","oklch(83% 0.08 25)","oklch(93% 0.04 25)"] },
+      "status-warning":    { "role": "semantic", "displayName": "Deadline Amber",       "canonical": "oklch(60% 0.17 60)",  "tonalRamp": ["oklch(22% 0.07 60)","oklch(33% 0.10 60)","oklch(44% 0.13 60)","oklch(55% 0.15 60)","oklch(60% 0.17 60)","oklch(72% 0.14 60)","oklch(83% 0.09 60)","oklch(93% 0.04 60)"] },
+      "status-info":       { "role": "semantic", "displayName": "Reference Blue",       "canonical": "oklch(50% 0.21 261)", "tonalRamp": ["oklch(18% 0.10 261)","oklch(28% 0.14 261)","oklch(38% 0.17 261)","oklch(50% 0.21 261)","oklch(61% 0.17 261)","oklch(72% 0.12 261)","oklch(83% 0.07 261)","oklch(93% 0.03 261)"] }
+    },
+    "typographyMeta": {
+      "display":       { "displayName": "Display",      "purpose": "Page titles and modal titles. Appears once per screen." },
+      "title":         { "displayName": "Title",        "purpose": "Section headings, card titles in standalone views." },
+      "body":          { "displayName": "Body",         "purpose": "All Thai prose, list content, form descriptions. Line-height 1.7 is non-negotiable." },
+      "label":         { "displayName": "Label",        "purpose": "Form labels, table cell content, action labels. The workhorse weight." },
+      "caption":       { "displayName": "Caption",      "purpose": "Timestamps, file sizes, secondary metadata, form hints." },
+      "table-header":  { "displayName": "Table Header", "purpose": "Column labels only — uppercase, tracked, Pale Stone. Never in running text." },
+      "mono":          { "displayName": "Mono",         "purpose": "Document number codes and version strings in #F5F3F0 chip. Never in prose." }
+    },
+    "shadows": [
+      { "name": "surface-rest", "value": "0 1px 3px rgba(0,0,0,.05), 0 8px 24px rgba(0,0,0,.07)", "purpose": "Cards and content panels at rest. Establishes float over Faculty Paper." },
+      { "name": "hover-lift",   "value": "0 4px 12px rgba(0,0,0,.08), 0 12px 32px rgba(0,0,0,.1)", "purpose": "Card hover state. Applied with translateY(-1px) to reinforce lift." },
+      { "name": "ambient",      "value": "0 1px 2px rgba(0,0,0,.04), 0 4px 16px rgba(0,0,0,.06)",  "purpose": "Lower-priority containers and inline panels." },
+      { "name": "floating",     "value": "0 8px 28px rgba(0,0,0,.13), 0 2px 8px rgba(0,0,0,.06)",  "purpose": "Dropdown menus and action menus." },
+      { "name": "modal",        "value": "0 24px 80px rgba(0,0,0,.25), 0 0 0 1px rgba(0,0,0,.06)", "purpose": "Dialog overlays. Maximum shadow in the system." },
+      { "name": "btn-primary",  "value": "0 4px 14px rgba(232,58,0,.32)",                           "purpose": "Ember glow under primary buttons at rest." },
+      { "name": "btn-primary-hover", "value": "0 8px 22px rgba(232,58,0,.4)",                      "purpose": "Ember glow under primary buttons on hover." }
+    ],
+    "motion": [
+      { "name": "ease-standard",  "value": "cubic-bezier(.4,0,.2,1)",      "purpose": "Default easing for all state transitions (borders, backgrounds, shadows)." },
+      { "name": "ease-entrance",  "value": "cubic-bezier(.34,1.4,.64,1)",  "purpose": "Entrance animations: modal slideUp, auth card, change-password popup. Slight overshoot." },
+      { "name": "duration-micro", "value": "150ms",                        "purpose": "Micro-interactions: hover fills, border color shifts." },
+      { "name": "duration-panel", "value": "220ms",                        "purpose": "Panel entrances and exits." },
+      { "name": "duration-modal", "value": "280ms",                        "purpose": "Modal entrance." }
+    ],
+    "breakpoints": [
+      { "name": "mobile",  "value": "480px",  "purpose": "Single-column form layout." },
+      { "name": "compact", "value": "600px",  "purpose": "Mobile nav switch; sidebar hides; bottom nav appears." },
+      { "name": "tablet",  "value": "900px",  "purpose": "Two-column detail layout collapses to single column." },
+      { "name": "wide",    "value": "1100px", "purpose": "Dashboard grid collapses." }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one action per screen that matters most. Ember gradient, glow shadow, lift on hover.",
+      "html": "<button class=\"ds-btn-primary\">ส่งเอกสาร</button>",
+      "css": ".ds-btn-primary { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 10px 18px; border-radius: 10px; font-family: 'Noto Sans Thai', sans-serif; font-size: 14px; font-weight: 600; color: #fff; background: linear-gradient(135deg, #E83A00 0%, #FF5520 100%); border: 1.5px solid transparent; box-shadow: 0 4px 14px rgba(232,58,0,.32); cursor: pointer; white-space: nowrap; line-height: 1; transition: all .2s cubic-bezier(.4,0,.2,1); } .ds-btn-primary:hover { background: linear-gradient(135deg, #C03200 0%, #E83A00 100%); transform: translateY(-2px); box-shadow: 0 8px 22px rgba(232,58,0,.4); } .ds-btn-primary:active { transform: translateY(0); box-shadow: 0 2px 8px rgba(232,58,0,.25); } .ds-btn-primary:disabled { opacity: .4; cursor: not-allowed; pointer-events: none; }"
+    },
+    {
+      "name": "Soft Button",
+      "kind": "button",
+      "refersTo": "button-soft",
+      "description": "Neutral cancel / low-priority action. Warm grey, no color commitment.",
+      "html": "<button class=\"ds-btn-soft\">ยกเลิก</button>",
+      "css": ".ds-btn-soft { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 10px 18px; border-radius: 10px; font-family: 'Noto Sans Thai', sans-serif; font-size: 14px; font-weight: 600; color: #6b6560; background: #F5F3F0; border: 1.5px solid #E8E4DE; cursor: pointer; white-space: nowrap; line-height: 1; transition: all .2s cubic-bezier(.4,0,.2,1); } .ds-btn-soft:hover { background: #ECEAE6; } .ds-btn-soft:disabled { opacity: .4; cursor: not-allowed; pointer-events: none; }"
+    },
+    {
+      "name": "Danger Button",
+      "kind": "button",
+      "refersTo": "button-danger",
+      "description": "Destructive or rejection action. Rejection Red with glow. Never sits next to a Primary button without separation.",
+      "html": "<button class=\"ds-btn-danger\">ส่งคืนแก้ไข</button>",
+      "css": ".ds-btn-danger { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 10px 18px; border-radius: 10px; font-family: 'Noto Sans Thai', sans-serif; font-size: 14px; font-weight: 600; color: #fff; background: #DC2626; border: 1.5px solid transparent; box-shadow: 0 2px 8px rgba(220,38,38,.25); cursor: pointer; white-space: nowrap; line-height: 1; transition: all .2s cubic-bezier(.4,0,.2,1); } .ds-btn-danger:hover { background: #B91C1C; transform: translateY(-1px); box-shadow: 0 4px 14px rgba(220,38,38,.35); } .ds-btn-danger:active { transform: translateY(0); } .ds-btn-danger:disabled { opacity: .4; cursor: not-allowed; pointer-events: none; }"
+    },
+    {
+      "name": "Input Field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Form input at rest and focus. Ember focus ring signals the active field.",
+      "html": "<div class=\"ds-fg\"><label class=\"ds-fl\">ชื่อเรื่อง <span class=\"ds-req\">*</span></label><input class=\"ds-fi\" type=\"text\" placeholder=\"ระบุชื่อเรื่อง...\"></div>",
+      "css": ".ds-fg { margin-bottom: 16px; } .ds-fl { display: block; font-family: 'Noto Sans Thai', sans-serif; font-size: 12px; font-weight: 600; color: #6b6560; margin-bottom: 6px; letter-spacing: .2px; } .ds-req { color: #E83A00; margin-left: 2px; } .ds-fi { width: 100%; padding: 12px 14px; border: 1.5px solid #E8E4DE; border-radius: 11px; font-family: 'Noto Sans Thai', sans-serif; font-size: 14px; color: #18120E; background: #FAFAF8; outline: none; transition: all .2s cubic-bezier(.4,0,.2,1); box-sizing: border-box; } .ds-fi:focus { border-color: #E83A00; background: #fff; box-shadow: 0 0 0 4px rgba(232,58,0,.1); } .ds-fi::placeholder { color: #C0BAB4; }"
+    },
+    {
+      "name": "Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "The primary content container. Warm Canvas header band, Document White body, ambient shadow at rest.",
+      "html": "<div class=\"ds-card\"><div class=\"ds-card-head\">หัวข้อการ์ด</div><div class=\"ds-card-body\">เนื้อหาของการ์ด</div></div>",
+      "css": ".ds-card { background: #FDFDFC; border-radius: 14px; border: 1px solid rgba(0,0,0,.055); box-shadow: 0 1px 3px rgba(0,0,0,.05), 0 8px 24px rgba(0,0,0,.07); overflow: hidden; transition: box-shadow .22s, transform .22s cubic-bezier(.4,0,.2,1); } .ds-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,.08), 0 12px 32px rgba(0,0,0,.1); transform: translateY(-1px); } .ds-card-head { padding: 14px 18px; border-bottom: 1px solid rgba(0,0,0,.05); font-family: 'Noto Sans Thai', sans-serif; font-size: 13px; font-weight: 700; color: #18120E; background: #FAFAF8; } .ds-card-body { padding: 18px; font-family: 'Noto Sans Thai', sans-serif; font-size: 15px; color: #18120E; line-height: 1.7; }"
+    },
+    {
+      "name": "Status Badge",
+      "kind": "chip",
+      "refersTo": "badge",
+      "description": "Document status chip. Leading color dot ensures status is never conveyed by color alone.",
+      "html": "<span class=\"ds-badge ds-b-pending\"><span class=\"ds-bdot\"></span>รออนุมัติ</span> <span class=\"ds-badge ds-b-signed\"><span class=\"ds-bdot\"></span>เสร็จสิ้น</span> <span class=\"ds-badge ds-b-rejected\"><span class=\"ds-bdot\"></span>ส่งคืนแก้ไข</span>",
+      "css": ".ds-badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 20px; font-family: 'Noto Sans Thai', sans-serif; font-size: 11px; font-weight: 600; white-space: nowrap; letter-spacing: .1px; } .ds-bdot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; flex-shrink: 0; } .ds-b-pending { background: #FFFBEB; color: #B45309; } .ds-b-signed { background: #F0FDF4; color: #15803D; border: 1px solid #BBF7D0; } .ds-b-rejected { background: #FEF2F2; color: #B91C1C; } .ds-b-draft { background: #EFF6FF; color: #1D4ED8; }"
+    },
+    {
+      "name": "Alert",
+      "kind": "custom",
+      "refersTo": "alert",
+      "description": "System feedback strip. Four semantic variants; each uses the full bg/border/text triad from the status palette.",
+      "html": "<div class=\"ds-al ds-al-ok\"><span class=\"ds-al-icon\">✓</span><span>อนุมัติเรียบร้อยแล้ว ส่งอีเมลแจ้งทุกคนแล้ว</span></div><div class=\"ds-al ds-al-wa\" style=\"margin-top:8px\"><span class=\"ds-al-icon\">!</span><span>กรุณาออกเลขที่หนังสือก่อนดำเนินการต่อ</span></div>",
+      "css": ".ds-al { padding: 12px 15px; border-radius: 10px; font-family: 'Noto Sans Thai', sans-serif; font-size: 13px; display: flex; align-items: flex-start; gap: 9px; line-height: 1.55; } .ds-al-icon { font-size: 15px; flex-shrink: 0; margin-top: 1px; } .ds-al-ok { background: #F0FDF4; color: #15803D; border: 1px solid #BBF7D0; } .ds-al-er { background: #FEF2F2; color: #B91C1C; border: 1px solid #FECACA; } .ds-al-wa { background: #FFFBEB; color: #B45309; border: 1px solid #FDE68A; } .ds-al-in { background: #EFF6FF; color: #1D4ED8; border: 1px solid #BFDBFE; }"
+    },
+    {
+      "name": "Upload Zone",
+      "kind": "custom",
+      "refersTo": "upload-zone",
+      "description": "Drag-and-drop file drop target. Warm Canvas at rest, Morning Warmth hover. Never cool grey.",
+      "html": "<div class=\"ds-upload-zone\"><div class=\"ds-upload-inner\"><svg class=\"ds-upload-icon\" xmlns=\"http://www.w3.org/2000/svg\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"1.5\" d=\"M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12\"/></svg><p class=\"ds-upload-text\">ลากไฟล์มาวางที่นี่ หรือคลิกเพื่อเลือก</p><p class=\"ds-upload-hint\">รองรับ PDF, Word, รูปภาพ (สูงสุด 10 MB)</p></div></div>",
+      "css": ".ds-upload-zone { border: 2px dashed #EBEBEB; border-radius: 16px; padding: 24px; cursor: pointer; transition: all .2s cubic-bezier(.4,0,.2,1); display: flex; align-items: center; justify-content: center; min-height: 180px; background: #FAFAF8; } .ds-upload-zone:hover { border-color: #E83A00; background: #fff8f4; } .ds-upload-inner { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 8px; } .ds-upload-icon { width: 48px; height: 48px; color: #18120E; opacity: .25; stroke-width: 1.5; margin-bottom: 6px; } .ds-upload-text { font-family: 'Noto Sans Thai', sans-serif; font-size: 14px; font-weight: 500; color: #18120E; } .ds-upload-hint { font-family: 'Noto Sans Thai', sans-serif; font-size: 12px; color: #a89e99; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Institutional Hearth",
+    "overview": "SaEDU Flow is an administrative system that must feel as trustworthy as an official stamp and as approachable as a senior student's advice. The visual system is built around a single sustained warmth: a near-black navigation bar of charred brown (#100800), warm off-white working surfaces (#F4F2EF), and one ember-orange accent (#E83A00) that appears exactly where the system needs the user's attention. The warmth is not cosmetic. It comes from the tinted neutrals: the background, the text, the shadows, the borders, all lean toward the orange-red hue at near-zero chroma. The room feels like a well-kept faculty office, not a startup dashboard.\n\nThis system explicitly rejects what PRODUCT.md names as anti-references: the dense grey tables of old Thai government portals, the English-defaulting neon-accent SaaS aesthetic, and anything that feels heavy or intimidating to a first-year student. It also rejects the opposite trap: a design so sanitised it reads as foreign, like a generic Western admin tool that happens to contain Thai text.\n\nColor strategy is Restrained: tinted neutrals carry the surface, the ember accent appears on primary actions and current selections only. Depth is expressed through tonal layering (bg to card-head to white) reinforced by gentle diffuse shadows. Motion is state-feedback only: lift on hover, focus glow on inputs, no choreographed entrances.",
+    "keyCharacteristics": [
+      "Single-family typography (Noto Sans Thai) from nav labels to table headers, with IBM Plex Mono for document numbers and codes",
+      "Warm off-white working surface (#F4F2EF) — never pure white, never cool grey",
+      "Near-black charcoal sidebar (#100800) as the frame, ember accent as the guide",
+      "Status vocabulary (ok/error/warning/info) with full bg/border/text triads for every state",
+      "Line-height 1.7 minimum for all body Thai text; 1.55 minimum for compact UI text"
+    ],
+    "rules": [
+      { "name": "The One Ember Rule",          "body": "The primary #E83A00 appears on at most 10% of any given screen. A primary button, an active tab underline, a focus ring. Never as a background fill, decorative stripe, or illustration color. Its rarity makes it directional.",                                                                     "section": "colors" },
+      { "name": "The Tinted Neutral Rule",     "body": "No pure greys. Every neutral token leans toward the orange hue at chroma 0.005–0.015. If a new neutral is needed, sample from the existing warm scale; do not introduce a cool or blue-shifted grey.",                                                                                                   "section": "colors" },
+      { "name": "The Single Family Rule",      "body": "Noto Sans Thai is the only type family for UI text. Display pairings, serif headlines, and geometric display fonts are prohibited. Hierarchy is built through weight and size alone.",                                                                                                                   "section": "typography" },
+      { "name": "The 1.7 Floor Rule",          "body": "Body and label text for Thai content must have line-height ≥ 1.7. This is not a preference; it is a legibility requirement for Thai letterforms with top diacritics.",                                                                                                                                   "section": "typography" },
+      { "name": "The Ambient Floor Rule",      "body": "Cards always have a resting shadow. Flat cards are forbidden; they dissolve into the Faculty Paper background and lose their interactive affordance. The shadow is the affordance.",                                                                                                                        "section": "elevation" },
+      { "name": "The Deepening Stack Rule",    "body": "Shadow intensity increases strictly with layer elevation: bg (no shadow) < card rest < card hover < dropdown < modal. Never use a heavier shadow at a lower elevation.",                                                                                                                                 "section": "elevation" },
+      { "name": "The Stat Card Quarantine Rule", "body": "The colored gradient stat cards (.card-soft with .green/.blue/.pink/.orange) are permitted exclusively on the dashboard stats row. They must not appear in document lists, admin panels, or any context where they would compete with the semantic status vocabulary.",                               "section": "components" }
+    ],
+    "dos": [
+      "Do use Noto Sans Thai for all user-facing text, including buttons, labels, table headers, and form hints.",
+      "Do set body and label line-height to 1.7 minimum for any Thai text in running prose or multi-line UI labels.",
+      "Do pair every status color with a non-color signal: the .bdot dot in badges, an icon in alerts, a text label in timeline dots.",
+      "Do use the tonal layering (Faculty Paper bg → Warm Canvas header → Document White body) as the primary depth signal before adding shadows.",
+      "Do keep #E83A00 to ≤10% of any screen surface. Its authority is proportional to its rarity.",
+      "Do use cubic-bezier(.4,0,.2,1) for all state transitions. Duration 150–220ms for micro-interactions, 200–280ms for panel entrances.",
+      "Do write all user-facing copy in Thai. Never mix English labels into Thai UI except for proper nouns.",
+      "Do give every empty state a Thai instructional sentence: what the empty list means and what the user should do next.",
+      "Do use the dark-to-ember gradient (#1c0a03 → #E83A00) exclusively for the auth card header and the change-password popup header."
+    ],
+    "donts": [
+      "Don't use border-left or border-right greater than 1px as a colored accent stripe on cards, list items, callouts, or alerts.",
+      "Don't use gradient text (background-clip: text with a gradient fill) in any new component. The auth header is a legacy exception; it must not be replicated.",
+      "Don't introduce cool-shifted or blue-tinted neutrals. Every new grey must be sampled from the warm neutral scale.",
+      "Don't use backdrop-filter blur decoratively — only on the modal overlay and mobile nav for functional readability.",
+      "Don't build layouts that feel like old Thai government systems: dense tables, Times New Roman, no row hover states.",
+      "Don't default to English-first SaaS patterns: neon accents, gradient hero metrics, startup-speak copy, identical card grids.",
+      "Don't use the hero-metric template (big number, small label, gradient accent) on any dashboard stat.",
+      "Don't reduce Midnight Carbon (#100800) to plain black (#000 or #111).",
+      "Don't use cool grey for drag-and-drop upload zones. Use #FAFAF8 at rest and #fff8f4 on hover.",
+      "Don't extend the .card-soft gradient stat card pattern outside the dashboard stats row."
+    ]
+  }
+}

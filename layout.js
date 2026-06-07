@@ -1,7 +1,100 @@
+/* ─── NOTIFICATION BELL ─── */
+function _buildNotifBell(activeSteps, pendingCount){
+  var total=(activeSteps||0)+(pendingCount||0);
+  // Badge แสดงเฉพาะ activeSteps (งานที่ต้องดำเนินการจริง) ไม่รวม pendingCount ที่เป็นแค่รอคนอื่น
+  var badgeNum=activeSteps||0;
+  var badge=badgeNum>0?'<span style="position:absolute;top:-3px;right:-3px;background:#E83A00;color:#fff;font-size:9px;font-weight:800;border-radius:99px;padding:1px 4px;min-width:14px;text-align:center;line-height:14px;border:1.5px solid #fff">'+Math.min(badgeNum,99)+'</span>':'';
+  return '<div style="position:relative;display:inline-block">' +
+    '<button id="notif-btn" onclick="_toggleNotifPanel()" style="width:36px;height:36px;border-radius:10px;border:1.5px solid #EBEBEB;background:'+(badgeNum>0?'#FFF5F0':'#F9F9F9')+';display:flex;align-items:center;justify-content:center;cursor:pointer;color:'+(badgeNum>0?'#E83A00':'#a89e99')+';transition:all .15s" title="การแจ้งเตือน">' +
+      svg('bell',16)+badge+
+    '</button>' +
+    '<div id="notif-panel" style="display:none;position:absolute;top:calc(100% + 8px);right:0;width:300px;background:#fff;border-radius:14px;border:1px solid #EBEBEB;box-shadow:0 8px 32px rgba(0,0,0,.12);z-index:9999;overflow:hidden">' +
+      '<div style="padding:12px 16px;border-bottom:1px solid #F0F0F0;display:flex;align-items:center;justify-content:space-between">' +
+        '<span style="font-size:13px;font-weight:700;color:#18120E">การแจ้งเตือน</span>' +
+        (total>0?'<span style="background:#E83A00;color:#fff;font-size:10px;font-weight:700;border-radius:99px;padding:1px 7px">'+total+'</span>':'<span style="font-size:11px;color:#a89e99">ไม่มีงานค้างอยู่</span>') +
+      '</div>' +
+      '<div style="max-height:280px;overflow-y:auto">' +
+        (activeSteps>0?'<div style="padding:10px 16px;display:flex;align-items:center;gap:10px;cursor:pointer;transition:background .12s" onmouseover="this.style.background=\'#FAFAFA\'" onmouseout="this.style.background=\'\'" onclick="_closeNotifPanel();nav(\'todo\')">' +
+          '<div style="width:32px;height:32px;border-radius:9px;background:#FFF0EB;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#E83A00">'+svg('tasks',14)+'</div>' +
+          '<div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:600;color:#18120E">งานรอคุณอยู่ <strong style="color:#E83A00">'+activeSteps+' รายการ</strong></div><div style="font-size:10px;color:#a89e99;margin-top:2px">ขั้นตอนที่รอการดำเนินการของคุณ</div></div>' +
+          '<span style="color:#a89e99;font-size:14px">›</span>'+
+        '</div>':'') +
+        (pendingCount>0?'<div style="padding:10px 16px;display:flex;align-items:center;gap:10px;cursor:pointer;transition:background .12s" onmouseover="this.style.background=\'#FAFAFA\'" onmouseout="this.style.background=\'\'" onclick="_closeNotifPanel();nav(\'docs\')">' +
+          '<div style="width:32px;height:32px;border-radius:9px;background:#EFF6FF;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#2563EB">'+svg('doc',14)+'</div>' +
+          '<div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:600;color:#18120E">เอกสารรออยู่ <strong style="color:#2563EB">'+pendingCount+' ฉบับ</strong></div><div style="font-size:10px;color:#a89e99;margin-top:2px">รอดำเนินการหรือรอรับเอกสาร</div></div>' +
+          '<span style="color:#a89e99;font-size:14px">›</span>'+
+        '</div>':'') +
+        (total===0?'<div style="padding:32px 16px;text-align:center;color:#a89e99;font-size:12px">ทุกอย่างเรียบร้อยดี ✓</div>':'') +
+      '</div>' +
+    '</div>' +
+  '</div>';
+}
+function _toggleNotifPanel(){
+  var p=$e('notif-panel');
+  if(!p) return;
+  var show=p.style.display==='none';
+  p.style.display=show?'block':'none';
+  if(show){
+    setTimeout(function(){
+      document.addEventListener('click',function _nc(e){
+        var btn=$e('notif-btn'), panel=$e('notif-panel');
+        if(btn&&!btn.contains(e.target)&&panel&&!panel.contains(e.target)){
+          panel.style.display='none';
+          document.removeEventListener('click',_nc,true);
+        }
+      },true);
+    },10);
+  }
+}
+function _closeNotifPanel(){var p=$e('notif-panel');if(p)p.style.display='none';}
+
+/* ─── MOBILE BOTTOM NAV ─── */
+/* [UX] แสดงเฉพาะบน viewport < 600px แทน sidebar ที่ซ่อนไป */
+function _buildMobileNav(view, activeSteps, pendingCount, navItems){
+  // แสดงแค่ 5 items สำคัญ: ภาพรวม, งานของฉัน, เอกสาร, สร้าง, โปรไฟล์
+  var items=[
+    {k:'dash', i:'home',  l:'ภาพรวม',    b:null},
+    {k:'todo', i:'tasks', l:'งานของฉัน', b:activeSteps||null},
+    {k:'docs', i:'doc',   l:'เอกสาร',    b:pendingCount||null}
+  ];
+  if(CAN&&CAN.cr&&CU&&CAN.cr(CU.role_code)) items.push({k:'new',i:'plus',l:'สร้าง',b:null});
+  // slot สุดท้าย: "เพิ่มเติม" เพื่อเปิด sidebar overlay
+  items.push({k:'_more',i:'dots',l:'เพิ่มเติม',b:null});
+
+  return items.map(function(n){
+    var isAct=view===n.k;
+    var color=isAct?'#E83A00':'#a89e99';
+    var badgeHtml=n.b?'<span style="position:absolute;top:2px;right:8px;background:#E83A00;color:#fff;font-size:9px;font-weight:700;border-radius:99px;padding:1px 5px;min-width:16px;text-align:center">'+n.b+'</span>':'';
+    if(n.k==='_more'){
+      return '<button class="mob-nav-item" onclick="_openMobileMenu()" style="color:'+color+'">'+
+        '<span style="position:relative;display:inline-block">'+svg(n.i,20)+'</span>'+
+        '<span class="mob-nav-label">'+n.l+'</span>'+
+      '</button>';
+    }
+    return '<button class="mob-nav-item'+(isAct?' mob-nav-active':'')+'" data-action="nav" data-view="'+n.k+'" style="color:'+color+'">'+
+      '<span style="position:relative;display:inline-block">'+svg(n.i,20)+badgeHtml+'</span>'+
+      '<span class="mob-nav-label">'+n.l+'</span>'+
+    '</button>';
+  }).join('');
+}
+
+/* เปิด sidebar ในรูปแบบ overlay บน mobile */
+function _openMobileMenu(){
+  var sb=document.getElementById('sidebar');
+  if(!sb) return;
+  sb.classList.add('mobile-open');
+  // backdrop
+  var bd=document.createElement('div');
+  bd.id='mob-backdrop';
+  bd.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:99;backdrop-filter:blur(2px)';
+  bd.onclick=function(){sb.classList.remove('mobile-open');bd.remove();};
+  document.body.appendChild(bd);
+}
+
 /* ─── MAIN LAYOUT ─── */
 
 var _ROLE_GRAD = {
-  'ROLE-SYS': 'linear-gradient(135deg,#18120E,#3D1A0A)',
+  'ROLE-SYS': 'linear-gradient(135deg,#3D1A0A,#6B3320)',
   'ROLE-SGN': 'linear-gradient(135deg,#C42800,#E83A00)',
   'ROLE-REV': 'linear-gradient(135deg,#B45309,#D97706)',
   'ROLE-ADV': 'linear-gradient(135deg,#6D28D9,#7C3AED)',
@@ -68,7 +161,7 @@ async function nav(view, id) {
       if(fwdDocs.length){
         var _actedHist=await dg('document_history',
           '?document_id=in.('+fwdDocs.map(function(d){return safeId(d.id)}).join(',')+')'
-          +'&action=in.(รับเอกสาร,ปฏิเสธเอกสาร)&performed_by=eq.'+safeId(CU.id)+'&select=document_id');
+          +'&action=eq.เจ้าหน้าที่รับเอกสาร&performed_by=eq.'+safeId(CU.id)+'&select=document_id');
         var _actedIds=new Set((_actedHist||[]).map(function(h){return h.document_id}));
         fwdCount=fwdDocs.filter(function(d){return !_actedIds.has(d.id)}).length;
       }
@@ -80,6 +173,21 @@ async function nav(view, id) {
     var ms = await dg('workflow_steps', '?assigned_to=eq.'+safeId(CU.id)+'&status=eq.active&select=id');
     activeSteps = ms.length || 0;
   } catch(e) {}
+
+  // ── ประกาศระบบ (ถ้ามี) ──
+  var _annHtml='';
+  if(SETT&&SETT.system_announcement){
+    var _annCls=SETT.system_announcement_type==='error'?'al-er':SETT.system_announcement_type==='warning'?'al-wa':'al-ok';
+    var _annIco=SETT.system_announcement_type==='error'?'warn':SETT.system_announcement_type==='warning'?'warn':'info';
+    _annHtml='<div class="al '+_annCls+' mb-4" style="margin-bottom:16px"><span class="al-icon">'+svg(_annIco,14)+'</span><span>'+esc(SETT.system_announcement)+'</span></div>';
+  }
+
+  // แสดง loading state ทันทีก่อนดึงข้อมูล
+  var _appEl = document.getElementById('app');
+  if(_appEl){
+    var _mainEl = _appEl.querySelector('main');
+    if(_mainEl) _mainEl.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:80px 24px;gap:14px;color:#a89e99"><span class="sp sp-dark" style="width:24px;height:24px;border-width:3px"></span><span style="font-size:13px">กำลังโหลด...</span></div>';
+  }
 
   var content = '';
   try {
@@ -143,11 +251,21 @@ async function nav(view, id) {
           '<div class="text-lg font-black tracking-[-0.4px]" style="color:#E83A00">'+(titles[view]||view)+'</div>' +
           '<div class="text-[11px] text-[#a89e99] mt-0.5">ระบบเสนอเอกสารอิเล็กทรอนิกส์ กนค.</div>' +
         '</div>' +
+        '<div class="flex items-center gap-2">' +
+          _buildNotifBell(activeSteps, PC) +
+          '<a href="manual.html" target="_blank" style="width:36px;height:36px;border-radius:10px;border:1.5px solid #EBEBEB;background:#F9F9F9;display:flex;align-items:center;justify-content:center;color:#a89e99;transition:all .15s;text-decoration:none" title="คู่มือการใช้งาน" onmouseover="this.style.background=\'#FFF5F0\';this.style.color=\'#E83A00\'" onmouseout="this.style.background=\'#F9F9F9\';this.style.color=\'#a89e99\'">'+svg('book',16)+'</a>' +
+        '</div>' +
       '</header>' +
-      '<main class="flex-1 p-7 overflow-y-auto max-[900px]:p-5 max-[600px]:p-4">'+content+'</main>' +
+      '<main class="flex-1 p-7 overflow-y-auto max-[900px]:p-5 max-[600px]:p-4">'+_annHtml+content+'</main>' +
     '</div>' +
 
     '<div id="mwrap"></div>' +
+
+    /* [UX] Mobile bottom navigation bar — แสดงเฉพาะบน viewport < 600px */
+    '<nav class="mobile-bottom-nav" id="mobileNav">' +
+      _buildMobileNav(view, activeSteps, PC, ni) +
+    '</nav>' +
+
     '</div>'
   );
 } 

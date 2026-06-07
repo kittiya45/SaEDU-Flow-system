@@ -11,7 +11,15 @@ document.addEventListener('click', function(e){
   var action = el.dataset.act;
   var type = el.dataset.type;
 
-  if(a==='nav') nav(view, id);
+  /* [UX] ถ้า navigate ออกจากฟอร์มที่กรอกอยู่ ให้เตือนก่อน */
+  if(a==='nav'){
+    if((CV==='new'||CV==='edit')&&_formDirty&&(view!=='new'&&view!=='edit')){
+      confirmLeaveForm(function(){nav(view,id);});
+    } else {
+      nav(view,id);
+    }
+    return;
+  }
   else if(a==='auth') showAuth();
   else if(a==='login') doLogin();
   else if(a==='regG') doRegG();
@@ -47,7 +55,7 @@ document.addEventListener('click', function(e){
   else if(a==='doSetDocNumber') doSetDocNumber(id).catch(function(e){console.error('doSetDocNumber error:',e)});
   else if(a==='showTmplUpload') showTmplUpload();
   else if(a==='doTmplUpload') doTmplUpload();
-  else if(a==='doTmplDelete') doTmplDelete(id, el.dataset.path);
+  else if(a==='doTmplDelete') doTmplDelete(id);
   else if(a==='tmplPreview') tmplPreview(el.dataset.url, el.dataset.name, el.dataset.ext);
   else if(a==='admApv') admApv(id);
   else if(a==='admRej') admRej(id);
@@ -71,6 +79,14 @@ document.addEventListener('click', function(e){
   else if(a==='showDocTypeModal') showDocTypeModal(id);
   else if(a==='saveDocType') saveDocType();
   else if(a==='deleteDocType') deleteDocType(id, el.dataset.code);
+  else if(a==='saveAppSettings') saveAppSettings();
+  else if(a==='saveEmailTemplates') saveEmailTemplates();
+  else if(a==='showWfTemplateModal') showWfTemplateModal(id, el.dataset.doctype);
+  else if(a==='saveWfTemplate') saveWfTemplate(el.dataset.tmplid);
+  else if(a==='deleteWfTemplate') deleteWfTemplate(id);
+  else if(a==='setDefaultWfTemplate') setDefaultWfTemplate(id, el.dataset.doctype);
+  else if(a==='addWfTplStep') addWfTplStep();
+  else if(a==='rmWfTplStep') rmWfTplStep(+id);
   else if(a==='pedTool') pedTool(type);
   else if(a==='sigTab') sigTab(tab);
   else if(a==='pedAddSig') pedAddSig();
@@ -91,7 +107,8 @@ document.addEventListener('click', function(e){
   else if(a==='uploadLocal') $e('ped-local').click();
   else if(a==='dlFile') dlFile(el.dataset.url,el.dataset.name);
   else if(a==='acceptFwd') doAcceptFwd(id);
-  else if(a==='declineFwd') doDeclineFwd(id);
+  else if(a==='showDeclineFwdModal') showDeclineFwdModal(id);
+  else if(a==='doDeclineFwd') doDeclineFwd(id).catch(function(e){_declineFwdBusy=false;console.error('doDeclineFwd error:',e)});
 });
 
 
