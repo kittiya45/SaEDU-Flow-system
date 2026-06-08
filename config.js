@@ -178,9 +178,60 @@ async function loadAppSettings(){
       var v=r.value;
       if(r.value_type==='number') v=+v||0;
       if(r.value_type==='boolean') v=(v==='true');
+      if(r.value_type==='json'){try{v=JSON.parse(v);}catch(e){return;}}
       SETT[r.key]=v;
     });
+    /* override global reference arrays from saved settings */
+    if(Array.isArray(SETT.letter_types_json)&&SETT.letter_types_json.length){
+      LETTER_TYPES.length=0;
+      SETT.letter_types_json.forEach(function(x){LETTER_TYPES.push(x);});
+    }
+    if(Array.isArray(SETT.out_ltypes_json)&&SETT.out_ltypes_json.length){
+      OUT_LTYPES.length=0; OUT_LTYPES.push('');
+      SETT.out_ltypes_json.forEach(function(x){OUT_LTYPES.push(x);});
+    }
+    if(Array.isArray(SETT.clubs_json)&&SETT.clubs_json.length){
+      Object.keys(CLUBS).forEach(function(k){delete CLUBS[k];});
+      SETT.clubs_json.forEach(function(c){CLUBS[c.code]=c.name;});
+    }
+    if(Array.isArray(SETT.sender_pos_json)&&SETT.sender_pos_json.length){
+      SENDER_POS.length=0;
+      SETT.sender_pos_json.forEach(function(p){SENDER_POS.push(p);});
+    }
+    /* positions system (POSS/PTH/GNK_NUM/PR) */
+    if(Array.isArray(SETT.positions_json)&&SETT.positions_json.length){
+      POSS.length=0;
+      Object.keys(PTH).forEach(function(k){delete PTH[k];});
+      Object.keys(GNK_NUM).forEach(function(k){delete GNK_NUM[k];});
+      Object.keys(PR).forEach(function(k){delete PR[k];});
+      SETT.positions_json.forEach(function(p){
+        POSS.push(p.code);
+        PTH[p.code]=p.name;
+        GNK_NUM[p.code]=p.num;
+        PR[p.code]=p.role||'ROLE-CRT';
+      });
+    }
+    /* CAN permissions */
+    if(Array.isArray(SETT.can_sign_roles_json)&&SETT.can_sign_roles_json.length){
+      var _sg=SETT.can_sign_roles_json.slice();
+      if(!_sg.includes('ROLE-SYS')) _sg.push('ROLE-SYS');
+      CAN.sg=function(r){return _sg.includes(r);};
+    }
+    if(Array.isArray(SETT.can_review_roles_json)&&SETT.can_review_roles_json.length){
+      var _rv=SETT.can_review_roles_json.slice();
+      if(!_rv.includes('ROLE-SYS')) _rv.push('ROLE-SYS');
+      CAN.rv=function(r){return _rv.includes(r);};
+    }
   }catch(e){}
+}
+
+/* ─── PROJECTS (รายชื่อโครงการสำหรับหนังสือขาออก) ─── */
+var PROJS=[];
+async function loadProjects(){
+  try{
+    var rows=await dg('projects','?is_active=eq.true&order=sort_order,name');
+    PROJS=Array.isArray(rows)?rows.map(function(r){return{id:r.id,name:r.name}}):[];
+  }catch(e){PROJS=[];}
 }
 
 /* ─── STATE ─── */

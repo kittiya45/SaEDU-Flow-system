@@ -90,10 +90,13 @@ function showAuth(){
 }
 
 function chkSid(){
+  var _len=+(SETT&&SETT.student_id_length)||10;
+  var _sfx=(SETT&&SETT.student_id_suffix)||'27';
   var v=gv('gsid'), h=$e('sidh'); if(!h)return;
-  if(!v){h.className='hint muted';h.textContent='รหัสนิสิต 10 หลัก — 2 ตัวสุดท้ายต้องเป็น 27';return}
-  if(!/^\d{10}$/.test(v)){h.className='hint er';h.innerHTML=svg('x',12)+' ต้องเป็นตัวเลข 10 หลัก';return}
-  if(v.slice(-2)!=='27'){h.className='hint er';h.innerHTML=svg('x',12)+' 2 ตัวสุดท้ายต้องเป็น 27';return}
+  if(!v){h.className='hint muted';h.textContent='รหัสนิสิต '+_len+' หลัก — '+_sfx.length+' ตัวสุดท้ายต้องเป็น '+_sfx;return}
+  var _pat=new RegExp('^\\d{'+_len+'}$');
+  if(!_pat.test(v)){h.className='hint er';h.innerHTML=svg('x',12)+' ต้องเป็นตัวเลข '+_len+' หลัก';return}
+  if(v.slice(-_sfx.length)!==_sfx){h.className='hint er';h.innerHTML=svg('x',12)+' '+_sfx.length+' ตัวสุดท้ายต้องเป็น '+_sfx;return}
   h.className='hint ok';h.innerHTML=svg('ok',12)+' รหัสนิสิตถูกต้อง'
 }
 
@@ -155,6 +158,7 @@ async function doLogin(){
       _startSessionTimer();
       await loadDocTypes();
       await loadAppSettings();
+      await loadProjects();
       await nav('dash');
       try{await sendOverdueNotifs();}catch(e){console.warn('Overdue check failed:',e)} return
     }
@@ -183,7 +187,8 @@ async function doRegG(){
   var a=$e('reg-alert'); if(!a)return;
   if(!fn||!ln||!sid||!pos||!pw||!gemail){a.innerHTML=alrtH('er','กรุณากรอกข้อมูลให้ครบทุกช่อง');return}
   if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(gemail)){a.innerHTML=alrtH('er','รูปแบบอีเมลไม่ถูกต้อง');return}
-  if(!/^\d{10}$/.test(sid)||sid.slice(-2)!=='27'){a.innerHTML=alrtH('er','รหัสนิสิตไม่ถูกต้อง (10 หลัก ลงท้ายด้วย 27)');return}
+  var _slen=+(SETT&&SETT.student_id_length)||10, _ssfx=(SETT&&SETT.student_id_suffix)||'27';
+  if(!(new RegExp('^\\d{'+_slen+'}$')).test(sid)||sid.slice(-_ssfx.length)!==_ssfx){a.innerHTML=alrtH('er','รหัสนิสิตไม่ถูกต้อง ('+_slen+' หลัก ลงท้ายด้วย '+_ssfx+')');return}
   if(pw.length<6){a.innerHTML=alrtH('er','รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร');return}
   if(pw!==pw2){a.innerHTML=alrtH('er','รหัสผ่านทั้งสองช่องไม่ตรงกัน');return}
   a.innerHTML='<div class="al al-in"><span class="sp sp-dark"></span><span> กำลังบันทึก...</span></div>';
@@ -236,8 +241,8 @@ function showRegGnkPopup(){
           '<input id="gln" class="fi" placeholder="นามสกุล"></div>'+
         '</div>'+
         '<div class="fg"><label class="fl">รหัสนิสิต <span class="req">*</span></label>'+
-        '<input id="gsid" class="fi" placeholder="เช่น 6601012327" maxlength="10" oninput="chkSid()">'+
-        '<p class="hint muted" id="sidh">รหัสนิสิต 10 หลัก — 2 ตัวสุดท้ายต้องเป็น 27</p></div>'+
+        '<input id="gsid" class="fi" placeholder="เช่น 6601012327" maxlength="'+(+(SETT&&SETT.student_id_length)||10)+'" oninput="chkSid()">'+
+        '<p class="hint muted" id="sidh">รหัสนิสิต '+(+(SETT&&SETT.student_id_length)||10)+' หลัก — '+(+(SETT&&SETT.student_id_suffix||'27').length)+' ตัวสุดท้ายต้องเป็น '+((SETT&&SETT.student_id_suffix)||'27')+'</p></div>'+
         '<div class="fg"><label class="fl">อีเมลติดต่อ <span class="req">*</span></label>'+
         '<input id="gemail" class="fi" type="email" placeholder="ใช้สำหรับรับการแจ้งเตือน"></div>'+
         '<div class="fg"><label class="fl">ตำแหน่งใน กนค. <span class="req">*</span></label>'+

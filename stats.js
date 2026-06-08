@@ -73,9 +73,7 @@ async function vStat(){
     html.push(
       '<div style="border-radius:16px;padding:16px 18px;background:'+c.grad+
         ';position:relative;overflow:hidden;box-shadow:0 4px 16px '+c.sh+
-        ';transition:transform .18s,box-shadow .18s;cursor:default" '+
-      'onmouseover="this.style.transform=\'translateY(-3px)\';this.style.boxShadow=\'0 10px 28px '+c.sh+'\'" '+
-      'onmouseout="this.style.transform=\'\';this.style.boxShadow=\'0 4px 16px '+c.sh+'\'">'+
+        ';cursor:default">'+
         '<div style="position:absolute;right:-16px;bottom:-16px;width:80px;height:80px;border-radius:50%;background:rgba(255,255,255,.1);pointer-events:none"></div>'+
         '<div style="position:absolute;right:20px;top:-20px;width:56px;height:56px;border-radius:50%;background:rgba(255,255,255,.07);pointer-events:none"></div>'+
         '<div style="position:relative;z-index:1">'+
@@ -321,7 +319,9 @@ html.push('</div>');
 
   html.push('</div>'); /* row 3 */
 
-  /* ══ ROW 4 — สรุปโครงการประจำปี ══ */
+  /* ══ ROW 4 — สรุปโครงการประจำปี (เฉพาะ ROLE-STF, ROLE-ADV, ROLE-SYS) ══ */
+  if(!CU||!['ROLE-STF','ROLE-ADV','ROLE-SYS'].includes(CU.role_code)) return html.join('');
+
   var _nowCE=new Date().getFullYear();
   var _selYear=window._statYear||_nowCE;
   var _selThYear=_selYear+543;
@@ -358,9 +358,10 @@ html.push('</div>');
   html.push(cardHead(
     'สรุปโครงการประจำปี',
     'หนังสือขาออกทั้งหมด ปีพ.ศ. '+_selThYear,
-    '<div style="display:flex;align-items:center;gap:8px">'+
-      '<span style="font-size:11px;color:#a89e99">'+_yrDocs.length+' เอกสาร · '+_projects.length+' โครงการ</span>'+
+    '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'+
+      (_yrDocs.length>0?'<span style="font-size:11px;color:#a89e99">'+_yrDocs.length+' เอกสาร · '+_projects.length+' โครงการ</span>':'')+
       '<select onchange="window._statYear=+this.value;nav(\'stat\')" style="height:28px;padding:0 8px 0 10px;border-radius:8px;border:1.5px solid #EBEBEB;background:#fff;font-size:12px;cursor:pointer;color:#18120E;outline:none">'+_yearOpts+'</select>'+
+      (_yrDocs.length>0?'<button id="stat-proj-dl-btn" onclick="_downloadStatProjZip('+_selYear+')" style="background:#E83A00;color:#fff;border:none;border-radius:9px;padding:5px 12px;font-size:11px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:6px;box-shadow:0 2px 8px rgba(232,58,0,.3)">ดาวน์โหลดทุกไฟล์ (ZIP)</button>':'')+
     '</div>'
   ));
 
@@ -417,4 +418,64 @@ html.push('</div>');
   html.push('</div>'); /* row 4 */
 
   return html.join('');
+}
+
+async function _downloadStatProjZip(selYear){
+  var btn=$e('stat-proj-dl-btn');
+  if(btn){btn.disabled=true;btn.textContent='กำลังรวมไฟล์...';}
+  try{
+    await _loadJSZip();
+    var yearStart=selYear+'-01-01T00:00:00';
+    var yearEnd=(selYear+1)+'-01-01T00:00:00';
+    var raw=await dg('documents','?doc_type=eq.outgoing&status=eq.completed&select=id,title,doc_number,description,created_at&order=created_at.desc');
+    var yearDocs=(Array.isArray(raw)?raw:[]).filter(function(d){
+      return (d.created_at||'')>=yearStart&&(d.created_at||'')<yearEnd;
+    });
+    if(!yearDocs.length){showAlert('ไม่พบเอกสารที่เสร็จสิ้นในปีนี้','wa');return;}
+
+    var zip=new JSZip();
+    var fileCount=0;
+
+    for(var i=0;i<yearDocs.length;i++){
+      var doc=yearDocs[i];
+      var proj=(doc.description||'ไม่ระบุโครงการ').replace(/[\/\\:*?"<>|]/g,'_').trim()||'ไม่ระบุโครงการ';
+      var num=(doc.doc_number||'doc').replace(/[\/\\:*?"<>|]/g,'-').trim();
+
+      var files=await dg('document_files','?document_id=eq.'+doc.id+'&order=version.desc&limit=20');
+      if(!Array.isArray(files)||!files.length) continue;
+
+      var seen={};
+      for(var j=0;j<files.length;j++){
+        var f=files[j];
+        var rawName=f.file_path.split('/').pop();
+        if(seen[rawName]) continue;
+        seen[rawName]=true;
+        try{
+          var resp=await fetch(furl(f.file_path));
+          if(!resp.ok) continue;
+          var blob=await resp.blob();
+          zip.file(proj+'/'+num+'_'+rawName,blob);
+          fileCount++;
+        }catch(e){}
+      }
+      if(btn) btn.textContent=(i+1)+'/'+yearDocs.length+' เอกสาร...';
+    }
+
+    if(!fileCount){showAlert('ไม่พบไฟล์แนบในเอกสารปีนี้','wa');return;}
+    if(btn) btn.textContent='กำลังสร้าง ZIP...';
+
+    var content=await zip.generateAsync({type:'blob',compression:'DEFLATE',compressionOptions:{level:6}});
+    var a=document.createElement('a');
+    a.href=URL.createObjectURL(content);
+    a.download='โครงการ_พ.ศ.'+(selYear+543)+'.zip';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function(){URL.revokeObjectURL(a.href);},3000);
+    showAlert('ดาวน์โหลดสำเร็จ — รวม '+fileCount+' ไฟล์','ok');
+  }catch(e){
+    showAlert('เกิดข้อผิดพลาด: '+(e.message||e),'er');
+  }finally{
+    if(btn){btn.disabled=false;btn.textContent='ดาวน์โหลดทุกไฟล์ (ZIP)';}
+  }
 }

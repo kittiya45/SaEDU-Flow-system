@@ -168,13 +168,16 @@ function rDocTbl(docs){
   if(!docs.length) return '<div style="padding:64px 20px;display:flex;flex-direction:column;align-items:center;gap:10px"><div style="opacity:.3;color:#a89e99">'+svg('srch',40)+'</div><div style="font-size:14px;font-weight:500;color:#a89e99">ไม่พบเอกสาร</div></div>';
   var _todayMs=new Date().setHours(0,0,0,0);
   var _todayStr=new Date().toISOString().slice(0,10);
+  var LIMIT=7;
+  var totalPages=Math.ceil(docs.length/LIMIT);
+  var uid='dt'+Date.now();
 
-  var rows=docs.map(function(d,idx){
+  function mkDocRow(d,idx){
+    var pg=Math.floor(idx/LIMIT);
     var _isMyTask=MSTEPS.indexOf(d.id)!==-1;
     var _isOverdue=d.due_date&&d.due_date<_todayStr&&d.status!=='completed';
     var _rowBg=_isMyTask?'#FFFBF8':_isOverdue?'#FFF9F9':'';
 
-    // คำนวณวันคงเหลือ
     var _dueHtml='<span style="color:#EBEBEB;font-size:11px">—</span>';
     if(d.due_date){
       var _days=Math.ceil((new Date(d.due_date+'T00:00:00')-_todayMs)/86400000);
@@ -188,25 +191,17 @@ function rDocTbl(docs){
         _dueHtml='<span style="color:#a89e99;font-size:11px">'+_days+' วัน</span>';
     }
 
-    // ผู้รับผิดชอบขั้นตอนปัจจุบัน
     var _whoHtml=d.status==='pending'&&_ACTIVE_STEPS[d.id]
       ?'<div style="font-size:10px;color:#a89e99;margin-top:3px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">รอ: '+esc(_ACTIVE_STEPS[d.id])+'</div>':'';
 
-    // โครงการ (outgoing)
     var _projHtml=d.doc_type==='outgoing'&&d.description
       ?'<div style="font-size:10px;color:#a89e99;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(d.description)+'</div>':'';
 
-    return '<tr style="background:'+(_rowBg||'transparent')+';cursor:pointer;transition:background .1s" '+
+    return '<tr data-pg="'+pg+'" style="'+(pg>0?'display:none;':'')+'background:'+(_rowBg||'transparent')+';cursor:pointer" '+
       'data-action="nav" data-view="det" data-id="'+d.id+'" '+
       'onmouseover="if(!\''+_rowBg+'\')this.style.background=\'#FDFBF9\';" '+
       'onmouseout="this.style.background=\''+(_rowBg||'')+'\'">' +
-
-      // ลำดับ
-      '<td style="width:44px;padding:14px 6px 14px 18px;text-align:right;font-size:11px;font-family:\'IBM Plex Mono\',monospace;color:#d0cac6;font-weight:500;vertical-align:top;padding-top:16px">'+
-        (idx+1)+
-      '</td>'+
-
-      // เลขที่ + ชื่อเรื่อง + ประเภท
+      '<td style="width:44px;padding:14px 6px 14px 18px;text-align:right;font-size:11px;font-family:\'IBM Plex Mono\',monospace;color:#d0cac6;font-weight:500;vertical-align:top;padding-top:16px">'+(idx+1)+'</td>'+
       '<td style="padding:12px 16px;max-width:0">'+
         '<div style="display:flex;align-items:center;gap:7px;margin-bottom:5px">'+
           '<span class="mono" style="font-size:11px;background:#F5F3F0;color:#18120E;padding:2px 8px;border-radius:5px;border:1px solid rgba(0,0,0,.06);flex-shrink:0;letter-spacing:.3px">'+esc(d.doc_number||'—')+'</span>'+
@@ -215,18 +210,8 @@ function rDocTbl(docs){
         '<div style="font-size:13px;font-weight:600;color:#18120E;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(d.title)+'</div>'+
         _projHtml+
       '</td>'+
-
-      // สถานะ
-      '<td style="width:148px;padding:12px 16px;vertical-align:top">'+
-        sBadge(d.status)+_whoHtml+
-      '</td>'+
-
-      // กำหนด
-      '<td style="width:88px;padding:12px 16px;text-align:right;vertical-align:top">'+
-        _dueHtml+
-      '</td>'+
-
-      // จัดการ
+      '<td style="width:148px;padding:12px 16px;vertical-align:top">'+sBadge(d.status)+_whoHtml+'</td>'+
+      '<td style="width:88px;padding:12px 16px;text-align:right;vertical-align:top">'+_dueHtml+'</td>'+
       '<td style="width:72px;padding:12px 18px 12px 8px;text-align:right;vertical-align:top">'+
         '<div style="display:flex;gap:5px;justify-content:flex-end">'+
           (CAN.ed(CU.role_code)&&(d.status==='draft'||(d.status==='rejected'&&d.created_by===CU.id))
@@ -236,10 +221,26 @@ function rDocTbl(docs){
         '</div>'+
       '</td>'+
     '</tr>';
-  }).join('');
+  }
+
+  var allRows=docs.map(function(d,i){return mkDocRow(d,i);}).join('');
+
+  var pgBar='';
+  if(totalPages>1){
+    var _bs='height:30px;border-radius:7px;font-size:11px;font-weight:700;border:1px solid #E8E5E2;cursor:pointer;padding:0 14px;background:#F5F3F0;';
+    pgBar='<tbody id="'+uid+'pg"><tr><td colspan="5" style="padding:10px 18px 12px;border-top:1px solid #F5F3F0">'+
+      '<div style="display:flex;align-items:center;gap:10px">'+
+        '<button id="'+uid+'prev" onclick="_docPg(\''+uid+'\', -1, '+totalPages+')" disabled '+
+        'style="'+_bs+'color:#C8C3BE" onmouseover="if(!this.disabled)this.style.background=\'#ECEAE7\'" onmouseout="if(!this.disabled)this.style.background=\'#F5F3F0\'">◂ ก่อนหน้า</button>'+
+        '<span id="'+uid+'lbl" style="font-size:11px;font-weight:600;color:#a89e99;min-width:72px;text-align:center">หน้า 1 / '+totalPages+'</span>'+
+        '<button id="'+uid+'next" onclick="_docPg(\''+uid+'\', 1, '+totalPages+')" '+
+        'style="'+_bs+'color:#18120E" onmouseover="if(!this.disabled)this.style.background=\'#ECEAE7\'" onmouseout="if(!this.disabled)this.style.background=\'#F5F3F0\'">ถัดไป ▸</button>'+
+      '</div>'+
+    '</td></tr></tbody>';
+  }
 
   return '<div class="tbl-wrap">'+
-    '<table style="table-layout:fixed;width:100%">'+
+    '<table id="'+uid+'" data-pg="0" style="table-layout:fixed;width:100%">'+
       '<thead><tr>'+
         '<th style="width:44px;padding:10px 6px 10px 18px;text-align:right">#</th>'+
         '<th style="padding:10px 16px">เลขที่ / ชื่อเรื่อง</th>'+
@@ -247,26 +248,40 @@ function rDocTbl(docs){
         '<th style="width:88px;padding:10px 16px;text-align:right">กำหนด</th>'+
         '<th style="width:72px;padding:10px 18px 10px 8px"></th>'+
       '</tr></thead>'+
-      '<tbody>'+rows+'</tbody>'+
+      '<tbody>'+allRows+'</tbody>'+
+      pgBar+
     '</table>'+
   '</div>';
+}
+
+function _docPg(uid, delta, totalPages){
+  var tbl=document.getElementById(uid);
+  if(!tbl)return;
+  var cur=parseInt(tbl.dataset.pg||0);
+  var next=Math.max(0,Math.min(totalPages-1,cur+delta));
+  if(next===cur)return;
+  tbl.dataset.pg=next;
+  var rows=tbl.querySelectorAll('tbody tr[data-pg]');
+  for(var i=0;i<rows.length;i++){
+    rows[i].style.display=parseInt(rows[i].dataset.pg)===next?'':'none';
+  }
+  var lbl=document.getElementById(uid+'lbl');
+  if(lbl)lbl.textContent='หน้า '+(next+1)+' / '+totalPages;
+  var prev=document.getElementById(uid+'prev');
+  var nxt=document.getElementById(uid+'next');
+  if(prev){prev.disabled=next===0;prev.style.color=next===0?'#C8C3BE':'#18120E';}
+  if(nxt){nxt.disabled=next===totalPages-1;nxt.style.color=next===totalPages-1?'#C8C3BE':'#18120E';}
 }
 
 /* ── ตาราง "ส่งมาให้ฉัน" — ส่งต่อเอกสารรอตัดสินใจ ── */
 function rFwdTbl(docs){
   if(!docs.length) return '<div style="padding:56px 20px;display:flex;flex-direction:column;align-items:center;gap:10px"><div style="opacity:.3;color:#a89e99">'+svg('inbox',40)+'</div><div style="font-size:14px;font-weight:500;color:#a89e99">ไม่มีเอกสารที่รอการตัดสินใจ</div></div>';
 
-  var rows=docs.map(function(d,idx){
-    return '<tr style="background:#F2F6FF;cursor:default;transition:background .1s" '+
-      'onmouseover="this.style.background=\'#E9F0FD\'" '+
-      'onmouseout="this.style.background=\'#F2F6FF\'">' +
-
-      // ลำดับ
-      '<td style="width:44px;padding:14px 6px 14px 18px;text-align:right;font-size:11px;font-family:\'IBM Plex Mono\',monospace;color:#b8c4e0;font-weight:500;vertical-align:top;padding-top:16px">'+
-        (idx+1)+
-      '</td>'+
-
-      // เลขที่ + ชื่อเรื่อง
+  var LIMIT=7;
+  function mkFwdRow(d,idx){
+    return '<tr style="background:#F2F6FF" '+
+      'onmouseover="this.style.background=\'#E9F0FD\'" onmouseout="this.style.background=\'#F2F6FF\'">'+
+      '<td style="width:44px;padding:14px 6px 14px 18px;text-align:right;font-size:11px;font-family:\'IBM Plex Mono\',monospace;color:#b8c4e0;font-weight:500;vertical-align:top;padding-top:16px">'+(idx+1)+'</td>'+
       '<td style="padding:12px 16px;max-width:0">'+
         '<div style="display:flex;align-items:center;gap:7px;margin-bottom:5px">'+
           '<span class="mono" style="font-size:11px;background:rgba(255,255,255,.85);color:#1D4ED8;padding:2px 8px;border-radius:5px;border:1px solid rgba(29,78,216,.12);flex-shrink:0;letter-spacing:.3px">'+esc(d.doc_number||'—')+'</span>'+
@@ -275,27 +290,36 @@ function rFwdTbl(docs){
         '<div style="font-size:13px;font-weight:600;color:#18120E;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(d.title)+'</div>'+
         '<div style="font-size:10px;color:#2563EB;margin-top:3px">ส่งมาให้คุณ · '+fd(d.forwarded_at)+'</div>'+
       '</td>'+
-
-      // สถานะ
-      '<td style="width:148px;padding:12px 16px;vertical-align:top">'+
-        sBadge(d.status)+
-      '</td>'+
-
-      // วันที่
-      '<td style="width:88px;padding:12px 16px;text-align:right;vertical-align:top;font-size:11px;color:#a89e99">'+
-        fd(d.forwarded_at)+
-      '</td>'+
-
-      // ปุ่มดำเนินการ
+      '<td style="width:148px;padding:12px 16px;vertical-align:top">'+sBadge(d.status)+'</td>'+
+      '<td style="width:104px;padding:12px 16px;text-align:right;vertical-align:top;font-size:11px;color:#a89e99">'+fd(d.forwarded_at)+'</td>'+
       '<td style="width:160px;padding:10px 14px;text-align:right;vertical-align:top">'+
-        '<div style="display:flex;gap:5px;justify-content:flex-end;flex-wrap:wrap">'+
-          '<button style="width:30px;height:30px;border-radius:8px;background:#fff;color:#6b6560;display:inline-flex;align-items:center;justify-content:center;border:1px solid #EBEBEB;cursor:pointer;flex-shrink:0" data-action="nav" data-view="det" data-id="'+d.id+'" title="ดูเอกสาร">'+svg('eye',13)+'</button>'+
+        '<div style="display:flex;gap:5px;justify-content:flex-end">'+
+          '<button style="width:28px;height:28px;border-radius:7px;background:#fff;color:#6b6560;display:inline-flex;align-items:center;justify-content:center;border:1px solid #EBEBEB;cursor:pointer;flex-shrink:0" data-action="nav" data-view="det" data-id="'+d.id+'" title="ดูเอกสาร">'+svg('eye',13)+'</button>'+
           '<button class="btn btn-primary xs" data-action="acceptFwd" data-id="'+d.id+'">'+svg('ok',12)+' รับ</button>'+
           '<button class="btn btn-soft xs" style="color:#DC2626;border-color:#FECACA" data-action="showDeclineFwdModal" data-id="'+d.id+'">'+svg('x',12)+' ไม่รับ</button>'+
         '</div>'+
       '</td>'+
     '</tr>';
-  }).join('');
+  }
+
+  var recent=docs.slice(0,LIMIT);
+  var older=docs.slice(LIMIT);
+
+  var recentRows=recent.map(function(d,i){return mkFwdRow(d,i);}).join('');
+
+  var olderTbody='';
+  var toggleTbody='';
+  if(older.length){
+    var olderRows=older.map(function(d,i){return mkFwdRow(d,LIMIT+i);}).join('');
+    var uid='fwdOld'+Date.now();
+    olderTbody='<tbody id="'+uid+'" style="display:none">'+olderRows+'</tbody>';
+    toggleTbody='<tbody><tr><td colspan="5" style="padding:6px 18px 10px;border-top:1px solid #F5F3F0">'+
+      '<button data-fwd-toggle="'+uid+'" data-fwd-count="'+older.length+'" onclick="_fwdToggle(this)" '+
+      'style="font-size:11px;font-weight:600;color:#E83A00;background:none;border:none;cursor:pointer;padding:0;display:inline-flex;align-items:center;gap:5px">'+
+        '▸ ดูรายการก่อนหน้า ('+older.length+' รายการ)'+
+      '</button>'+
+    '</td></tr></tbody>';
+  }
 
   return '<div class="tbl-wrap">'+
     '<table style="table-layout:fixed;width:100%">'+
@@ -303,12 +327,22 @@ function rFwdTbl(docs){
         '<th style="width:44px;padding:10px 6px 10px 18px;text-align:right">#</th>'+
         '<th style="padding:10px 16px">เลขที่ / ชื่อเรื่อง</th>'+
         '<th style="width:148px;padding:10px 16px">สถานะ</th>'+
-        '<th style="width:88px;padding:10px 16px;text-align:right">วันที่ส่ง</th>'+
+        '<th style="width:104px;padding:10px 16px;text-align:right">วันที่ส่ง</th>'+
         '<th style="width:160px;padding:10px 14px;text-align:right">ดำเนินการ</th>'+
       '</tr></thead>'+
-      '<tbody>'+rows+'</tbody>'+
+      '<tbody>'+recentRows+'</tbody>'+
+      olderTbody+
+      toggleTbody+
     '</table>'+
   '</div>';
+}
+
+function _fwdToggle(btn){
+  var t=document.getElementById(btn.dataset.fwdToggle);
+  if(!t)return;
+  var opening=t.style.display==='none';
+  t.style.display=opening?'':'none';
+  btn.textContent=opening?'▾ ซ่อนรายการก่อนหน้า':'▸ ดูรายการก่อนหน้า ('+btn.dataset.fwdCount+' รายการ)';
 }
 
 /* ── รับเอกสารที่ส่งมา ── */

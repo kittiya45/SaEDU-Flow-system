@@ -15,10 +15,10 @@ async function vTmpl(){
   var rows=result;
   var isAdm=CU.role_code==='ROLE-SYS'||CU.role_code==='ROLE-STF'||CU.position_code==='GNK-SEC';
 
-  // Batch-fetch ชื่อผู้อัปโหลด (เฉพาะ admin/เจ้าหน้าที่/เลขา)
+  // Batch-fetch ชื่อผู้อัปโหลด (แสดงแก่ทุกคน)
   var _uploaderMap={};
   var _latestTmplId=null;
-  if(isAdm&&rows.length){
+  if(rows.length){
     var _uIds=[].concat.apply([],rows.filter(function(r){return r.uploaded_by}).map(function(r){return r.uploaded_by}));
     var _uUniq=_uIds.filter(function(v,i,a){return a.indexOf(v)===i});
     if(_uUniq.length){
@@ -27,8 +27,8 @@ async function vTmpl(){
         if(Array.isArray(_uRows)) _uRows.forEach(function(u){_uploaderMap[u.id]=u.full_name});
       }catch(e){}
     }
-    // หา template ที่อัปโหลดล่าสุด
-    _latestTmplId=rows.reduce(function(a,b){return(a.created_at||'')>=(b.created_at||'')?a:b}).id;
+    // หา template ที่อัปโหลดล่าสุด (ใช้ใน badge เฉพาะ admin)
+    if(isAdm) _latestTmplId=rows.reduce(function(a,b){return(a.created_at||'')>=(b.created_at||'')?a:b}).id;
   }
 
   var html=['<div id="tal"></div>'];
@@ -87,10 +87,10 @@ async function vTmpl(){
       html.push('<span class="mono">'+ext.toUpperCase()+'</span>');
       if(t.file_size) html.push(' · '+fsz(t.file_size));
       html.push('</div>');
-      // Uploader metadata (เฉพาะ เจ้าหน้าที่ / เลขา / Admin)
-      if(isAdm){
-        var _uName=t.uploaded_by&&_uploaderMap[t.uploaded_by]?_uploaderMap[t.uploaded_by]:'';
-        var _uDate=t.created_at?new Date(t.created_at).toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
+      // Uploader metadata (แสดงแก่ทุกคน)
+      var _uName=t.uploaded_by&&_uploaderMap[t.uploaded_by]?_uploaderMap[t.uploaded_by]:'';
+      var _uDate=t.created_at?new Date(t.created_at).toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
+      if(_uName||_uDate){
         html.push('<div style="font-size:10px;color:#a89e99;margin-top:4px;display:flex;align-items:center;gap:5px;flex-wrap:wrap">');
         if(_uName) html.push(svg('user',10)+'<span>'+esc(_uName)+'</span>');
         if(_uDate) html.push('<span style="color:#d0cac6">·</span>'+svg('cal',10)+'<span>'+_uDate+'</span>');

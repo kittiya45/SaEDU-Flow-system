@@ -201,9 +201,16 @@ function renderTypeFields(type, doc){
     html.push('<div class="fg"><label class="fl">สังกัด / ชมรม</label>'+
       '<select class="fi" id="fclub" onchange="_populateProjectList(this.value);_PROJ_FILTER_CLUB=this.value">'+_clubOpts+'</select></div>');
     html.push('<div class="fg"><label class="fl">โครงการ / กิจกรรม <span class="req">*</span></label>');
-    html.push('<input class="fi" id="fdsc" value="'+esc(_curDesc2)+'" list="project-list" placeholder="พิมพ์หรือเลือกจากรายการที่เคยใช้" autocomplete="off">');
-    html.push('<datalist id="project-list"></datalist>');
-    html.push('<div class="text-[10px] text-[#a89e99] mt-1">เลือกสังกัด/ชมรมก่อนเพื่อกรองรายการโครงการที่เคยใช้</div></div>');
+    var _projInList=PROJS.some(function(p){return p.name===_curDesc2});
+    var _projOpts='<option value="">— กรุณาเลือกโครงการ —</option>';
+    _projOpts+=PROJS.map(function(p){
+      return '<option value="'+esc(p.name)+'"'+(_curDesc2===p.name?' selected':'')+'>'+esc(p.name)+'</option>';
+    }).join('');
+    _projOpts+='<option value="__other__"'+(!_projInList&&_curDesc2?' selected':'')+'>อื่น ๆ (ระบุเอง)</option>';
+    html.push('<select class="fi" id="fdsc-sel" onchange="_onProjSelChange(this.value)">'+_projOpts+'</select>');
+    var _showOther=!_projInList&&_curDesc2;
+    html.push('<input class="fi" id="fdsc" style="margin-top:8px;display:'+(_showOther?'block':'none')+'" value="'+esc(_curDesc2)+'" placeholder="ระบุชื่อโครงการ / กิจกรรม">');
+    html.push('</div>');
     html.push('<div class="fg"><label class="fl">ประเภทจดหมาย <span class="req">*</span></label><select class="fi" id="foutltype">'+_lt2Opts+'</select></div>');
     html.push('<div class="fg"><label class="fl">ส่งถึงตำแหน่ง <span class="req">*</span></label><select class="fi" id="fto">'+_posOpts+'</select></div>');
     html.push('<div class="two-col-sm"><div class="fg"><label class="fl">วันที่หนังสือ</label><input type="date" class="fi" id="fdate" value="'+esc(_curDate2)+'"></div>');
@@ -382,6 +389,27 @@ async function _applyWfTemplate(docType){
   }catch(e){}
 }
 
+function _onProjSelChange(val){
+  var inp=$e('fdsc');
+  if(!inp) return;
+  if(val==='__other__'){
+    inp.style.display='block';
+    inp.value='';
+    inp.focus();
+  } else {
+    inp.style.display='none';
+    inp.value=val;
+  }
+}
+
+function _getProjValue(){
+  var sel=$e('fdsc-sel');
+  var inp=$e('fdsc');
+  if(!sel) return (inp?inp.value:'');
+  if(sel.value==='__other__') return inp?inp.value.trim():'';
+  return sel.value;
+}
+
 var _PROJ_FILTER_CLUB=''; // club code ที่เลือกอยู่ใน outgoing form
 async function _populateProjectList(clubCode){
   if(clubCode!==undefined) _PROJ_FILTER_CLUB=clubCode||'';
@@ -544,7 +572,7 @@ async function saveDoc(status){
     if(!(gv('ffromdept')||'').trim()){a.innerHTML=alrtH('er','กรุณาระบุชื่อผู้ส่งเอกสาร');return}
   }
   if(_dtype==='outgoing'&&status!=='draft'){
-    if(!(gv('fdsc')||'').trim()){a.innerHTML=alrtH('er','กรุณาระบุชื่อโครงการ / กิจกรรม');return}
+    if(!_getProjValue()){a.innerHTML=alrtH('er','กรุณาระบุชื่อโครงการ / กิจกรรม');return}
     if(!(gv('fto')||'').trim()){a.innerHTML=alrtH('er','กรุณาเลือกตำแหน่งกนค. ที่รับเอกสาร');return}
   }
   _saveBusy=true;
@@ -560,7 +588,7 @@ async function saveDoc(status){
     var _ns=$e('fnotifystep'); var _no=$e('fnotifyoverdue');
     var _outLt=(_dtype==='outgoing')?(gv('foutltype')||''):'';
     var _outClub=(_dtype==='outgoing')?(gv('fclub')||''):'';
-    var body={title:title,doc_type:gv('ftype'),urgency:gv('furg'),description:gv('fdsc'),doc_date:gv('fdate')||new Date().toISOString().slice(0,10),due_date:eventDate,from_department:_dtype==='outgoing'?_outClub:fromdept,addressed_to:addrto,subject_line:_dtype==='outgoing'?_outLt:(subj||title),final_recipient_id:finalRec,final_recipient_note:finalNote,status:status,notify_step:_ns?_ns.checked:true,notify_overdue:_no?_no.checked:true};
+    var body={title:title,doc_type:gv('ftype'),urgency:gv('furg'),description:(_dtype==='outgoing'?_getProjValue():gv('fdsc')),doc_date:gv('fdate')||new Date().toISOString().slice(0,10),due_date:eventDate,from_department:_dtype==='outgoing'?_outClub:fromdept,addressed_to:addrto,subject_line:_dtype==='outgoing'?_outLt:(subj||title),final_recipient_id:finalRec,final_recipient_note:finalNote,status:status,notify_step:_ns?_ns.checked:true,notify_overdue:_no?_no.checked:true};
     if(FDI){
   await dpa('documents',FDI,Object.assign({},body,{updated_at:new Date().toISOString()}));
   if(status==='pending'){

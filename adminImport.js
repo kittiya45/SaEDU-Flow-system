@@ -40,7 +40,7 @@ function showImport(){
 
         // Action Buttons: ปรับให้ดูเป็นปุ่มกดที่มีมิติ (Semi-Realistic)
         '<div style="display:flex; gap:12px; margin-bottom:24px;">',
-          '<label style="flex:1; display:flex; align-items:center; justify-content:center; gap:10px; background:#F59E0B; color:#fff; height:48px; border-radius:16px; font-size:13px; font-weight:800; cursor:pointer; transition:0.3s; box-shadow: 0 8px 15px -4px rgba(245, 158, 11, 0.4); position:relative; overflow:hidden;" onmouseover="this.style.transform=\'translateY(-1px)\'; this.style.boxShadow=\'0 12px 20px -4px rgba(245, 158, 11, 0.5)\'" onmouseout="this.style.transform=\'translateY(0)\'; this.style.boxShadow=\'0 8px 15px -4px rgba(245, 158, 11, 0.4)\'">',
+          '<label style="flex:1; display:flex; align-items:center; justify-content:center; gap:10px; background:#F59E0B; color:#fff; height:48px; border-radius:16px; font-size:13px; font-weight:800; cursor:pointer; position:relative; overflow:hidden;" onmouseover="this.style.opacity=\'0.9\'" onmouseout="this.style.opacity=\'1\'">',
             '<span style="position:absolute; top:0; left:0; width:100%; height:50%; background:rgba(255,255,255,0.1);"></span>',
            '<span style="position:relative; display:flex; align-items:center; gap:8px;">'+svg('up', 18) + ' เลือกไฟล์ CSV</span>',
             '<input type="file" id="imp-file" accept=".csv" style="display:none" onchange="parseImportCSV()">',
@@ -60,7 +60,7 @@ function showImport(){
         '<button style="font-size:13px; font-weight:700; color:#94A3B8; background:none; border:none; cursor:pointer; padding:0 15px; transition:0.2s;" onmouseover="this.style.color=\'#E83A00\'" onmouseout="this.style.color=\'#94A3B8\'" onclick="gnkClose(\'imp\')">ยกเลิก</button>',
         
         // ปรับเป็นปุ่มสีเขียวแบบมีมิติ (Semi-Realistic Green)
-        '<button id="imp-btn" style="display:none; height:50px; padding:0 36px; border-radius:18px; font-weight:850; font-size:13px; background:#E83A00; color:#fff; align-items:center; justify-content:center; gap:10px; border:none; cursor:pointer; transition:0.3s; box-shadow: 0 10px 20px -5px rgba(232, 58, 0, 0.4); position:relative; overflow:hidden;" onmouseover="this.style.transform=\'translateY(-1px)\'; this.style.background=\'#C43200\'; this.style.boxShadow=\'0 12px 25px -5px rgba(232, 58, 0, 0.5)\'" onmouseout="this.style.transform=\'translateY(0)\'; this.style.background=\'#E83A00\'; this.style.boxShadow=\'0 10px 20px -5px rgba(232, 58, 0, 0.4)\'" data-action="doImport">',
+        '<button id="imp-btn" style="display:none; height:50px; padding:0 36px; border-radius:18px; font-weight:850; font-size:13px; background:#E83A00; color:#fff; align-items:center; justify-content:center; gap:10px; border:none; cursor:pointer; position:relative; overflow:hidden;" onmouseover="this.style.background=\'#C43200\'" onmouseout="this.style.background=\'#E83A00\'" data-action="doImport">',
           // แสง Highlight ด้านบนทำให้ดูนูนแบบ 3D
           '<span style="position:absolute; top:0; left:0; width:100%; height:50%; background:rgba(255,255,255,0.15); border-radius:18px 18px 0 0;"></span>',
           '<span style="position:relative; display:flex; align-items:center; gap:8px; text-shadow: 0 1px 2px rgba(0,0,0,0.1);">' + svg('ok', 18) + ' ยืนยันนำเข้าข้อมูล</span>', 
