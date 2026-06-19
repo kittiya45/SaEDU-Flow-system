@@ -1,6 +1,11 @@
 /* ─── SESSION MANAGEMENT ─── */
 var _loginAttempts=+(localStorage.getItem('_la')||0);
 var _loginLockedUntil=+(localStorage.getItem('_llu')||0);
+/* [SECURITY] Supabase Auth — H.Authorization ต้องตามสถานะ session เสมอ (login/logout/auto refresh token)
+   นี่คือจุดเดียวที่ต้องอัปเดต ทุกฟังก์ชัน dg/dp/dpa/dd และ fetch(headers:H) อื่นๆ ทั่วแอปจะเห็น token ปัจจุบันโดยอัตโนมัติ */
+sb.auth.onAuthStateChange(function(_event,session){
+  H.Authorization = session ? 'Bearer '+session.access_token : 'Bearer '+SK;
+});
 function _actHandler(){_lastAct=Date.now()}
 function _startSessionTimer(){
   _lastAct=Date.now();
@@ -24,8 +29,9 @@ function _cleanupSession(){
   document.removeEventListener('keydown',_actHandler,true);
   CU=null;
 }
-function doLogout(){
-  if(CU){try{dp('document_history',{action:'logout',performed_by:CU.id,note:'ออกจากระบบ'});}catch(e){}}
+async function doLogout(){
+  if(CU){try{await dp('document_history',{action:'logout',performed_by:CU.id,note:'ออกจากระบบ'});}catch(e){}}
+  try{await sb.auth.signOut();}catch(e){}
   _cleanupSession();
   showAuth();
 }
@@ -120,62 +126,64 @@ async function doLogin(){
   }
   a.innerHTML='<div class="al al-in"><span class="sp sp-dark"></span><span> กำลังตรวจสอบ...</span></div>';
   try{
-    var row=null;
-    if(u==='admin'){
-      var r=await dg('users','?email=eq.admin&approval_status=eq.approved');
-      if(r&&r.length) row=r[0];
-    } else {
-      var _eu=encodeURIComponent(u);
-      var _ap=await Promise.all([
-        dg('users','?student_id=eq.'+_eu+'&approval_status=eq.approved'),
-        dg('users','?email=eq.'+_eu+'&approval_status=eq.approved')
-      ]);
-      var rows=[].concat(_ap[0]||[]).concat(_ap[1]||[]);
-      if(rows.length) row=rows[0];
-      if(!row){
-        var _pp=await Promise.all([
-          dg('users','?student_id=eq.'+_eu+'&approval_status=eq.pending'),
-          dg('users','?email=eq.'+_eu+'&approval_status=eq.pending')
-        ]);
-        if((_pp[0]&&_pp[0].length)||(_pp[1]&&_pp[1].length)){showPend();return}
-      }
+    var email=u;
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(u)){
+      // ไม่ใช่รูปแบบอีเมล — สมมติว่าเป็นรหัสนิสิต แปลงเป็นอีเมลผ่าน RPC ก่อน (RLS ไม่ยอมให้ query ตาราง users ตรงๆตอนยังไม่ login)
+      var _rr=await sb.rpc('resolve_login_email',{identifier:u});
+      email=(_rr&&_rr.data)||u;
     }
-    if(row&&await checkPw(p,row.password_hash)){
-      if(!row.password_hash||!row.password_hash.startsWith('pbkdf2$')){
-        var _upgraded=await hashPw(p);
-        await dpa('users',row.id,{password_hash:_upgraded});
+    var _si=await sb.auth.signInWithPassword({email:email,password:p});
+    if(_si.error||!_si.data||!_si.data.session){
+      _loginAttempts++;
+      localStorage.setItem('_la',_loginAttempts);
+      if(_loginAttempts>=5){
+        _loginLockedUntil=Date.now()+15*60*1000;_loginAttempts=0;
+        localStorage.setItem('_llu',_loginLockedUntil);
+        localStorage.setItem('_la','0');
+        a.innerHTML=alrtH('er','พยายามเข้าสู่ระบบผิดพลาดหลายครั้งเกินไป กรุณารอ 15 นาที');
+      } else {
+        a.innerHTML=alrtH('er','ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง');
       }
-      delete row.password_hash; // ไม่เก็บ hash ใน global state
-      if(row.user_type==='gnk'&&row.expires_at&&new Date(row.expires_at)<new Date()){
-        if(row.is_active) try{await dpa('users',row.id,{is_active:false});}catch(e){}
-        a.innerHTML=alrtH('er','บัญชีนี้หมดอายุแล้ว กรุณาติดต่อเจ้าหน้าที่เพื่อต่ออายุการใช้งาน');return
-      }
-      CU=row;
-      _loginAttempts=0;
-      localStorage.setItem('_la','0');
-      localStorage.removeItem('_llu');
-      try{await dp('document_history',{action:'login',performed_by:CU.id,note:'เข้าสู่ระบบ'});}catch(e){}
-      _startSessionTimer();
-      await loadDocTypes();
-      await loadAppSettings();
-      await loadProjects();
-      await nav('dash');
-      try{await sendOverdueNotifs();}catch(e){console.warn('Overdue check failed:',e)} return
+      return;
     }
-    _loginAttempts++;
-    localStorage.setItem('_la',_loginAttempts);
-    if(_loginAttempts>=5){
-      _loginLockedUntil=Date.now()+15*60*1000;_loginAttempts=0;
-      localStorage.setItem('_llu',_loginLockedUntil);
-      localStorage.setItem('_la','0');
-      a.innerHTML=alrtH('er','พยายามเข้าสู่ระบบผิดพลาดหลายครั้งเกินไป กรุณารอ 15 นาที');
-    } else {
-      a.innerHTML=alrtH('er','ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง');
-    }
+    H.Authorization='Bearer '+_si.data.session.access_token;
+    var rows=await dg('users','?auth_uid=eq.'+_si.data.user.id);
+    var row=rows&&rows[0];
+    var ok=await _enterAppAsUser(row,{logLogin:true,onError:function(msg){a.innerHTML=alrtH('er',msg)}});
+    if(!ok)return;
+    _loginAttempts=0;
+    localStorage.setItem('_la','0');
+    localStorage.removeItem('_llu');
   }catch(e){
     console.error('doLogin:',e);
     a.innerHTML=alrtH('er','เกิดข้อผิดพลาด กรุณาลองใหม่')
   }
+}
+
+/* ─── เข้าสู่แอปจริงหลังยืนยันตัวตนสำเร็จแล้ว (ใช้ทั้ง doLogin และ boot.js ตอน restore session) ─── */
+async function _enterAppAsUser(row,opts){
+  opts=opts||{};
+  if(!row||row.approval_status==='pending'){await sb.auth.signOut();showPend();return false}
+  if(row.approval_status!=='approved'||!row.is_active){
+    await sb.auth.signOut();
+    if(opts.onError)opts.onError('บัญชีนี้ไม่สามารถใช้งานได้ กรุณาติดต่อผู้ดูแลระบบ');
+    return false
+  }
+  if(row.user_type==='gnk'&&row.expires_at&&new Date(row.expires_at)<new Date()){
+    if(row.is_active) try{await dpa('users',row.id,{is_active:false});}catch(e){}
+    await sb.auth.signOut();
+    if(opts.onError)opts.onError('บัญชีนี้หมดอายุแล้ว กรุณาติดต่อเจ้าหน้าที่เพื่อต่ออายุการใช้งาน');
+    return false
+  }
+  CU=row;
+  if(opts.logLogin){try{await dp('document_history',{action:'login',performed_by:CU.id,note:'เข้าสู่ระบบ'});}catch(e){}}
+  _startSessionTimer();
+  await loadDocTypes();
+  await loadAppSettings();
+  await loadProjects();
+  await nav('dash');
+  try{await sendOverdueNotifs();}catch(e){console.warn('Overdue check failed:',e)}
+  return true
 }
 
 function showPend(){
@@ -192,10 +200,12 @@ async function doRegG(){
   if(pw.length<6){a.innerHTML=alrtH('er','รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร');return}
   if(pw!==pw2){a.innerHTML=alrtH('er','รหัสผ่านทั้งสองช่องไม่ตรงกัน');return}
   a.innerHTML='<div class="al al-in"><span class="sp sp-dark"></span><span> กำลังบันทึก...</span></div>';
-  var ex=await dg('users','?student_id=eq.'+encodeURIComponent(sid));
-  if(ex&&ex.length){a.innerHTML=alrtH('er','รหัสนิสิตนี้มีการสมัครแล้ว');return}
-  var pwHash=await hashPw(pw);
-  await dp('users',{email:gemail,full_name:fn+' '+ln,student_id:sid,position_code:pos,role_code:PR[pos]||'ROLE-CRT',department:'กนค.',user_type:'gnk',approval_status:'pending',password_hash:pwHash,is_active:false,contact_email:gemail});
+  var {data,error}=await sb.auth.signUp({email:gemail,password:pw,options:{data:{
+    full_name:fn+' '+ln,student_id:sid,position_code:pos,role_code:PR[pos]||'ROLE-CRT',
+    department:'กนค.',user_type:'gnk',contact_email:gemail
+  }}});
+  if(error){a.innerHTML=alrtH('er',error.message==='User already registered'?'อีเมลนี้มีการสมัครแล้ว':error.message);return}
+  try{await sb.auth.signOut();}catch(e){} // สมัครแล้วต้องรออนุมัติ ยังไม่ให้เข้าระบบทันที
   a.innerHTML=alrtH('ok','สมัครสำเร็จ! กรุณารอผู้ดูแลระบบอนุมัติก่อนเข้าใช้งาน');
   setTimeout(function(){closeRegPopup()},2200)
 }
@@ -208,10 +218,12 @@ async function doRegS(){
   if(pw.length<6){a.innerHTML=alrtH('er','รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร');return}
   if(pw!==pw2){a.innerHTML=alrtH('er','รหัสผ่านทั้งสองช่องไม่ตรงกัน');return}
   a.innerHTML='<div class="al al-in"><span class="sp sp-dark"></span><span> กำลังบันทึก...</span></div>';
-  var ex=await dg('users','?email=eq.'+encodeURIComponent(em));
-  if(ex&&ex.length){a.innerHTML=alrtH('er','อีเมลนี้มีการสมัครแล้ว');return}
-  var pwHash2=await hashPw(pw);
-  await dp('users',{email:em,full_name:nm,position_code:null,role_code:tp==='advisor'?'ROLE-ADV':'ROLE-STF',department:dp2||'สำนักกิจการนิสิต',user_type:tp,approval_status:'pending',password_hash:pwHash2,is_active:false});
+  var {data,error}=await sb.auth.signUp({email:em,password:pw,options:{data:{
+    full_name:nm,role_code:tp==='advisor'?'ROLE-ADV':'ROLE-STF',
+    department:dp2||'สำนักกิจการนิสิต',user_type:tp,contact_email:em
+  }}});
+  if(error){a.innerHTML=alrtH('er',error.message==='User already registered'?'อีเมลนี้มีการสมัครแล้ว':error.message);return}
+  try{await sb.auth.signOut();}catch(e){}
   a.innerHTML=alrtH('ok','สมัครสำเร็จ! กรุณารอผู้ดูแลระบบอนุมัติ');
   setTimeout(function(){closeRegPopup()},2200)
 }
@@ -343,13 +355,18 @@ async function doChangePwLogin(){
   if(nw!==nw2){al.innerHTML=alrtH('er','รหัสผ่านใหม่ทั้งสองช่องไม่ตรงกัน');return}
   al.innerHTML='<div class="al al-in"><span class="sp sp-dark"></span><span> กำลังตรวจสอบ...</span></div>';
   try{
-    var r1=await dg('users','?student_id=eq.'+encodeURIComponent(u)+'&approval_status=eq.approved');
-    var r2=await dg('users','?email=eq.'+encodeURIComponent(u)+'&approval_status=eq.approved');
-    var row=[].concat(r1||[]).concat(r2||[])[0];
-    if(!row){al.innerHTML=alrtH('er','ไม่พบบัญชีผู้ใช้นี้ในระบบ');return}
-    if(!await checkPw(old,row.password_hash)){al.innerHTML=alrtH('er','รหัสผ่านปัจจุบันไม่ถูกต้อง');return}
-    var newHash=await hashPw(nw);
-    await dpa('users',row.id,{password_hash:newHash});
+    var email=u;
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(u)){
+      var _rr=await sb.rpc('resolve_login_email',{identifier:u});
+      email=(_rr&&_rr.data)||u;
+    }
+    // verify รหัสผ่านเดิมด้วยการลอง sign in จริง (Supabase Auth เป็นคนเช็คให้ ไม่ต้องเก็บ hash เองแล้ว)
+    var _si=await sb.auth.signInWithPassword({email:email,password:old});
+    if(_si.error||!_si.data||!_si.data.session){al.innerHTML=alrtH('er','รหัสผ่านปัจจุบันไม่ถูกต้อง หรือไม่พบบัญชีผู้ใช้นี้');return}
+    H.Authorization='Bearer '+_si.data.session.access_token;
+    var {error}=await sb.auth.updateUser({password:nw});
+    await sb.auth.signOut(); // หน้านี้แค่เปลี่ยนรหัส ไม่ใช่ login เข้าระบบ
+    if(error){al.innerHTML=alrtH('er',error.message);return}
     al.innerHTML=alrtH('ok','เปลี่ยนรหัสผ่านสำเร็จ! กรุณาเข้าสู่ระบบด้วยรหัสผ่านใหม่');
     setTimeout(function(){closeChangePwPopup()},1800)
   }catch(e){
@@ -387,12 +404,11 @@ async function doChangePw(){
   if(nw!==nw2){al.innerHTML=alrtH('er','รหัสผ่านใหม่ทั้งสองช่องไม่ตรงกัน');return}
   al.innerHTML='<div class="al al-in"><span class="sp sp-dark"></span><span> กำลังตรวจสอบ...</span></div>';
   try{
-    var userRow=await dg('users','?id=eq.'+safeId(CU.id)+'&select=id,password_hash');
-    if(!userRow[0]){al.innerHTML=alrtH('er','เกิดข้อผิดพลาด กรุณาลองใหม่');return}
-    if(!await checkPw(old,userRow[0].password_hash)){al.innerHTML=alrtH('er','รหัสผ่านปัจจุบันไม่ถูกต้อง');return}
+    var _si=await sb.auth.signInWithPassword({email:CU.email,password:old});
+    if(_si.error){al.innerHTML=alrtH('er','รหัสผ่านปัจจุบันไม่ถูกต้อง');return}
     al.innerHTML='<div class="al al-in"><span class="sp sp-dark"></span><span> กำลังบันทึก...</span></div>';
-    var newHash=await hashPw(nw);
-    await dpa('users',CU.id,{password_hash:newHash});
+    var {error}=await sb.auth.updateUser({password:nw});
+    if(error){al.innerHTML=alrtH('er',error.message);return}
     al.innerHTML=alrtH('ok','เปลี่ยนรหัสผ่านสำเร็จแล้ว!');
     setTimeout(function(){var mw=$e('mwrap');if(mw)mw.innerHTML=''},1500)
   }catch(e){

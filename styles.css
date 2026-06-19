@@ -308,8 +308,11 @@ input[type=range]{width:100%;accent-color:var(--orange)}
 }
 /* ── ACTION DROPDOWN MENU ── */
 .am-wrap{position:relative;display:inline-block}
-.am-drop{position:absolute;right:0;top:calc(100% + 6px);background:#fff;border:1px solid #E8E4DE;border-radius:12px;box-shadow:0 8px 28px rgba(0,0,0,.13),0 2px 8px rgba(0,0,0,.06);min-width:176px;z-index:300;overflow:hidden;opacity:0;transform:translateY(-8px) scale(.97);pointer-events:none;transition:opacity .15s cubic-bezier(.4,0,.2,1),transform .15s cubic-bezier(.4,0,.2,1);transform-origin:top right}
+/* [UX] position:fixed + top/right คำนวณจาก JS (ดู toggleAM) เพื่อให้เมนูหลุดออกจาก .tbl-wrap/.card ที่ overflow:hidden/auto ไม่งั้นถูกตัดมองไม่เห็นทั้งเมนูเวลาแถวอยู่กลาง/ล่างตาราง */
+.am-drop{position:fixed;background:#fff;border:1px solid #E8E4DE;border-radius:12px;box-shadow:0 8px 28px rgba(0,0,0,.13),0 2px 8px rgba(0,0,0,.06);min-width:176px;z-index:300;overflow:hidden;opacity:0;transform:translateY(-8px) scale(.97);pointer-events:none;transition:opacity .15s cubic-bezier(.4,0,.2,1),transform .15s cubic-bezier(.4,0,.2,1);transform-origin:top right}
 .am-drop.open{opacity:1;transform:none;pointer-events:auto}
+.am-drop.am-up{transform-origin:bottom right}
+.am-drop.am-up:not(.open){transform:translateY(8px) scale(.97)}
 .am-item{display:flex;align-items:center;gap:9px;width:100%;padding:10px 14px;border:none;background:transparent;font-family:inherit;font-size:13px;font-weight:500;color:var(--text);cursor:pointer;text-align:left;transition:background .12s;line-height:1.4;white-space:nowrap}
 .am-item:first-child{padding-top:12px}
 .am-item:last-child:not(.am-danger){padding-bottom:12px}

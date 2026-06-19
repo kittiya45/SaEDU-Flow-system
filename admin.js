@@ -1,6 +1,6 @@
 /* ─── ADMIN ─── */
 async function vAdm(){
-  AUSERS=await dg('users','?email=neq.admin&order=created_at.desc');
+  AUSERS=(await dg('users','?order=created_at.desc')).filter(function(u){return u.role_code!=='ROLE-SYS'});
   var cnt={
     total:AUSERS.length,
     pnd:AUSERS.filter(function(u){return u.approval_status==='pending'}).length,
@@ -186,9 +186,9 @@ function rAdmTbl(users){
           '<div>'+
             '<div class="text-[13px] font-semibold text-[#18120E] leading-tight">'+esc(u.full_name)+'</div>'+
             '<div class="text-[11px] font-semibold mt-0.5" style="color:'+roleColor(u.role_code)+'">'+
-              (u.user_type==='gnk'?(PTH[u.position_code]||RTH[u.role_code]||u.role_code||'—'):
+              esc(u.user_type==='gnk'?(PTH[u.position_code]||u.department||RTH[u.role_code]||u.role_code||'—'):
                u.user_type==='advisor'?'อาจารย์กิจการ':
-               u.user_type==='staff'?'เจ้าหน้าที่กิจการนิสิต':
+               u.user_type==='staff'?(u.department||'เจ้าหน้าที่กิจการนิสิต'):
                (RTH[u.role_code]||u.role_code||'—'))+
             '</div>'+
           '</div>'+
@@ -200,6 +200,7 @@ function rAdmTbl(users){
     html.push('<td>'+(u.position_code?
       '<div class="text-[12px] font-semibold text-[#18120E]">'+esc(PTH[u.position_code]||u.position_code)+'</div>'+
       '<div class="text-[11px] text-[#a89e99] mono">'+esc(u.position_code)+'</div>'
+      :u.department?'<div class="text-[12px] font-semibold text-[#18120E]">'+esc(u.department)+'</div>'
       :'<span class="text-[#a89e99]">—</span>')+'</td>');
     html.push('<td><div class="flex flex-col gap-0.5">'+apB+activeRow+'</div></td>');
     html.push('<td class="text-[12px] text-[#a89e99] whitespace-nowrap">'+fd(u.created_at)+'</td>');
@@ -318,10 +319,21 @@ async function _admDelConfirmed(uid,dcCreated,wf){
       if(_refFwd.length){var r2=await fetch(SU+'/rest/v1/documents?forwarded_to_id=eq.'+uid,{method:'PATCH',headers:H,body:JSON.stringify({forwarded_to_id:null})});if(!r2.ok)throw new Error('ไม่สามารถ unlink forwarded_to_id ได้')}
       if(_refFin.length){var r3=await fetch(SU+'/rest/v1/documents?final_recipient_id=eq.'+uid,{method:'PATCH',headers:H,body:JSON.stringify({final_recipient_id:null})});if(!r3.ok)throw new Error('ไม่สามารถ unlink final_recipient_id ได้')}
     }
+    // Unlink ไฟล์ที่ user นี้อัปโหลด (document_files.uploaded_by) บนเอกสารของคนอื่น
+    var rf=await fetch(SU+'/rest/v1/document_files?uploaded_by=eq.'+uid,{method:'PATCH',headers:H,body:JSON.stringify({uploaded_by:null})});if(!rf.ok)throw new Error('ไม่สามารถ unlink document_files ได้')
+    // Unlink เทมเพลตฟอร์มที่ user นี้อัปโหลด (form_templates.uploaded_by)
+    var rt=await fetch(SU+'/rest/v1/form_templates?uploaded_by=eq.'+uid,{method:'PATCH',headers:H,body:JSON.stringify({uploaded_by:null})});if(!rt.ok)throw new Error('ไม่สามารถ unlink form_templates ได้')
+    // Unlink workflow steps ที่ user นี้เคยกดไม่อนุมัติ (workflow_steps.rejected_by)
+    var rj=await fetch(SU+'/rest/v1/workflow_steps?rejected_by=eq.'+uid,{method:'PATCH',headers:H,body:JSON.stringify({rejected_by:null})});if(!rj.ok)throw new Error('ไม่สามารถ unlink rejected_by ได้')
   }catch(e){showAlert(e.message||String(e),'er');return;}
 
   try{await dp('document_history',{action:'ลบบัญชีผู้ใช้',performed_by:CU.id,note:'ลบ: '+(u?u.full_name+' ('+u.email+')':uid)+(dcCreated.length?' พร้อมเอกสาร '+dcCreated.length+' รายการ':'')});}catch(e){}
   try{
+    // ลบ auth.users จริงต้องผ่าน Edge Function (ใช้ service-role key ฝั่งเซิร์ฟเวอร์ ทำใน browser ตรงๆไม่ได้)
+    if(u&&u.auth_uid){
+      var _dr=await fetch(SU+'/functions/v1/admin-delete-user',{method:'POST',headers:H,body:JSON.stringify({targetAuthUid:u.auth_uid})});
+      if(!_dr.ok){var _de=await _dr.json().catch(function(){return{}});throw new Error(_de.error||'ลบบัญชีเข้าสู่ระบบไม่สำเร็จ')}
+    }
     await dd('users',uid);
     nav('adm');
   }catch(e){
@@ -403,9 +415,11 @@ async function doAdmResetPw(uid){
   if(!pw||pw.length<6){al.innerHTML=alrtH('er','รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร');return}
   if(pw!==pw2){al.innerHTML=alrtH('er','รหัสผ่านทั้งสองช่องไม่ตรงกัน');return}
   al.innerHTML='<div class="al al-in"><span class="sp sp-dark"></span><span> กำลังบันทึก...</span></div>';
-  var h=await hashPw(pw);
-  await dpa('users',uid,{password_hash:h});
   var u=(AUSERS||[]).filter(function(x){return x.id===uid})[0];
+  if(!u||!u.auth_uid){al.innerHTML=alrtH('er','ไม่พบบัญชีเข้าสู่ระบบของผู้ใช้นี้');return}
+  // เซ็ตรหัสผ่านให้คนอื่นตรงๆต้องใช้ service-role key ฝั่งเซิร์ฟเวอร์ ทำใน browser ไม่ได้ จึงต้องผ่าน Edge Function
+  var r=await fetch(SU+'/functions/v1/admin-set-password',{method:'POST',headers:H,body:JSON.stringify({targetAuthUid:u.auth_uid,newPassword:pw})});
+  if(!r.ok){var e=await r.json().catch(function(){return{}});al.innerHTML=alrtH('er',e.error||'รีเซ็ตรหัสผ่านไม่สำเร็จ');return}
   try{await dp('document_history',{action:'รีเซ็ตรหัสผ่าน',performed_by:CU.id,note:'รีเซ็ตรหัสผ่าน: '+(u?u.full_name:uid)});}catch(e){}
   al.innerHTML=alrtH('ok','รีเซ็ตรหัสผ่านสำเร็จ');
   setTimeout(function(){var mw=$e('mwrap');if(mw)mw.innerHTML='';},1400);
@@ -522,12 +536,31 @@ function applyAdmFilter(){
 function setAS(){applyAdmFilter()}
 
 /* ─── ACTION DROPDOWN ─── */
+function _closeAllAM(){document.querySelectorAll('.am-drop.open').forEach(function(x){x.classList.remove('open');x.classList.remove('am-up')})}
 function toggleAM(uid){
   var d=$e('amd-'+uid);
   var was=d&&d.classList.contains('open');
-  document.querySelectorAll('.am-drop.open').forEach(function(x){x.classList.remove('open')});
-  if(d&&!was)d.classList.add('open');
+  _closeAllAM();
+  if(d&&!was){
+    var trig=d.previousElementSibling;
+    var r=(trig||d).getBoundingClientRect();
+    var menuH=d.offsetHeight||220;
+    var openUp=(window.innerHeight-r.bottom<menuH+12)&&r.top>=menuH;
+    d.style.left='auto';
+    d.style.right=(window.innerWidth-r.right)+'px';
+    if(openUp){
+      d.style.top='auto';
+      d.style.bottom=(window.innerHeight-r.top+6)+'px';
+      d.classList.add('am-up');
+    }else{
+      d.style.bottom='auto';
+      d.style.top=(r.bottom+6)+'px';
+    }
+    d.classList.add('open');
+  }
 }
+/* [UX] เลื่อนตารางแล้วเมนู (position:fixed) จะไม่ขยับตามแถว — ปิดทิ้งไปเลยกันเมนูลอยผิดที่ */
+window.addEventListener('scroll',_closeAllAM,true);
 
 /* ─── CLOSE MODAL (เดิม — ยังใช้กับ modal อื่นๆ) ─── */
 function closeModal(){
@@ -538,7 +571,7 @@ function closeModal(){
 /* ─── GLOBAL CLICK: close dropdown + close modal ─── */
 document.addEventListener('click',function(e){
   if(!e.target.closest('.am-trig')){
-    document.querySelectorAll('.am-drop.open').forEach(function(d){d.classList.remove('open')});
+    _closeAllAM();
   }
   var el=e.target;
   while(el){

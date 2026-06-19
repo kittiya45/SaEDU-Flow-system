@@ -1,6 +1,9 @@
 /* ─── CONFIG ─── */
 var SU = 'https://jrubupvzltxqstzcpoov.supabase.co';
 var SK = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpydWJ1cHZ6bHR4cXN0emNwb292Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2OTc2MDEsImV4cCI6MjA5MTI3MzYwMX0.nA1VY7i-syUHQNb-wmmFdjFyQCZKaCeIzPOIEDtTHFA';
+/* ─── Supabase Auth client — H.Authorization ถูกอัปเดตสดจาก auth.js เมื่อ session เปลี่ยน (login/logout/refresh token) ───
+   ทุกฟังก์ชันด้านล่างอ้าง H ตัวเดียวกันเสมอ (mutate ไม่ใช่ reassign) เพื่อให้รับรู้ token ปัจจุบันโดยไม่ต้องแก้จุดเรียกใช้ทุกที่ */
+var sb = supabase.createClient(SU, SK);
 var H = {apikey:SK,'Authorization':'Bearer '+SK,'Content-Type':'application/json','Prefer':'return=representation'};
 
 async function dg(t,q){var r=await fetch(SU+'/rest/v1/'+t+(q||''),{headers:H});return r.json()}
@@ -10,12 +13,12 @@ async function dpa(t,id,b){var r=await fetch(SU+'/rest/v1/'+t+'?id=eq.'+id,{meth
 var _PROTECTED_TABLES=['document_history','notifications'];
 async function dd(t,id){
   if(_PROTECTED_TABLES.indexOf(t)!==-1){console.warn('Blocked: DELETE on protected table "'+t+'"');return;}
-  var r=await fetch(SU+'/rest/v1/'+t+'?id=eq.'+id,{method:'DELETE',headers:{apikey:SK,'Authorization':'Bearer '+SK}});
+  var r=await fetch(SU+'/rest/v1/'+t+'?id=eq.'+id,{method:'DELETE',headers:{apikey:SK,'Authorization':H.Authorization}});
   if(!r.ok){var e=await r.json().catch(function(){return{}});throw new Error(e.message||String(r.status))}
 }
 function safeId(id){return encodeURIComponent(String(id||''))}
 async function upFile(path,file){
-  var r=await fetch(SU+'/storage/v1/object/documents/'+encodeURIComponent(path),{method:'POST',headers:{apikey:SK,'Authorization':'Bearer '+SK,'x-upsert':'true'},body:file});
+  var r=await fetch(SU+'/storage/v1/object/documents/'+encodeURIComponent(path),{method:'POST',headers:{apikey:SK,'Authorization':H.Authorization,'x-upsert':'true'},body:file});
   return r.json()
 }
 function furl(p){return SU+'/storage/v1/object/public/documents/'+encodeURIComponent(p)}

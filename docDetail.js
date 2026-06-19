@@ -432,7 +432,7 @@ async function doForward(docId){
     var fwdStatus='skipped';
     try{
       if(recipEmail&&!recipEmail.includes('@gnk.student')){
-        var fwdResp=await fetch(SU+'/functions/v1/send-email',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+SK,'apikey':SK},body:JSON.stringify({to:recipEmail,subject:emailSubj,html:emailBody})});
+        var fwdResp=await fetch(SU+'/functions/v1/send-email',{method:'POST',headers:{'Content-Type':'application/json','Authorization':H.Authorization,'apikey':SK},body:JSON.stringify({to:recipEmail,subject:emailSubj,html:emailBody})});
         fwdStatus=fwdResp.ok?'sent':'failed';
         if(fwdResp.ok) showEmailToast(recipEmail,emailSubj);
       }

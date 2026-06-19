@@ -457,7 +457,7 @@ async function _doSetDocNumberConfirmed(docId,cap){
           if(posEmail&&!posEmail.includes('@gnk.student')){
             var eSubj='[กนค.] หนังสือขาออก เลขที่ '+docNum+': '+(doc.title||'');
             var eBody='เรียน '+posUser.full_name+', มีหนังสือขาออกถึงท่าน เลขที่ '+docNum+' เรื่อง "'+esc(doc.title||'')+'"';
-            var er=await fetch(SU+'/functions/v1/send-email',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+SK,'apikey':SK},body:JSON.stringify({to:posEmail,subject:eSubj,html:eBody})});
+            var er=await fetch(SU+'/functions/v1/send-email',{method:'POST',headers:{'Content-Type':'application/json','Authorization':H.Authorization,'apikey':SK},body:JSON.stringify({to:posEmail,subject:eSubj,html:eBody})});
             if(er.ok&&typeof showEmailToast==='function') showEmailToast(posEmail,eSubj);
             await dp('notifications',{document_id:docId,recipient_id:posUser.id,recipient_email:posEmail,subject:eSubj,body:eBody,notification_type:'outgoing',status:er.ok?'sent':'failed',sent_at:new Date().toISOString()});
           }
@@ -475,7 +475,7 @@ async function _doSetDocNumberConfirmed(docId,cap){
         var fwdEmailStatus='skipped';
         try{
           if(fwdEmail&&!fwdEmail.includes('@gnk.student')){
-            var r=await fetch(SU+'/functions/v1/send-email',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+SK,'apikey':SK},body:JSON.stringify({to:fwdEmail,subject:fwdSubj,html:fwdBody})});
+            var r=await fetch(SU+'/functions/v1/send-email',{method:'POST',headers:{'Content-Type':'application/json','Authorization':H.Authorization,'apikey':SK},body:JSON.stringify({to:fwdEmail,subject:fwdSubj,html:fwdBody})});
             fwdEmailStatus=r.ok?'sent':'failed';
             if(r.ok) showEmailToast(fwdEmail,fwdSubj);
           }

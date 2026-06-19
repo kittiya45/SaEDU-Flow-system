@@ -40,8 +40,11 @@
 <body>
 <div id="app"></div>
 
+<!-- Supabase Auth client (เวอร์ชันตรึงไว้ — แอปนี้ไม่มี build step ที่จะจับ breaking update ของ CDN ได้) -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.108.2/dist/umd/supabase.js"></script>
+
 <!-- ตั้งค่า API, ตัวแปรหลัก และสิทธิ์ใช้งาน -->
-<script src="config.js?v=4" defer></script>
+<script src="config.js?v=5" defer></script>
 
 <!-- รวมฟังก์ชันช่วยจัดการหน้าจอและแจ้งเตือน -->
 <script src="utils.js?v=2" defer></script>
@@ -50,7 +53,7 @@
 <script src="events.js?v=2" defer></script>
 
 <!-- ระบบ Login และจัดการเซสชันผู้ใช้ -->
-<script src="auth.js?v=3" defer></script>
+<script src="auth.js?v=4" defer></script>
 
 <!-- หน้าสรุปผลและรายการงานล่าสุด -->
 <script src="dashboard.js?v=10" defer></script>
@@ -106,8 +109,8 @@
 <!-- จัดการโครงสร้างเมนูและหน้าตาเว็บหลัก -->
 <script src="layout.js?v=3" defer></script>
 
-<!-- ตัวเริ่มรันระบบ (เรียกหน้า Login เมื่อโหลด) -->
-<script src="boot.js?v=2" defer></script>
+<!-- ตัวเริ่มรันระบบ — เช็ค session ที่ค้างไว้ก่อน (Supabase Auth) ถ้าไม่มีค่อยเรียกหน้า Login -->
+<script src="boot.js?v=3" defer></script>
 
 </body>
 </html>

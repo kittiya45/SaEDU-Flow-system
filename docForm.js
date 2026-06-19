@@ -654,7 +654,7 @@ async function saveDoc(status){
             if(_posEmail&&!_posEmail.includes('@gnk.student')){
               var _eSubj=(SETT.email_prefix||'[กนค.]')+' หนังสือขาออก: '+title;
               var _eBody='เรียน '+_posUser.full_name+', มีเอกสารขาออกสำหรับท่าน เรื่อง "'+title+'" โครงการ '+body.description;
-              var _er=await fetch(SU+'/functions/v1/send-email',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+SK,'apikey':SK},body:JSON.stringify({to:_posEmail,subject:_eSubj,html:_eBody})});
+              var _er=await fetch(SU+'/functions/v1/send-email',{method:'POST',headers:{'Content-Type':'application/json','Authorization':H.Authorization,'apikey':SK},body:JSON.stringify({to:_posEmail,subject:_eSubj,html:_eBody})});
               if(_er.ok&&typeof showEmailToast==='function') showEmailToast(_posEmail,_eSubj);
               await dp('notifications',{document_id:did,recipient_id:_posUser.id,recipient_email:_posEmail,subject:_eSubj,body:_eBody,notification_type:'outgoing',status:_er.ok?'sent':'failed',sent_at:new Date().toISOString()});
             }

@@ -97,7 +97,7 @@ async function sendNotifEmail(docId, action, newStatus, note){
     try{
       var resp=await fetch(SU+'/functions/v1/send-email',{
         method:'POST',
-        headers:{'Content-Type':'application/json','Authorization':'Bearer '+SK,'apikey':SK},
+        headers:{'Content-Type':'application/json','Authorization':H.Authorization,'apikey':SK},
         body:JSON.stringify({to:recip.email,subject:emailSubj,html:html})
       });
       var result=await resp.json();
