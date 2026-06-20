@@ -371,8 +371,9 @@ async function saveDocType(){
     }
     var typeId=savedType&&savedType.id||id;
     if(typeId){
-      await fetch(SU+'/rest/v1/doc_type_fields?doc_type_id=eq.'+typeId,
-        {method:'DELETE',headers:{apikey:SK,'Authorization':'Bearer '+SK}});
+      var _delFields=await fetch(SU+'/rest/v1/doc_type_fields?doc_type_id=eq.'+typeId,
+        {method:'DELETE',headers:{apikey:SK,'Authorization':H.Authorization}});
+      if(!_delFields.ok) throw new Error('ไม่สามารถลบฟิลด์เดิมได้ (HTTP '+_delFields.status+')');
       if(_dtFields.length){
         var insertRows=_dtFields.map(function(f,i){
           return {doc_type_id:typeId,db_column:f.db_column,label:f.label,

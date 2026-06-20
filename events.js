@@ -52,10 +52,11 @@ document.addEventListener('click', function(e){
   else if(a==='showFwdModal') showFwdModal(id);
   else if(a==='doForward') doForward(id);
   else if(a==='showNumModal') showNumModal(id);
-  else if(a==='doSetDocNumber') doSetDocNumber(id).catch(function(e){console.error('doSetDocNumber error:',e)});
+  else if(a==='doSetDocNumber') doSetDocNumber(id);
   else if(a==='showTmplUpload') showTmplUpload();
   else if(a==='doTmplUpload') doTmplUpload();
   else if(a==='doTmplDelete') doTmplDelete(id);
+  else if(a==='showTmplEdit') showTmplEdit(id, el.dataset.name, el.dataset.cat, el.dataset.desc);
   else if(a==='tmplPreview') tmplPreview(el.dataset.url, el.dataset.name, el.dataset.ext);
   else if(a==='admApv') admApv(id);
   else if(a==='admRej') admRej(id);
@@ -76,6 +77,7 @@ document.addEventListener('click', function(e){
   else if(a==='saveAddAdvisor') saveAddAdvisor();
   else if(a==='showDocNumModal') showDocNumModal();
   else if(a==='saveDocNumSetting') saveDocNumSetting();
+  else if(a==='confirmResetDocNumSeq') confirmResetDocNumSeq();
   else if(a==='showDocTypeModal') showDocTypeModal(id);
   else if(a==='saveDocType') saveDocType();
   else if(a==='deleteDocType') deleteDocType(id, el.dataset.code);

@@ -123,6 +123,7 @@ function rDocNumCard(cfgs){
   var cur=cfgs.find(function(c){return c.year===thYear});
   var curPrefix=cur?cur.prefix:'GNK';
   var curOutStart=cur&&cur.out_start_seq?cur.out_start_seq:1;
+  var curOutPrefix=cur&&cur.out_prefix?cur.out_prefix:'กนค.';
   var h=[];
 
   h.push(
@@ -133,10 +134,13 @@ function rDocNumCard(cfgs){
           '<div style="width:36px;height:36px;border-radius:10px;background:#FFF5F0;display:flex;align-items:center;justify-content:center;color:#E83A00;flex-shrink:0">'+svg('edit',17)+'</div>'+
           '<div>'+
             '<div style="font-size:14px;font-weight:800;color:#18120E">ตั้งค่าเลขที่เอกสาร</div>'+
-            '<div style="font-size:11px;color:#a89e99;margin-top:1px">รูปแบบเลขที่สำหรับปี พ.ศ. '+thYear+'</div>'+
+            '<div style="font-size:11px;color:#a89e99;margin-top:1px">รูปแบบเลขที่สำหรับปี พ.ศ. '+thYear+(cur&&cur.seq_reset_at?' · รีเซ็ตล่าสุด: '+fdTime(cur.seq_reset_at):'')+'</div>'+
           '</div>'+
         '</div>'+
-        '<button class="btn btn-primary sm" data-action="showDocNumModal" style="flex-shrink:0">'+svg('edit',12)+' แก้ไขการตั้งค่า</button>'+
+        '<div style="display:flex;gap:8px;flex-shrink:0">'+
+          '<button class="btn btn-soft sm" data-action="confirmResetDocNumSeq">'+svg('undo',12)+' รีเซ็ตเลขทุกหมวดเป็น 001</button>'+
+          '<button class="btn btn-primary sm" data-action="showDocNumModal">'+svg('edit',12)+' แก้ไขการตั้งค่า</button>'+
+        '</div>'+
       '</div>'+
       /* ── Two preview cards ── */
       '<div style="padding:20px 22px">'+
@@ -166,8 +170,8 @@ function rDocNumCard(cfgs){
         '<div style="width:22px;height:22px;border-radius:6px;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;color:#fff">'+svg('sign',11)+'</div>'+
         '<div style="font-size:10px;font-weight:800;color:rgba(255,255,255,.85);text-transform:uppercase;letter-spacing:.8px">หนังสือขาออก</div>'+
       '</div>'+
-      '<div style="font-family:\'IBM Plex Mono\',monospace;font-size:22px;font-weight:900;color:#fff;letter-spacing:.5px;margin-bottom:4px">กนค. '+thYear+'.<span style="opacity:.5">'+String(curOutStart).padStart(2,'0')+'</span></div>'+
-      '<div style="font-size:10px;color:rgba(255,255,255,.65)">กนค. · ปี · ลำดับเริ่มต้น</div>'+
+      '<div style="font-family:\'IBM Plex Mono\',monospace;font-size:22px;font-weight:900;color:#fff;letter-spacing:.5px;margin-bottom:4px">'+esc(curOutPrefix)+thYear+'.<span style="opacity:.5">'+String(curOutStart).padStart(2,'0')+'</span></div>'+
+      '<div style="font-size:10px;color:rgba(255,255,255,.65)">Prefix · ปี · ลำดับเริ่มต้น</div>'+
     '</div>'
   );
 
@@ -184,11 +188,13 @@ function rDocNumCard(cfgs){
               '<th style="padding:9px 14px;font-size:10px;font-weight:700;color:#6b6560;text-align:left;border-bottom:1px solid #EBEBEB">ปี พ.ศ.</th>'+
               '<th style="padding:9px 14px;font-size:10px;font-weight:700;color:#6b6560;text-align:left;border-bottom:1px solid #EBEBEB">ตัวอย่างขาเข้า</th>'+
               '<th style="padding:9px 14px;font-size:10px;font-weight:700;color:#6b6560;text-align:left;border-bottom:1px solid #EBEBEB">ตัวอย่างขาออก</th>'+
+              '<th style="padding:9px 14px;font-size:10px;font-weight:700;color:#6b6560;text-align:right;border-bottom:1px solid #EBEBEB">รีเซ็ตล่าสุด</th>'+
               '<th style="padding:9px 14px;font-size:10px;font-weight:700;color:#6b6560;text-align:right;border-bottom:1px solid #EBEBEB">วันที่แก้ไข</th>'+
             '</tr></thead><tbody>'
     );
     cfgs.forEach(function(c,i){
       var _os=c.out_start_seq||1;
+      var _op=c.out_prefix||'กนค.';
       var _bg=i%2===0?'#fff':'#FDFBF9';
       h.push(
         '<tr style="background:'+_bg+'">'+
@@ -199,8 +205,9 @@ function rDocNumCard(cfgs){
             '<span style="font-family:\'IBM Plex Mono\',monospace;font-size:12px;color:#C42800;font-weight:700;background:#FFF5F0;padding:2px 8px;border-radius:6px">'+esc(c.prefix)+'-'+c.year+'-001</span>'+
           '</td>'+
           '<td style="padding:10px 14px;border-bottom:1px solid #F5F3F0">'+
-            '<span style="font-family:\'IBM Plex Mono\',monospace;font-size:12px;color:#1D4ED8;font-weight:700;background:#EFF6FF;padding:2px 8px;border-radius:6px">กนค.'+c.year+'.'+String(_os).padStart(2,'0')+'</span>'+
+            '<span style="font-family:\'IBM Plex Mono\',monospace;font-size:12px;color:#1D4ED8;font-weight:700;background:#EFF6FF;padding:2px 8px;border-radius:6px">'+esc(_op)+c.year+'.'+String(_os).padStart(2,'0')+'</span>'+
           '</td>'+
+          '<td style="padding:10px 14px;border-bottom:1px solid #F5F3F0;text-align:right;font-size:12px;color:#a89e99">'+(c.seq_reset_at?fdTime(c.seq_reset_at):'—')+'</td>'+
           '<td style="padding:10px 14px;border-bottom:1px solid #F5F3F0;text-align:right;font-size:12px;color:#a89e99">'+fd(c.created_at)+'</td>'+
         '</tr>'
       );
@@ -217,11 +224,13 @@ async function showDocNumModal(){
   var thYear=new Date().getFullYear()+543;
   var curPrefix='GNK';
   var curOutStart=1;
+  var curOutPrefix='กนค.';
   try{
-    var cfg=await dg('doc_number_settings','?year=eq.'+thYear+'&select=prefix,out_start_seq&limit=1');
+    var cfg=await dg('doc_number_settings','?year=eq.'+thYear+'&select=prefix,out_start_seq,out_prefix&limit=1');
     if(cfg&&cfg.length){
       if(cfg[0].prefix) curPrefix=cfg[0].prefix;
       if(cfg[0].out_start_seq) curOutStart=cfg[0].out_start_seq;
+      if(cfg[0].out_prefix) curOutPrefix=cfg[0].out_prefix;
     }
   }catch(e){}
 
@@ -257,9 +266,17 @@ var box = [
           'style="width:100%; height:46px; padding:0 16px; font-size:13px; font-weight:600; border-radius:12px; border:1.5px solid #EBEBEB; background:#fff; transition:all 0.3s; box-sizing:border-box; outline:none; color:#18120E;">',
       '</div>',
 
+      // Input Group — outgoing prefix
+      '<div class="gnk-inp-grp" style="margin-bottom:16px;">',
+        '<label style="display:block; font-size:11.5px; font-weight:700; color:#18120E; margin-bottom:8px; margin-left:2px;">ชื่อย่อ/รหัสองค์กร (Prefix) — ขาออก</label>',
+        '<input type="text" id="dn-out-prefix" class="gnk-inp" value="' + esc(curOutPrefix) + '" ',
+          'placeholder="เช่น กนค." maxlength="20" oninput="updateDNPreview()" ',
+          'style="width:100%; height:46px; padding:0 16px; font-size:13px; font-weight:600; border-radius:12px; border:1.5px solid #EBEBEB; background:#fff; transition:all 0.3s; box-sizing:border-box; outline:none; color:#18120E;">',
+      '</div>',
+
       // Input Group — outgoing start seq
       '<div class="gnk-inp-grp" style="margin-bottom:24px;">',
-        '<label style="display:block; font-size:11.5px; font-weight:700; color:#18120E; margin-bottom:8px; margin-left:2px;">เลขเริ่มต้น — ขาออก (กนค.'+thYear+'.XX)</label>',
+        '<label style="display:block; font-size:11.5px; font-weight:700; color:#18120E; margin-bottom:8px; margin-left:2px;">เลขเริ่มต้น — ขาออก</label>',
         '<input type="number" id="dn-out-start" class="gnk-inp" value="' + curOutStart + '" min="1" max="999" oninput="updateDNPreview()" ',
           'style="width:100%; height:46px; padding:0 16px; font-size:13px; font-weight:600; border-radius:12px; border:1.5px solid #EBEBEB; background:#fff; transition:all 0.3s; box-sizing:border-box; outline:none; color:#18120E;">',
       '</div>',
@@ -272,7 +289,7 @@ var box = [
         '</div>',
         '<div style="flex:1;background:#EFF6FF;border-radius:12px;padding:14px 18px;border:1.5px solid #BFDBFE">',
           '<div style="font-size:10px;color:#a89e99;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px;font-weight:700">ขาออก</div>',
-          '<div id="dn-out-preview" style="font-family:\'IBM Plex Mono\',monospace;font-size:15px;color:#1D4ED8;font-weight:800;letter-spacing:.5px">กนค.'+thYear+'.'+String(curOutStart).padStart(2,'0')+'</div>',
+          '<div id="dn-out-preview" style="font-family:\'IBM Plex Mono\',monospace;font-size:15px;color:#1D4ED8;font-weight:800;letter-spacing:.5px">'+esc(curOutPrefix)+thYear+'.'+String(curOutStart).padStart(2,'0')+'</div>',
         '</div>',
       '</div>',
     '</div>',
@@ -293,11 +310,12 @@ _gnkOpen('docnum', box);
 function updateDNPreview(){
   var thYear=new Date().getFullYear()+543;
   var prefix=(($e('dn-prefix')||{}).value||'GNK').trim()||'GNK';
+  var outPrefix=(($e('dn-out-prefix')||{}).value||'กนค.').trim()||'กนค.';
   var outStart=parseInt(($e('dn-out-start')||{}).value)||1;
   var el=$e('dn-preview');
   if(el) el.textContent=prefix+'-'+thYear+'-001';
   var elO=$e('dn-out-preview');
-  if(elO) elO.textContent='กนค.'+thYear+'.'+String(Math.max(1,outStart)).padStart(2,'0');
+  if(elO) elO.textContent=outPrefix+thYear+'.'+String(Math.max(1,outStart)).padStart(2,'0');
 }
 
 async function saveDocNumSetting(){
@@ -308,20 +326,51 @@ async function saveDocNumSetting(){
     if(inp){inp.style.borderColor='#C42800';inp.focus();setTimeout(function(){inp.style.borderColor='';},1800);}
     return;
   }
+  var outPrefix=(($e('dn-out-prefix')||{}).value||'').trim();
+  if(!outPrefix){
+    var inpO=$e('dn-out-prefix');
+    if(inpO){inpO.style.borderColor='#C42800';inpO.focus();setTimeout(function(){inpO.style.borderColor='';},1800);}
+    return;
+  }
   var outStart=Math.max(1,parseInt(($e('dn-out-start')||{}).value)||1);
   var btn=$e('dn-save-btn');
   if(btn){btn.disabled=true;btn.innerHTML=_SPINSVG+'กำลังบันทึก...';}
   try{
     var ex=await dg('doc_number_settings','?year=eq.'+thYear+'&select=id&limit=1');
     if(ex&&ex.length){
-      await dpa('doc_number_settings',ex[0].id,{prefix:prefix,out_start_seq:outStart});
+      await dpa('doc_number_settings',ex[0].id,{prefix:prefix,out_start_seq:outStart,out_prefix:outPrefix});
     }else{
-      await dp('doc_number_settings',{year:thYear,prefix:prefix,out_start_seq:outStart,created_by:CU.id});
+      await dp('doc_number_settings',{year:thYear,prefix:prefix,out_start_seq:outStart,out_prefix:outPrefix,created_by:CU.id});
     }
     gnkClose('docnum');
     setTimeout(function(){nav('sys');},220);
   }catch(e){
     if(btn){btn.disabled=false;btn.innerHTML=_OKSVG+'บันทึกการตั้งค่า';}
+    showAlert('เกิดข้อผิดพลาด: '+(e.message||e),'er');
+  }
+}
+
+function confirmResetDocNumSeq(){
+  showConfirm(
+    'รีเซ็ตเลขที่เอกสารทุกหมวด?',
+    'เอกสารใหม่ที่ออกเลขจากนี้ไป จะเริ่มนับ 001 ใหม่ทุกหมวด (ภาคเรียน+ตำแหน่ง+ประเภทหนังสือ) โดยไม่นับเลขที่ออกไปแล้วก่อนหน้านี้ในปีนี้ — กระทบเลขที่ทางการ ไม่สามารถย้อนกลับเองได้',
+    resetDocNumSeq,
+    {confirmLabel:'รีเซ็ตเลย',confirmClass:'btn-danger',icon:'undo',iconBg:'#FEE2E2',iconColor:'#DC2626'}
+  );
+}
+async function resetDocNumSeq(){
+  var thYear=new Date().getFullYear()+543;
+  try{
+    var ex=await dg('doc_number_settings','?year=eq.'+thYear+'&select=id&limit=1');
+    var nowIso=new Date().toISOString();
+    if(ex&&ex.length){
+      await dpa('doc_number_settings',ex[0].id,{seq_reset_at:nowIso});
+    }else{
+      await dp('doc_number_settings',{year:thYear,prefix:'GNK',out_start_seq:1,out_prefix:'กนค.',seq_reset_at:nowIso,created_by:CU.id});
+    }
+    showAlert('รีเซ็ตเลขที่เอกสารทุกหมวดเรียบร้อยแล้ว','ok');
+    nav('sys');
+  }catch(e){
     showAlert('เกิดข้อผิดพลาด: '+(e.message||e),'er');
   }
 }
@@ -639,7 +688,7 @@ function rWfTemplatesCard(templates){
 async function showWfTemplateModal(tmplId, docType){
   var w=$e('mwrap'); if(!w)return;
   _wfTplSteps=[];
-  _wfTplUsers=await dg('users','?is_active=eq.true&approval_status=eq.approved&role_code=neq.ROLE-SYS&order=full_name&select=id,full_name,role_code');
+  _wfTplUsers=await dg('user_directory','?is_active=eq.true&approval_status=eq.approved&role_code=neq.ROLE-SYS&order=full_name&select=id,full_name,role_code');
   var tmplName='';
   if(tmplId){
     try{
@@ -717,7 +766,8 @@ async function saveWfTemplate(existingId){
     if(tmplId){
       await fetch(SU+'/rest/v1/workflow_templates?id=eq.'+safeId(tmplId),{method:'PATCH',headers:H,body:JSON.stringify({name:name})});
       // ลบ steps เก่า
-      await fetch(SU+'/rest/v1/workflow_template_steps?template_id=eq.'+safeId(tmplId),{method:'DELETE',headers:{apikey:SK,'Authorization':'Bearer '+SK}});
+      var _delSteps=await fetch(SU+'/rest/v1/workflow_template_steps?template_id=eq.'+safeId(tmplId),{method:'DELETE',headers:{apikey:SK,'Authorization':H.Authorization}});
+      if(!_delSteps.ok) throw new Error('ไม่สามารถลบขั้นตอนเดิมได้ (HTTP '+_delSteps.status+')');
     }else{
       var nr=await dp('workflow_templates',{doc_type:docType,name:name,is_default:false,created_by:CU.id});
       tmplId=nr&&nr[0]?nr[0].id:null;
@@ -740,7 +790,8 @@ async function deleteWfTemplate(tmplId){
   showConfirm('ลบ Template?','Template นี้จะถูกลบถาวรพร้อม steps ทั้งหมด',
     async function(){
       try{
-        await fetch(SU+'/rest/v1/workflow_templates?id=eq.'+safeId(tmplId),{method:'DELETE',headers:{apikey:SK,'Authorization':'Bearer '+SK}});
+        var _delTmpl=await fetch(SU+'/rest/v1/workflow_templates?id=eq.'+safeId(tmplId),{method:'DELETE',headers:{apikey:SK,'Authorization':H.Authorization}});
+        if(!_delTmpl.ok) throw new Error('ไม่สามารถลบ Template ได้ (HTTP '+_delTmpl.status+')');
         nav('sys');
       }catch(e){showAlert('เกิดข้อผิดพลาด: '+(e.message||e),'er');}
     },

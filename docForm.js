@@ -13,7 +13,7 @@ async function vForm(editId){
     if(rs[1].length) FS=rs[1];
     FF=rs[2]
   }
-  FU=await dg('users','?is_active=eq.true&approval_status=eq.approved&order=full_name');
+  FU=await dg('user_directory','?is_active=eq.true&approval_status=eq.approved&order=full_name');
   // GNK-PRE auto-add จัดการใน selectDocType() ตามประเภทเอกสาร
 
   var tOpts=Object.entries(DTYPES).map(function(e){
@@ -123,8 +123,8 @@ html.push('<div id="fprog"></div></div></div>');
   html.push('<div class="card" id="out-info-card" style="display:none;border:1.5px solid #D1FAE5;background:#F0FDF4">');
   html.push('<div class="card-body py-3">');
   html.push('<div class="flex items-start gap-2.5"><div class="w-8 h-8 rounded-lg bg-[#DCFCE7] flex items-center justify-center shrink-0 text-[#16A34A]">'+svg('up',16)+'</div>');
-  html.push('<div><div class="text-[12px] font-bold text-[#15803D] mb-1">ไฟล์พร้อมดาวน์โหลดทันที</div>');
-  html.push('<div class="text-[11px] text-[#166534] leading-[1.7]">หนังสือขาออกจะออกเลขหนังสือและเผยแพร่ให้ผู้รับดาวน์โหลดได้ทันทีเมื่อกด "อัปโหลดและแชร์ไฟล์" — ไม่มีขั้นตอนอนุมัติ</div>');
+  html.push('<div><div class="text-[12px] font-bold text-[#15803D] mb-1">ไม่มีขั้นตอนอนุมัติ — รอออกเลขหนังสือ</div>');
+  html.push('<div class="text-[11px] text-[#166534] leading-[1.7]">หนังสือขาออกไม่ต้องผ่านขั้นตอนอนุมัติ แต่หลังกด "อัปโหลดและแชร์ไฟล์" ผู้จัดทำต้องกด "ออกเลขหนังสือ" อีกครั้งเพื่อกำหนดเลขที่และเผยแพร่ให้ผู้รับดาวน์โหลด</div>');
   html.push('</div></div></div></div>');
 
   html.push('<div class="card" id="notif-card"><div class="card-head">'+_ico('bell','#FFF3EE','#E83A00')+'<span class="card-head-title">การแจ้งเตือน</span></div>');
@@ -196,7 +196,7 @@ function renderTypeFields(type, doc){
     // layout: ชมรม → โครงการ → ประเภท → ผู้รับ → วันที่
     html.push(
       '<div class="al al-in" style="margin-bottom:14px"><span class="al-icon">'+svg('up',13)+'</span>'+
-      '<span class="text-[12px]">เอกสารขาออกจะออกเลขหนังสือและพร้อมดาวน์โหลดทันทีเมื่อบันทึก</span></div>'
+      '<span class="text-[12px]">เอกสารขาออกไม่ต้องผ่านขั้นตอนอนุมัติ — หลังบันทึกแล้วผู้จัดทำต้องกด "ออกเลขหนังสือ" เพื่อกำหนดเลขที่ก่อนเผยแพร่ให้ดาวน์โหลด</span></div>'
     );
     html.push('<div class="fg"><label class="fl">สังกัด / ชมรม</label>'+
       '<select class="fi" id="fclub" onchange="_populateProjectList(this.value);_PROJ_FILTER_CLUB=this.value">'+_clubOpts+'</select></div>');
@@ -521,12 +521,15 @@ async function genDocNumber(){
 
 async function genOutDocNumber(){
   var thYear=new Date().getFullYear()+543;
-  var startSeq=1;
+  var startSeq=1, orgPrefix='กนค.';
   try{
-    var cfg=await dg('doc_number_settings','?year=eq.'+thYear+'&select=out_start_seq&limit=1');
-    if(cfg&&cfg.length&&cfg[0].out_start_seq) startSeq=cfg[0].out_start_seq;
+    var cfg=await dg('doc_number_settings','?year=eq.'+thYear+'&select=out_start_seq,out_prefix&limit=1');
+    if(cfg&&cfg.length){
+      if(cfg[0].out_start_seq) startSeq=cfg[0].out_start_seq;
+      if(cfg[0].out_prefix) orgPrefix=cfg[0].out_prefix;
+    }
   }catch(e){}
-  var prefix='กนค.'+thYear+'.';
+  var prefix=orgPrefix+thYear+'.';
   try{
     var docs=await dg('documents','?doc_type=eq.outgoing&doc_number=not.is.null&select=doc_number&order=doc_number.desc');
     var maxSeq=0;
@@ -601,7 +604,7 @@ async function saveDoc(status){
 
     } else {
       var docNum=(_dtype==='outgoing')?await genOutDocNumber():await genDocNumber();
-      var finalStatus=(_dtype==='outgoing'&&status==='pending')?'completed':status;
+      var finalStatus=status;
       var res=await dp('documents',Object.assign({},body,{status:finalStatus,created_by:CU.id,current_step:1,total_steps:FS.length,doc_number:docNum}));
       if(!Array.isArray(res)||!res[0]||!res[0].id){
         console.error('saveDoc dp error:',res);
@@ -609,31 +612,27 @@ async function saveDoc(status){
       }
       var did=res[0].id;
       try{
-        if(_dtype==='outgoing'&&finalStatus==='completed'){
-          // หนังสือขาออก: step เดียว (ผู้จัดทำ) สถานะ done ทันที
-          await dp('workflow_steps',Object.assign({},FS[0],{document_id:did,step_number:1,status:'done',action_taken:'approve',action_at:new Date().toISOString(),completed_at:new Date().toISOString()}));
-        } else {
-          var _now=new Date().toISOString();
-          for(var i=0;i<FS.length;i++){
-            var stepSt,extraSt={};
-            if(finalStatus==='pending'&&i===0){
-              stepSt='done';extraSt={action_taken:'approve',action_at:_now,completed_at:_now};
-            }else if(finalStatus==='pending'&&i===1){
-              stepSt='active';
-            }else{
-              stepSt=i===0?'active':'pending';
-            }
-            await dp('workflow_steps',Object.assign({},FS[i],extraSt,{document_id:did,step_number:i+1,status:stepSt}));
+        var _now=new Date().toISOString();
+        for(var i=0;i<FS.length;i++){
+          var stepSt,extraSt={};
+          if(finalStatus==='pending'&&i===0){
+            stepSt='done';extraSt={action_taken:'approve',action_at:_now,completed_at:_now};
+          }else if(finalStatus==='pending'&&i===1){
+            stepSt='active';
+          }else{
+            stepSt=i===0?'active':'pending';
           }
-          if(finalStatus==='pending'){
-            await dp('document_history',{document_id:did,action:'ผู้จัดทำยืนยันเอกสาร (อัตโนมัติ)',performed_by:CU.id});
-            if(FS.length===1){
-              var _autoSt=['incoming','outgoing'].indexOf(_dtype)>=0?'numbering':'completed';
-              await dpa('documents',did,{status:_autoSt,current_step:1});
-              finalStatus=_autoSt;
-            }else{
-              await dpa('documents',did,{current_step:2});
-            }
+          await dp('workflow_steps',Object.assign({},FS[i],extraSt,{document_id:did,step_number:i+1,status:stepSt}));
+        }
+        if(finalStatus==='pending'){
+          await dp('document_history',{document_id:did,action:'ผู้จัดทำยืนยันเอกสาร (อัตโนมัติ)',performed_by:CU.id});
+          if(FS.length===1){
+            // ทั้งขาเข้าและขาออกที่มี step เดียว (ผู้จัดทำ) ไปรอออกเลขหนังสือเสมอ — ไม่ข้ามไป completed
+            var _autoSt=['incoming','outgoing'].indexOf(_dtype)>=0?'numbering':'completed';
+            await dpa('documents',did,{status:_autoSt,current_step:1});
+            finalStatus=_autoSt;
+          }else{
+            await dpa('documents',did,{current_step:2});
           }
         }
         for(var j=0;j<PF.length;j++) await dp('document_files',Object.assign({},PF[j],{document_id:did}));
@@ -644,8 +643,8 @@ async function saveDoc(status){
       PF=[];
       await dp('document_history',{document_id:did,action:'สร้างเอกสาร',performed_by:CU.id});
       // Notify
-      if(_dtype==='outgoing'&&finalStatus==='completed'){
-        // แจ้งเตือนตำแหน่งกนค. ที่รับเอกสาร
+      if(_dtype==='outgoing'&&finalStatus==='numbering'){
+        // แจ้งเตือนตำแหน่งกนค. ที่รับเอกสาร — แจ้งทันทีที่ส่ง ไม่ต้องรอออกเลขหนังสือ
         try{
           var _posCode=body.addressed_to;
           var _posUser=(FU||[]).find(function(u){return u.position_code===_posCode&&u.id!==CU.id});
@@ -665,6 +664,7 @@ async function saveDoc(status){
       }
       a.innerHTML=alrtH('ok',_dtype==='outgoing'?'อัพโหลดเอกสารและส่งเรียบร้อยแล้ว':'สร้างเอกสารเรียบร้อยแล้ว');
       var _successMsg=finalStatus==='pending'?'ส่งเอกสารเข้าระบบเรียบร้อยแล้ว รอการอนุมัติตามขั้นตอน':
+                      finalStatus==='numbering'?'อัพโหลดและส่งเรียบร้อยแล้ว รอออกเลขที่หนังสือ':
                       finalStatus==='completed'?'อัพโหลดและส่งเรียบร้อยแล้ว เอกสารถูกบันทึกในระบบ':
                       'บันทึกร่างเรียบร้อยแล้ว';
       setTimeout(function(){
