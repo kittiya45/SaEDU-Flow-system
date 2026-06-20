@@ -22,8 +22,10 @@ alter table public.doc_types enable row level security;
 alter table public.doc_type_fields enable row level security;
 alter table public.doc_number_settings enable row level security;
 -- workflow_templates, workflow_template_steps, email_templates, app_settings
--- intentionally omitted — these tables don't exist in this project (see the
--- note in migration_auth_rls.sql). Nothing to enable RLS on.
+-- intentionally omitted — as of when this file was written, those tables
+-- didn't exist in this project (see the note in migration_auth_rls.sql).
+-- create_admin_config_tables.sql creates them and enables their own RLS
+-- in the same script, so there's nothing left for this file to do for them.
 
 -- Verify immediately after running this: from a terminal with NO login,
 -- using only the public anon key, this should now return an empty array

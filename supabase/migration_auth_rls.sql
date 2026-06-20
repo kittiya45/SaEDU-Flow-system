@@ -215,14 +215,11 @@ create policy doc_type_fields_write on public.doc_type_fields for all
   using (public.is_admin()) with check (public.is_admin());
 
 -- workflow_templates / workflow_template_steps, email_templates, app_settings:
--- SKIPPED — these tables don't actually exist in this Supabase project yet.
--- The frontend code calls them (sysAdmin.js, docForm.js, notif.js, config.js)
--- but every call site wraps the result in try/catch and silently no-ops on
--- failure, so "จัดการระบบ" → ตั้งค่าระบบ/แบบฟอร์มอีเมล/เทมเพลต workflow have been
--- non-functional dead UI this whole time (defaults are used instead). Not
--- something this migration introduced — found it while running this script.
--- Not creating these tables here since that's a separate, unrelated feature
--- gap; flagging it back to you to decide if/when it's worth building.
+-- SKIPPED here — see create_admin_config_tables.sql, a separate later script
+-- that creates these four tables (the frontend already called them —
+-- sysAdmin.js, docForm.js, notif.js, config.js — but they didn't exist, so
+-- "จัดการระบบ" → ตั้งค่าระบบ/แบบฟอร์มอีเมล/เทมเพลต workflow were non-functional
+-- dead UI) and RLS-enables them in the same script.
 
 -- doc_number_settings (admin-only, both ways) ------------------------------
 drop policy if exists doc_number_settings_all on public.doc_number_settings;
