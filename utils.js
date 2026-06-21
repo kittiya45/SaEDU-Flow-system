@@ -28,6 +28,21 @@ function _lcr(){if(window.lucide)window.lucide.createIcons()}
 function rdr(h){document.getElementById('app').innerHTML=h;_lcr()}
 function gv(id){var el=document.getElementById(id);return el?el.value:''}
 function $e(id){return document.getElementById(id)}
+/* ผูก drag & drop ให้ .upload-zone — เดิมรับไฟล์ได้แค่คลิกเลือกผ่าน <label for=inputId>
+   onFiles รับ element ที่มี .files เหมือน <input type=file> จริง เพื่อให้ใช้ handler เดิมได้โดยไม่ต้องแก้ */
+function _wireDropzone(zoneEl,inputEl,onFiles){
+  if(!zoneEl||!inputEl) return;
+  zoneEl.addEventListener('dragover',function(e){e.preventDefault();zoneEl.classList.add('dragover')});
+  zoneEl.addEventListener('dragleave',function(){zoneEl.classList.remove('dragover')});
+  zoneEl.addEventListener('drop',function(e){
+    e.preventDefault();
+    zoneEl.classList.remove('dragover');
+    if(e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files.length){
+      inputEl.files=e.dataTransfer.files;
+      onFiles(inputEl);
+    }
+  });
+}
 function alrtH(t,m){
   var ic={ok:svg('ok',13),er:svg('x',13),in:svg('info',13),wa:svg('warn',13)};
   return '<div class="al al-'+t+'"><span class="al-icon">'+ic[t]+'</span><span>'+esc(m)+'</span></div>'
