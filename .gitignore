@@ -1,7 +1,0 @@
-.DS_Store
-*.dSYM/
-test.html
-supabase/node_modules/
-supabase/.temp/
-node_modules/
-styles.tailwind.css
