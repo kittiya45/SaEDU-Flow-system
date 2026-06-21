@@ -166,6 +166,7 @@ function initActSig(){
   _actSigCtx=sc.getContext('2d');
   var af=$e('asig-file');
   if(af) af.onchange=function(){previewASig(af)};
+  _wireDropzone($e('asig-drop-zone'),af,previewASig);
   var ach=$e('asig-change');
   if(ach) ach.onclick=function(){
     var w=$e('asig-prev-wrap');if(w)w.classList.add('hidden');
