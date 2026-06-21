@@ -75,7 +75,7 @@ if(!PED.isPDF&&!isImg&&!isDocx){alert('รองรับ PDF, DOCX และร
     '<input type="range" id="sig-sz" min="1" max="8" value="2" oninput="PED.sigSz=+this.value">',
     '</div></div>',
     '<div id="sp-upload" style="display:none">',
-    '<label for="sig-file" class="upload-zone" style="padding:16px">',
+    '<label for="sig-file" id="sig-dropzone" class="upload-zone" style="padding:16px">',
     '<div style="margin-bottom:4px">'+svg('sign',20)+'</div>',
     '<div style="font-size:12px;font-weight:600">อัปโหลดรูปลายเซ็น</div>',
     '<div style="font-size:10px;color:var(--text-3)">PNG โปร่งใสดีที่สุด</div>',
@@ -118,7 +118,7 @@ if(!PED.isPDF&&!isImg&&!isDocx){alert('รองรับ PDF, DOCX และร
     // Img panel
     '<div class="tool-sec" id="ps-img" style="display:none">',
     '<div class="tool-head">แทรกรูปภาพ</div>',
-    '<label for="ins-img" class="upload-zone" style="padding:16px">',
+    '<label for="ins-img" id="ins-dropzone" class="upload-zone" style="padding:16px">',
     '<div style="margin-bottom:4px">'+svg('img2',20)+'</div>',
     '<div style="font-size:12px;font-weight:600">อัปโหลดรูปภาพ</div>',
     '</label>',
@@ -182,8 +182,10 @@ function initPED(){
     sc.onpointerup=sc.onpointerleave=function(){PED.drawing=false}
   }
   var sf=$e('sig-file'); if(sf) sf.onchange=function(){pedLoadSigImg(sf)};
+  _wireDropzone($e('sig-dropzone'),sf,pedLoadSigImg);
   var ii=$e('ins-img');
   if(ii) ii.onchange=function(){pedLoadInsImg(ii)};
+  _wireDropzone($e('ins-dropzone'),ii,pedLoadInsImg);
   var pl=$e('ped-local'); if(pl) pl.onchange=function(){pedLoadLocal(pl)}
 }
 
