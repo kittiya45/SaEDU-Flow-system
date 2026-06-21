@@ -157,7 +157,8 @@ function sigTabA(tab){
   $e('sig-tab-a').className='itab'+(tab==='draw'?' on':'');
   $e('sig-tab-b').className='itab'+(tab==='upload'?' on':'');
   $e('sig-panel-draw').style.display=tab==='draw'?'block':'none';
-  $e('sig-panel-upload').style.display=tab==='upload'?'block':'none'
+  $e('sig-panel-upload').style.display=tab==='upload'?'block':'none';
+  _updateSigPosIndicator();
 }
 function initActSig(){
   var sc=$e('asgc'); if(!sc)return;
@@ -171,19 +172,21 @@ function initActSig(){
     var dz=$e('asig-drop-zone');if(dz)dz.classList.remove('hidden');
     if(af)af.value='';
     window._actSigSrc=null;
+    _updateSigPosIndicator();
   };
   sc.onpointerdown=function(e){_actSigDrawing=true;var r=sc.getBoundingClientRect();_actSigCtx.beginPath();_actSigCtx.moveTo((e.clientX-r.left)*(sc.width/r.width),(e.clientY-r.top)*(sc.height/r.height))};
   sc.onpointermove=function(e){if(!_actSigDrawing)return;var r=sc.getBoundingClientRect();_actSigCtx.lineTo((e.clientX-r.left)*(sc.width/r.width),(e.clientY-r.top)*(sc.height/r.height));_actSigCtx.strokeStyle='#1C1C1E';_actSigCtx.lineWidth=2;_actSigCtx.lineCap='round';_actSigCtx.lineJoin='round';_actSigCtx.stroke()};
-  sc.onpointerup=sc.onpointerleave=function(){_actSigDrawing=false}
+  sc.onpointerup=sc.onpointerleave=function(){if(_actSigDrawing){_actSigDrawing=false;_updateSigPosIndicator()}}
 }
-function clearASig(){var sc=$e('asgc');if(sc&&_actSigCtx)_actSigCtx.clearRect(0,0,sc.width,sc.height)}
+function clearASig(){var sc=$e('asgc');if(sc&&_actSigCtx)_actSigCtx.clearRect(0,0,sc.width,sc.height);_updateSigPosIndicator()}
 function previewASig(inp){
   var f=inp.files[0];if(!f)return;
   var r=new FileReader();r.onload=function(e){
     var p=$e('asig-prev');if(p)p.src=e.target.result;
     var w=$e('asig-prev-wrap');if(w)w.classList.remove('hidden');
     var dz=$e('asig-drop-zone');if(dz)dz.classList.add('hidden');
-    window._actSigSrc=e.target.result
+    window._actSigSrc=e.target.result;
+    _updateSigPosIndicator();
   };r.readAsDataURL(f)
 }
 function getActSigSrc(){
@@ -308,5 +311,16 @@ function _updateSigPosIndicator(){
   ind.style.left=(_actSigPos.xFrac*cw)+'px';
   ind.style.top=(_actSigPos.yFrac*ch)+'px';
   ind.style.width=((180/_actSigPdfW)*cw)+'px';
-  ind.style.height=((60/_actSigPdfH)*ch)+'px'
+  ind.style.height=((60/_actSigPdfH)*ch)+'px';
+  var src=getActSigSrc();
+  if(src){
+    ind.style.backgroundColor='rgba(255,255,255,.55)';
+    ind.style.backgroundImage='url('+src+')';
+    ind.style.backgroundSize='contain';
+    ind.style.backgroundPosition='center';
+    ind.style.backgroundRepeat='no-repeat';
+  } else {
+    ind.style.backgroundColor='rgba(232,58,0,0.12)';
+    ind.style.backgroundImage='none';
+  }
 }
