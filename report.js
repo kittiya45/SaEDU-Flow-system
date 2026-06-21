@@ -7,7 +7,7 @@ async function exportDocPDF(docId){
   // Lookup user names
   var uids=[...new Set([doc.created_by].concat(hist.map(function(h){return h.performed_by})).filter(Boolean))];
   var umap={};
-  if(uids.length){(await dg('users','?id=in.('+uids.join(',')+')'+'&select=id,full_name')).forEach(function(u){umap[u.id]=u.full_name})}
+  if(uids.length){(await dg('user_directory','?id=in.('+uids.join(',')+')'+'&select=id,full_name')).forEach(function(u){umap[u.id]=u.full_name})}
   var stTh={pending:'รอลงนาม',completed:'เสร็จสิ้น',rejected:'ส่งคืนแก้ไข',draft:'ร่างเอกสาร',signed:'ลงนามแล้ว',done:'ผ่านแล้ว',active:'กำลังดำเนินการ',skipped:'ข้ามขั้นตอน'};
   var wfRows=wf.map(function(s,i){
     var stCl=s.status==='done'?'color:#2E7D32':s.status==='active'?'color:#E65100':'color:#888';
@@ -61,7 +61,7 @@ async function exportCSV(){
   var _uids=[...new Set(ADOCS.map(function(d){return d.created_by}).filter(Boolean))];
   var _umap={};
   if(_uids.length){
-    var _urows=await dg('users','?id=in.('+_uids.map(safeId).join(',')+')'+'&select=id,full_name');
+    var _urows=await dg('user_directory','?id=in.('+_uids.map(safeId).join(',')+')'+'&select=id,full_name');
     (_urows||[]).forEach(function(u){_umap[u.id]=u.full_name});
   }
   var headers=['เลขที่เอกสาร','ชื่อเรื่อง','ประเภท','ความเร่งด่วน','สถานะ','จากฝ่าย','เรียน','วันที่สร้าง','Deadline/วันที่กิจกรรม','ผู้สร้าง'];

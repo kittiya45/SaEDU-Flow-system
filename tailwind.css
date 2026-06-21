@@ -1,0 +1,23 @@
+@import "tailwindcss";
+
+/* แปลงมาจาก tailwind.config (CDN) เดิมใน index.html — ห้ามลบ index.html ตัวเก่าทิ้งจนกว่าจะย้าย <link> มาใช้ไฟล์นี้แทน */
+@theme {
+  --font-thai: "Noto Sans Thai", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", "Courier New", monospace;
+
+  --color-brand: #E83A00;
+  --color-brand-h: #C03200;
+  --color-brand-light: #fff5f0;
+  --color-brand-mid: #ffc9a8;
+  --color-brand-pale: #fff8f4;
+
+  --color-navy: #100800;
+  --color-app: #F4F2EF;
+  --color-card: #FFFFFF;
+
+  --color-app-text: #18120E;
+  --color-app-text-2: #6b6560;
+  --color-app-text-3: #a89e99;
+
+  --color-border: #EBEBEB;
+}

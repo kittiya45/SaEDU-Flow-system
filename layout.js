@@ -229,8 +229,8 @@ async function nav(view, id) {
           '<img src="img/logo.png" alt="Logo">' +
         '</div>' +
         '<div class="app-side-brand">' +
-          '<div style="font-size:13px;font-weight:900;letter-spacing:-.2px;color:#18120E">'+(SETT&&SETT.org_name||'กนค.')+'</div>' +
-          '<div style="font-size:10px;margin-top:2px;color:#a89e99">'+(SETT&&SETT.system_name||'ระบบเสนอเอกสาร')+'</div>' +
+          '<div style="font-size:16px;font-weight:900;letter-spacing:-.2px;color:#18120E">'+(SETT&&SETT.org_name||'Saedu Flow')+'</div>' +
+          '<div style="font-size:11px;margin-top:2px;color:#a89e99">'+(SETT&&SETT.system_name||'ระบบเสนอเอกสาร')+'</div>' +
         '</div>' +
       '</div>' +
       '<div class="app-side-label">เมนูหลัก</div>' +

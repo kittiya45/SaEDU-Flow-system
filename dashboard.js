@@ -4,7 +4,6 @@ var _calM=new Date().getMonth();
 var _calSel='';
 var _calDocs=[];
 var _calEvts=[];
-var _calAddMode=false;
 var _calEvtPg=0;
 
 /* ─── PROJECT SUMMARY STATE ─── */
@@ -20,17 +19,93 @@ function _calNav(dir){
   _calM+=dir;
   if(_calM>11){_calM=0;_calY++}
   if(_calM<0){_calM=11;_calY--}
-  _calSel=''; _calAddMode=false; _renderCal()
+  _calSel=''; _renderCal()
 }
 function _calPick(d){
-  _calSel=_calSel===d?'':d; _calAddMode=false; _calEvtPg=0; _renderCal()
+  _calSel=_calSel===d?'':d; _calEvtPg=0; _renderCal()
 }
 function _calEvtNav(dir){
   _calEvtPg+=dir; _renderCal()
 }
-function _calAddToggle(){
-  _calAddMode=!_calAddMode; _renderCal();
-  if(_calAddMode) setTimeout(function(){var i=$e('cal-inp');if(i)i.focus()},50)
+/* เปิด popup เพิ่มกิจกรรม — โครงเดียวกับ showTmplUpload() ใน templates.js */
+function showCalAddEvt(){
+  var w=$e('mwrap'); if(!w) return;
+  var defDate=_calSel||new Date().toISOString().substring(0,10);
+
+  w.innerHTML=[
+    '<div id="cal-evt-overlay" class="mo" style="position:fixed;inset:0;z-index:9999;background:rgba(24,18,14,0.4);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;">',
+
+      '<div class="modal" style="max-width:440px;width:95%;border-radius:28px;background:#fff;box-shadow:0 40px 100px -20px rgba(232,58,0,.15);border:1px solid rgba(232,58,0,.05);overflow:hidden;position:relative;" onclick="event.stopPropagation()">',
+
+        // HEADER
+        '<div class="modal-head" style="padding:28px 32px 20px 32px;background:linear-gradient(to bottom, rgba(232,58,0,.05), #fff);border:none;display:flex;justify-content:space-between;align-items:flex-start;">',
+
+          '<div class="flex flex-col gap-1">',
+            '<div style="color:#E83A00;font-weight:800;font-size:10px;letter-spacing:.12em;text-transform:uppercase;display:flex;align-items:center;gap:6px;">',
+              '<span style="width:10px;height:2px;background:#E83A00;border-radius:2px;"></span>',
+              'ปฏิทินกิจกรรม',
+            '</div>',
+
+            '<span class="modal-title" style="font-size:19px;font-weight:850;color:#18120E;letter-spacing:-0.02em;">',
+              'เพิ่มกิจกรรมใหม่',
+            '</span>',
+          '</div>',
+
+          '<button type="button" id="btn-close-cal-evt" class="btn btn-soft sm btn-icon" style="cursor:pointer;background:rgba(232,58,0,.08);color:#E83A00;border-radius:12px;width:34px;height:34px;border:none;display:flex;align-items:center;justify-content:center;">',
+            svg('x',14),
+          '</button>',
+
+        '</div>',
+
+        // BODY
+        '<div class="modal-body" style="padding:0 32px 24px 32px;">',
+
+          '<div class="fg" style="margin-bottom:16px;">',
+            '<label class="fl" style="display:block;font-size:11.5px;font-weight:700;color:#18120E;margin-bottom:6px;">',
+              'ชื่อกิจกรรม <span class="req" style="color:#E83A00">*</span>',
+            '</label>',
+            '<input class="fi" id="cal-inp" type="text" placeholder="เช่น ประชุม กนค." style="width:100%;height:44px;padding:0 14px;font-size:12.5px;border-radius:12px;border:1.5px solid #F1F1F1;background:#FAFAFA;outline:none;" onkeydown="if(event.key===\'Enter\')_calSaveEvt()">',
+          '</div>',
+
+          '<div class="fg" style="margin:0">',
+            '<label class="fl" style="display:block;font-size:11.5px;font-weight:700;color:#18120E;margin-bottom:6px;">',
+              'วันที่ <span class="req" style="color:#E83A00">*</span>',
+            '</label>',
+            '<input class="fi" id="cal-date" type="date" value="'+defDate+'" style="width:100%;height:44px;padding:0 14px;font-size:12.5px;border-radius:12px;border:1.5px solid #F1F1F1;background:#FAFAFA;">',
+          '</div>',
+
+        '</div>',
+
+        // FOOTER
+        '<div class="modal-foot" style="padding:0 32px 32px 32px;border:none;background:none;display:flex;gap:10px;">',
+
+          '<button type="button" id="btn-cancel-cal-evt" class="btn btn-soft" style="cursor:pointer;flex:1;height:46px;border-radius:14px;font-weight:600;font-size:12.5px;border:1px solid #EBEBEB;background:#fff;color:#6b6560;">',
+            'ยกเลิก',
+          '</button>',
+
+          '<button type="button" id="btn-save-cal-evt" class="btn btn-primary" style="cursor:pointer;flex:1.8;height:46px;border-radius:14px;font-weight:700;font-size:12.5px;background:#E83A00;color:#fff;display:flex;align-items:center;justify-content:center;gap:8px;border:none;box-shadow:0 8px 16px -4px rgba(232,58,0,.3);">',
+            'บันทึก',
+          '</button>',
+
+        '</div>',
+
+      '</div>',
+    '</div>'
+  ].join('');
+
+  var overlay=$e('cal-evt-overlay');
+  var closeBtn=$e('btn-close-cal-evt');
+  var cancelBtn=$e('btn-cancel-cal-evt');
+  var saveBtn=$e('btn-save-cal-evt');
+
+  function closeModal(){ w.innerHTML=''; }
+
+  overlay.addEventListener('click',function(){ closeModal(); });
+  closeBtn.addEventListener('click',function(e){ e.preventDefault();e.stopPropagation();closeModal(); });
+  cancelBtn.addEventListener('click',function(e){ e.preventDefault();e.stopPropagation();closeModal(); });
+  saveBtn.addEventListener('click',function(e){ e.preventDefault();e.stopPropagation();_calSaveEvt(); });
+
+  setTimeout(function(){var i=$e('cal-inp');if(i)i.focus()},50);
 }
 async function _calSaveEvt(){
   var ti=$e('cal-inp'), da=$e('cal-date');
@@ -38,7 +113,7 @@ async function _calSaveEvt(){
   var date=da&&da.value?da.value:(_calSel||new Date().toISOString().substring(0,10));
   await dp('calendar_events',{date:date,title:ti.value.trim(),color:'#3B82F6',created_by:CU.id});
   if(!_calSel) _calSel=date;
-  _calAddMode=false;
+  var mw=$e('mwrap'); if(mw) mw.innerHTML='';
   await _loadEvtsDB(); _renderCal()
 }
 async function _calDelEvt(id){
@@ -80,30 +155,10 @@ function _buildCal(docs){
       '<div style="width:30px;height:30px;border-radius:9px;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;color:#fff">'+svg('cal',15)+'</div>'+
       '<span style="font-size:13px;font-weight:800;color:#fff;letter-spacing:-.2px">ปฏิทินกิจกรรม</span>'+
     '</div>'+
-    '<button onclick="_calAddToggle()" style="background:rgba(255,255,255,'+(_calAddMode?'.3':'.15')+');color:#fff;border:1px solid rgba(255,255,255,.45);border-radius:9px;padding:5px 12px;font-size:11px;font-weight:700;cursor:pointer;letter-spacing:.1px">'+
-    (_calAddMode?'✕ ยกเลิก':'+ เพิ่มกิจกรรม')+'</button>'+
+    '<button onclick="showCalAddEvt()" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.45);border-radius:9px;padding:5px 12px;font-size:11px;font-weight:700;cursor:pointer;letter-spacing:.1px">'+
+    '+ เพิ่มกิจกรรม</button>'+
     '</div>'
   );
-
-  /* add event form */
-  if(_calAddMode){
-    var defDate=_calSel||todayStr;
-    h.push(
-      '<div style="padding:14px 16px 16px;background:#FDFBF9;border-bottom:1px solid #F0EDE8">'+
-      '<div style="font-size:10px;font-weight:800;color:#a89e99;margin-bottom:10px;letter-spacing:.8px;text-transform:uppercase">เพิ่มกิจกรรมใหม่</div>'+
-      '<input id="cal-inp" type="text" placeholder="ชื่อกิจกรรม..." '+
-        'style="width:100%;box-sizing:border-box;border:1.5px solid #E8E4DF;border-radius:10px;padding:9px 12px;font-size:12px;outline:none;margin-bottom:8px;background:#fff;font-family:inherit;color:#18120E" '+
-        'onkeydown="if(event.key===\'Enter\')_calSaveEvt()" '+
-        'onfocus="this.style.borderColor=\'#E83A00\'" onblur="this.style.borderColor=\'#E8E4DF\'">'+
-      '<div style="display:flex;gap:8px;align-items:stretch">'+
-        '<input id="cal-date" type="date" value="'+defDate+'" '+
-          'style="flex:1;min-width:0;border:1.5px solid #E8E4DF;border-radius:10px;padding:8px 10px;font-size:12px;outline:none;background:#fff;font-family:inherit">'+
-        '<button onclick="_calSaveEvt()" '+
-          'style="background:#E83A00;color:#fff;border:none;border-radius:10px;padding:8px 18px;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap">บันทึก</button>'+
-      '</div>'+
-      '</div>'
-    );
-  }
 
   /* month navigation */
   h.push(
@@ -315,10 +370,10 @@ async function vDash(){
 
   /* ── Main 2-col grid ── */
 
-  html.push('<div style="display:grid;grid-template-columns:1fr 320px;gap:20px;align-items:start">');
+  html.push('<div style="display:grid;grid-template-columns:1fr 320px;gap:20px;align-items:stretch">');
 
   /* ── LEFT: Recent docs ── */
-  html.push('<div style="min-width:0">');
+  html.push('<div style="min-width:0;display:flex;flex-direction:column">');
   html.push(
     '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">'+
     '<div>'+
@@ -330,7 +385,7 @@ async function vDash(){
   );
 
   var recent=docs.slice(0,5);
-  html.push('<div style="background:#fff;border-radius:16px;border:1px solid rgba(0,0,0,.055);overflow:hidden;box-shadow:var(--sh-card)">');
+  html.push('<div style="background:#fff;border-radius:16px;border:1px solid rgba(0,0,0,.055);overflow:hidden;box-shadow:var(--sh-card);flex:1;display:flex;flex-direction:column">');
   if(recent.length){
     recent.forEach(function(d,idx){
       var isMyTask=_myIds2.indexOf(d.id)!==-1;
@@ -352,7 +407,7 @@ async function vDash(){
     });
   } else {
     html.push(
-      '<div style="padding:64px 24px;text-align:center">'+
+      '<div style="padding:64px 24px;text-align:center;flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center">'+
         '<div style="width:64px;height:64px;border-radius:20px;background:#EBEBEB;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;color:#a89e99">'+svg('doc',28)+'</div>'+
         '<div style="font-size:15px;font-weight:700;color:#6b6560;margin-bottom:6px">ยังไม่มีเอกสาร</div>'+
         '<div style="font-size:12px;color:#a89e99;margin-bottom:20px">เริ่มต้นด้วยการสร้างเอกสารแรกของคุณ</div>'+
@@ -387,13 +442,20 @@ async function _renderProjSummary(){
   if(el) el.innerHTML=await _buildProjSummary();
 }
 
+/* ปีที่กรองยึดตามวันที่ "สร้าง" เอกสาร (created_at) ให้ตรงกับหน้าสถิติ — ไม่ใช่ปีในเลขหนังสือ
+   เพราะเอกสารที่ยังไม่ออกเลขหนังสือ (doc_number เป็น null) จะไม่ถูกนับเลยถ้ากรองด้วยเลขหนังสือ */
+function _projYearRange(thYear){
+  var gYear=thYear-543;
+  return {start:gYear+'-01-01T00:00:00',end:(gYear+1)+'-01-01T00:00:00'};
+}
+
 async function _buildProjSummary(){
   var raw=await dg('documents','?doc_type=eq.outgoing&select=id,title,doc_number,description,status,created_at,updated_at&order=created_at.desc');
   var all=Array.isArray(raw)?raw:[];
 
+  var _rng=_projYearRange(_projYear);
   var yearDocs=all.filter(function(d){
-    var m=d.doc_number&&d.doc_number.match(/\/(\d{4})$/);
-    return m&&parseInt(m[1])===_projYear;
+    return (d.created_at||'')>=_rng.start&&(d.created_at||'')<_rng.end;
   });
 
   /* group by project name stored in description */
@@ -437,7 +499,7 @@ async function _buildProjSummary(){
   if(!yearDocs.length){
     h.push(
       '<div style="padding:48px 20px;text-align:center">'+
-        '<div style="font-size:30px;margin-bottom:10px">📭</div>'+
+        '<div style="width:64px;height:64px;border-radius:16px;background:#F5F3F0;display:flex;align-items:center;justify-content:center;color:#6b6560;margin:0 auto 14px">'+svg('doc',30)+'</div>'+
         '<div style="font-size:13px;font-weight:700;color:#c0b9b4">ไม่มีหนังสือขาออกในปี พ.ศ. '+_projYear+'</div>'+
       '</div>'
     );
@@ -500,10 +562,10 @@ async function _downloadProjZip(){
   if(btn){btn.disabled=true;btn.innerHTML='<span class="sp" style="border-color:rgba(255,255,255,.3);border-top-color:#fff"></span> กำลังรวมไฟล์...';}
   try{
     await _loadJSZip();
-    var raw=await dg('documents','?doc_type=eq.outgoing&status=eq.completed&select=id,title,doc_number,description&order=created_at.desc');
+    var raw=await dg('documents','?doc_type=eq.outgoing&status=eq.completed&select=id,title,doc_number,description,created_at&order=created_at.desc');
+    var _rng=_projYearRange(_projYear);
     var yearDocs=(Array.isArray(raw)?raw:[]).filter(function(d){
-      var m=d.doc_number&&d.doc_number.match(/\/(\d{4})$/);
-      return m&&parseInt(m[1])===_projYear;
+      return (d.created_at||'')>=_rng.start&&(d.created_at||'')<_rng.end;
     });
     if(!yearDocs.length){showAlert('ไม่พบเอกสารที่เสร็จสิ้นในปีนี้','wa');return;}
 

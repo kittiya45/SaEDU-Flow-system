@@ -4,7 +4,12 @@ var _thFontCache=null;
 // Query the next available sequence number for a given category, excluding the current doc
 async function _nextDocNum(docId,docType,catPfx,club,thisYear,thaiYear){
   var gnkPfx='กนค. ',fullPfx=gnkPfx+catPfx;
-  var seq=await dg('documents','?doc_type=eq.'+docType+'&doc_number=not.is.null&created_at=gte.'+thisYear+'-01-01T00:00:00Z&select=doc_number,id');
+  var fromDate=thisYear+'-01-01T00:00:00Z';
+  try{
+    var rcfg=await dg('doc_number_settings','?year=eq.'+thaiYear+'&select=seq_reset_at&limit=1');
+    if(rcfg&&rcfg[0]&&rcfg[0].seq_reset_at&&rcfg[0].seq_reset_at>fromDate) fromDate=rcfg[0].seq_reset_at;
+  }catch(e){}
+  var seq=await dg('documents','?doc_type=eq.'+docType+'&doc_number=not.is.null&created_at=gte.'+encodeURIComponent(fromDate)+'&select=doc_number,id');
   var cat=(seq||[]).filter(function(d){
     if(d.id===docId)return false;
     var n=d.doc_number||'';
@@ -26,7 +31,7 @@ async function showNumModal(docId){
   var today=new Date().toISOString().slice(0,10);
 
   if(doc.doc_type==='outgoing'){
-    var creator=(await dg('users','?id=eq.'+safeId(doc.created_by)+'&select=position_code,full_name&limit=1'))[0]||{};
+    var creator=(await dg('user_directory','?id=eq.'+safeId(doc.created_by)+'&select=position_code,full_name&limit=1'))[0]||{};
     var posCode=GNK_NUM[creator.position_code]||'00';
     var posName=PTH[creator.position_code]||creator.position_code||'ไม่ระบุตำแหน่ง';
     var ltCode=doc.subject_line||'';
@@ -96,7 +101,7 @@ async function showNumModal(docId){
   }
 
   // หนังสือขาเข้า: auto-generate เลขที่ (รูปแบบ กนค. SPPTNNN-CC/BBBB)
-  var allUsers=await dg('users','?role_code=eq.ROLE-STF&is_active=eq.true&approval_status=eq.approved&order=full_name');
+  var allUsers=await dg('user_directory','?role_code=eq.ROLE-STF&is_active=eq.true&approval_status=eq.approved&order=full_name');
   var uOpts='<option value="">— ไม่ส่งต่อ —</option>'+allUsers.map(function(u){
     return '<option value="'+u.id+'">'+esc(u.full_name)+'</option>'
   }).join('');
@@ -450,7 +455,7 @@ async function _doSetDocNumberConfirmed(docId,cap){
     }
     if(doc.doc_type==='outgoing'){
       try{
-        var posUsers=await dg('users','?position_code=eq.'+encodeURIComponent(doc.addressed_to)+'&is_active=eq.true&approval_status=eq.approved&limit=1');
+        var posUsers=await dg('user_directory','?position_code=eq.'+encodeURIComponent(doc.addressed_to)+'&is_active=eq.true&approval_status=eq.approved&limit=1');
         var posUser=posUsers[0];
         if(posUser){
           var posEmail=posUser.contact_email||posUser.email;
@@ -467,7 +472,7 @@ async function _doSetDocNumberConfirmed(docId,cap){
       var a2=$e('dal');if(a2)a2.innerHTML='<div class="al al-ok"><span class="al-icon">'+svg('ok',13)+'</span><span>ออกเลขหนังสือขาออกเรียบร้อยแล้ว เลขที่: <strong class="mono">'+esc(docNum)+'</strong></span></div>';
     } else {
       if(fwdId){
-        var fwdUser=(await dg('users','?id=eq.'+fwdId))[0];
+        var fwdUser=(await dg('user_directory','?id=eq.'+fwdId))[0];
         var doc2=(await dg('documents','?id=eq.'+docId))[0]||{};
         var fwdEmail=fwdUser?(fwdUser.contact_email||fwdUser.email):'';
         var fwdSubj='[กนค.] ส่งต่อหนังสือขาเข้า: '+(doc2.title||'');

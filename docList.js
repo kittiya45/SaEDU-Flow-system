@@ -31,7 +31,7 @@ async function vDocs(){
     var _stepUids=[...new Set((_aSteps||[]).filter(function(s){return s.assigned_to}).map(function(s){return s.assigned_to}))];
     var _stepUmap={};
     if(_stepUids.length){
-      var _suRes=await dg('users','?id=in.('+_stepUids.map(safeId).join(',')+')'+'&select=id,full_name');
+      var _suRes=await dg('user_directory','?id=in.('+_stepUids.map(safeId).join(',')+')'+'&select=id,full_name');
       (_suRes||[]).forEach(function(u){_stepUmap[u.id]=u.full_name});
     }
     (_aSteps||[]).forEach(function(s){if(s.document_id&&s.assigned_to)_ACTIVE_STEPS[s.document_id]=_stepUmap[s.assigned_to]||''});

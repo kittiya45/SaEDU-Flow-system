@@ -417,8 +417,8 @@ async function doChangePw(){
   }
 }
 
-function _togglePwVis(){
-  var inp=$e('lp'), btn=$e('lp-eye');
+function _togglePwVis(inputId,btnId){
+  var inp=$e(inputId||'lp'), btn=$e(btnId||'lp-eye');
   if(!inp||!btn) return;
   var show=inp.type==='password';
   inp.type=show?'text':'password';

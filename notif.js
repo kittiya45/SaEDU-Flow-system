@@ -17,27 +17,27 @@ async function sendNotifEmail(docId, action, newStatus, note){
   if(newStatus==='completed'||newStatus==='numbering'){
     // แจ้งเตือนผู้จัดทำเมื่อเอกสารเสร็จสิ้น หรือพร้อมออกเลขหนังสือ
     if(doc.created_by){
-      var creatorUser=await dg('users','?id=eq.'+safeId(doc.created_by));
+      var creatorUser=await dg('user_directory','?id=eq.'+safeId(doc.created_by));
       if(creatorUser[0]){
         var em=creatorUser[0].contact_email||creatorUser[0].email;
         if(_okEmail(em)) recipients.push({user:creatorUser[0],email:em});
       }
     }
   } else if(action==='approve'&&nextStep&&nextStep.assigned_to){
-    var ru=await dg('users','?id=eq.'+nextStep.assigned_to);
+    var ru=await dg('user_directory','?id=eq.'+nextStep.assigned_to);
     if(ru[0]){var em=ru[0].contact_email||ru[0].email;if(_okEmail(em))recipients.push({user:ru[0],email:em})}
   } else if(action==='reject'){
     // cascade: nextStep คือ step ก่อนหน้าที่ถูก re-activate → แจ้งเขา
     // final reject: ไม่มี active step → แจ้งผู้จัดทำ
     if(nextStep&&nextStep.assigned_to){
-      var _ruc=await dg('users','?id=eq.'+nextStep.assigned_to);
+      var _ruc=await dg('user_directory','?id=eq.'+nextStep.assigned_to);
       if(_ruc[0]){var _emc=_ruc[0].contact_email||_ruc[0].email;if(_okEmail(_emc))recipients.push({user:_ruc[0],email:_emc})}
     } else if(doc.created_by){
-      var cu2=await dg('users','?id=eq.'+doc.created_by);
+      var cu2=await dg('user_directory','?id=eq.'+doc.created_by);
       if(cu2[0]){var em2=cu2[0].contact_email||cu2[0].email;if(_okEmail(em2))recipients.push({user:cu2[0],email:em2})}
     }
   } else if((action==='create'||action==='resubmit')&&nextStep&&nextStep.assigned_to){
-    var ru3=await dg('users','?id=eq.'+nextStep.assigned_to);
+    var ru3=await dg('user_directory','?id=eq.'+nextStep.assigned_to);
     if(ru3[0]){var em3=ru3[0].contact_email||ru3[0].email;if(_okEmail(em3))recipients.push({user:ru3[0],email:em3})}
   } else if(action==='overdue'){
     var overdueIds=[];
@@ -45,7 +45,7 @@ async function sendNotifEmail(docId, action, newStatus, note){
     if(doc.created_by) overdueIds.push(doc.created_by);
     var uniqueOIds=[...new Set(overdueIds)];
     if(uniqueOIds.length){
-      var overdueUsers=await dg('users','?id=in.('+uniqueOIds.join(',')+')'+'&select=id,full_name,email,contact_email');
+      var overdueUsers=await dg('user_directory','?id=in.('+uniqueOIds.join(',')+')'+'&select=id,full_name,email,contact_email');
       overdueUsers.forEach(function(u){
         var em=u.contact_email||u.email;
         if(_okEmail(em)) recipients.push({user:u,email:em})
@@ -126,6 +126,48 @@ async function sendNotifEmail(docId, action, newStatus, note){
   if(sentEmails.length) showEmailToast(sentEmails,emailSubj);
 }
 
+/* ── อีเมลแจ้งเพื่อทราบ (ไม่ต้อง action) ไปยังผู้ที่อนุมัติ/ลงนามไปแล้วก่อนหน้า step ที่ตีกลับ ── */
+async function sendRejectFyiEmail(docId, recipientUser, rejectedStepName, note){
+  var em=recipientUser.contact_email||recipientUser.email;
+  if(!em||!em.includes('@')||em.includes('@gnk.student')) return;
+  var doc=(await dg('documents','?id=eq.'+docId))[0]; if(!doc) return;
+  var subj=(doc.subject_line&&doc.subject_line.length<3&&/^[1-9]$/.test(doc.subject_line.trim()))?doc.title:(doc.subject_line||doc.title);
+  var emailSubj=(SETT.email_prefix||'[กนค.]')+' ℹ️ แจ้งเพื่อทราบ: '+subj;
+  var html=buildEmailHtml({
+    recipName: recipientUser.full_name,
+    action: 'reject_fyi',
+    newStatus: 'rejected',
+    subj: subj,
+    addrTo: doc.addressed_to||'',
+    fromDept: doc.from_department||'กนค.',
+    note: note,
+    rejectedStepName: rejectedStepName,
+    urgency: doc.urgency
+  });
+  var status='failed';
+  try{
+    var resp=await fetch(SU+'/functions/v1/send-email',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':H.Authorization,'apikey':SK},
+      body:JSON.stringify({to:em,subject:emailSubj,html:html})
+    });
+    status=resp.ok?'sent':'failed';
+    if(!resp.ok) console.warn('FYI email send failed for '+em+':',await resp.json());
+  }catch(e){console.warn('FYI email fetch error:',e)}
+  try{
+    await dp('notifications',{
+      document_id:docId,
+      recipient_id:recipientUser.id,
+      recipient_email:em,
+      subject:emailSubj,
+      body:html,
+      notification_type:'reject_fyi',
+      status:status,
+      sent_at:new Date().toISOString()
+    });
+  }catch(e){}
+}
+
 /* ── สร้าง HTML Template สำหรับอีเมล ── */
 function buildEmailHtml(o){
   var urgColor={normal:'#4CAF50',urgent:'#FF9800',very_urgent:'#F44336'};
@@ -139,6 +181,8 @@ function buildEmailHtml(o){
     bannerBg='#FFF8E1'; bannerIcon='🔢'; actionLabel='<span style="color:#F57F17;font-weight:700">ลายเซ็นครบแล้ว — กรุณาออกเลขที่หนังสือ</span>';
   } else if(o.action==='reject'){
     bannerBg='#FFF3E0'; bannerIcon='↩'; actionLabel='<span style="color:#E65100;font-weight:700">เอกสารถูกส่งคืนเพื่อแก้ไข</span>';
+  } else if(o.action==='reject_fyi'){
+    bannerBg='#FFF3E0'; bannerIcon='↩'; actionLabel='<span style="color:#E65100;font-weight:700">เอกสารที่ท่านเคยอนุมัติถูกส่งคืนแก้ไขแล้ว (เพื่อทราบ)</span>';
   } else if(o.action==='overdue'){
     bannerBg='#FFEBEE'; bannerIcon='⚠️'; actionLabel='<span style="color:#C62828;font-weight:700">เอกสารเลยกำหนดส่งแล้ว กรุณาดำเนินการโดยด่วน</span>';
   } else {
@@ -152,6 +196,10 @@ function buildEmailHtml(o){
   if(o.deadlineStr) rows+='<tr><td style="color:#888;padding:5px 0;font-size:13px">วันกำหนดส่ง</td><td style="font-weight:700;color:#E84300;font-size:13px">'+esc(o.deadlineStr)+'</td></tr>';
   if(o.nextStep&&o.action!=='reject'&&o.newStatus!=='completed') rows+='<tr><td style="color:#888;padding:5px 0;font-size:13px">ขั้นตอนที่รอ</td><td style="font-size:13px">'+esc(o.nextStep.step_name||'')+'</td></tr>';
   if(o.action==='reject'&&o.note) rows+='<tr><td style="color:#888;padding:5px 0;vertical-align:top;font-size:13px">ส่วนที่ต้องแก้ไข</td><td style="color:#E65100;font-size:13px">'+esc(o.note)+'</td></tr>';
+  if(o.action==='reject_fyi'){
+    if(o.rejectedStepName) rows+='<tr><td style="color:#888;padding:5px 0;font-size:13px">ตีกลับจากขั้นตอน</td><td style="font-size:13px">'+esc(o.rejectedStepName)+'</td></tr>';
+    if(o.note) rows+='<tr><td style="color:#888;padding:5px 0;vertical-align:top;font-size:13px">ส่วนที่ต้องแก้ไข</td><td style="color:#E65100;font-size:13px">'+esc(o.note)+'</td></tr>';
+  }
 
   var footerMsg='';
   if(o.newStatus==='completed'){
@@ -161,6 +209,8 @@ function buildEmailHtml(o){
     footerMsg='<p style="font-size:13px;color:#F57F17;margin:16px 0 0;font-weight:700">กรุณาเข้าสู่ระบบเพื่อออกเลขที่หนังสือและวันที่</p>';
   } else if(o.action==='reject'){
     footerMsg='<p style="font-size:13px;color:#E65100;margin:16px 0 0">กรุณาแก้ไขเอกสารและส่งกลับผ่านระบบ</p>';
+  } else if(o.action==='reject_fyi'){
+    footerMsg='<p style="font-size:13px;color:#E65100;margin:16px 0 0">เพื่อทราบเท่านั้น ไม่ต้องดำเนินการเพิ่มเติม — เอกสารอยู่ระหว่างผู้จัดทำแก้ไข</p>';
   } else if(o.action==='overdue'){
     footerMsg='<p style="font-size:13px;color:#C62828;margin:16px 0 0;font-weight:700">⚠️ กรุณาเข้าสู่ระบบเพื่อดำเนินการโดยด่วน</p>';
   } else {
@@ -212,8 +262,8 @@ async function sendOverdueNotifs(){
   var since=new Date(Date.now()-24*60*60*1000).toISOString();
   for(var i=0;i<overdueDocs.length;i++){
     var did=overdueDocs[i].id;
-    var recent=await dg('notifications','?document_id=eq.'+did+'&notification_type=eq.overdue&created_at=gt.'+encodeURIComponent(since)+'&limit=1');
-    if(recent.length) continue;
+    var recent=await dg('notifications','?document_id=eq.'+did+'&notification_type=eq.overdue&sent_at=gt.'+encodeURIComponent(since)+'&limit=1');
+    if(!Array.isArray(recent)||recent.length) continue;
     try{await sendNotifEmail(did,'overdue','overdue','')}catch(e){console.warn('Overdue notif failed:',e)}
   }
 }

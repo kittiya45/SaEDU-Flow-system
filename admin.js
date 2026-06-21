@@ -330,8 +330,9 @@ async function _admDelConfirmed(uid,dcCreated,wf){
   try{await dp('document_history',{action:'ลบบัญชีผู้ใช้',performed_by:CU.id,note:'ลบ: '+(u?u.full_name+' ('+u.email+')':uid)+(dcCreated.length?' พร้อมเอกสาร '+dcCreated.length+' รายการ':'')});}catch(e){}
   try{
     // ลบ auth.users จริงต้องผ่าน Edge Function (ใช้ service-role key ฝั่งเซิร์ฟเวอร์ ทำใน browser ตรงๆไม่ได้)
+    // [ห้ามใช้ H ตรงๆ] header 'Prefer' ของ H เป็นของ PostgREST เท่านั้น Edge Function ไม่อนุญาต header นี้ใน CORS เลยพังเงียบๆ
     if(u&&u.auth_uid){
-      var _dr=await fetch(SU+'/functions/v1/admin-delete-user',{method:'POST',headers:H,body:JSON.stringify({targetAuthUid:u.auth_uid})});
+      var _dr=await fetch(SU+'/functions/v1/admin-delete-user',{method:'POST',headers:{apikey:SK,'Authorization':H.Authorization,'Content-Type':'application/json'},body:JSON.stringify({targetAuthUid:u.auth_uid})});
       if(!_dr.ok){var _de=await _dr.json().catch(function(){return{}});throw new Error(_de.error||'ลบบัญชีเข้าสู่ระบบไม่สำเร็จ')}
     }
     await dd('users',uid);
@@ -400,9 +401,15 @@ function admResetPw(uid){
     '<div class="al al-wa" style="margin-bottom:16px"><span class="al-icon">'+svg('warn',13)+'</span><span>รหัสผ่านใหม่จะถูกบันทึกทันที ผู้ใช้จะต้องใช้รหัสนี้ในการเข้าสู่ระบบครั้งถัดไป</span></div>'+
     '<div id="rpal"></div>'+
     '<div class="fg"><label class="fl">รหัสผ่านใหม่ <span class="req">*</span></label>'+
-    '<input id="rpnew" class="fi" type="password" placeholder="อย่างน้อย 6 ตัวอักษร"></div>'+
+    '<div style="position:relative">'+
+    '<input id="rpnew" class="fi" type="password" placeholder="อย่างน้อย 6 ตัวอักษร" style="padding-right:44px">'+
+    '<button type="button" id="rpnew-eye" onclick="_togglePwVis(\'rpnew\',\'rpnew-eye\')" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;padding:4px;cursor:pointer;color:#a89e99;display:flex;align-items:center;line-height:1;border-radius:6px" title="แสดง/ซ่อนรหัสผ่าน">'+svg('eye',16)+'</button>'+
+    '</div></div>'+
     '<div class="fg"><label class="fl">ยืนยันรหัสผ่านใหม่ <span class="req">*</span></label>'+
-    '<input id="rpnew2" class="fi" type="password" placeholder="ยืนยัน"></div>'+
+    '<div style="position:relative">'+
+    '<input id="rpnew2" class="fi" type="password" placeholder="ยืนยัน" style="padding-right:44px">'+
+    '<button type="button" id="rpnew2-eye" onclick="_togglePwVis(\'rpnew2\',\'rpnew2-eye\')" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;padding:4px;cursor:pointer;color:#a89e99;display:flex;align-items:center;line-height:1;border-radius:6px" title="แสดง/ซ่อนรหัสผ่าน">'+svg('eye',16)+'</button>'+
+    '</div></div>'+
     '</div>'+
     '<div class="modal-foot">'+
     '<button class="btn btn-soft" data-action="closeModal">ยกเลิก</button>'+
@@ -418,8 +425,11 @@ async function doAdmResetPw(uid){
   var u=(AUSERS||[]).filter(function(x){return x.id===uid})[0];
   if(!u||!u.auth_uid){al.innerHTML=alrtH('er','ไม่พบบัญชีเข้าสู่ระบบของผู้ใช้นี้');return}
   // เซ็ตรหัสผ่านให้คนอื่นตรงๆต้องใช้ service-role key ฝั่งเซิร์ฟเวอร์ ทำใน browser ไม่ได้ จึงต้องผ่าน Edge Function
-  var r=await fetch(SU+'/functions/v1/admin-set-password',{method:'POST',headers:H,body:JSON.stringify({targetAuthUid:u.auth_uid,newPassword:pw})});
-  if(!r.ok){var e=await r.json().catch(function(){return{}});al.innerHTML=alrtH('er',e.error||'รีเซ็ตรหัสผ่านไม่สำเร็จ');return}
+  // [ห้ามใช้ H ตรงๆ] header 'Prefer' ของ H เป็นของ PostgREST เท่านั้น Edge Function ไม่อนุญาต header นี้ใน CORS เลยพังเงียบๆ
+  try{
+    var r=await fetch(SU+'/functions/v1/admin-set-password',{method:'POST',headers:{apikey:SK,'Authorization':H.Authorization,'Content-Type':'application/json'},body:JSON.stringify({targetAuthUid:u.auth_uid,newPassword:pw})});
+    if(!r.ok){var e=await r.json().catch(function(){return{}});al.innerHTML=alrtH('er',e.error||'รีเซ็ตรหัสผ่านไม่สำเร็จ');return}
+  }catch(e){al.innerHTML=alrtH('er','เกิดข้อผิดพลาด กรุณาลองใหม่');return}
   try{await dp('document_history',{action:'รีเซ็ตรหัสผ่าน',performed_by:CU.id,note:'รีเซ็ตรหัสผ่าน: '+(u?u.full_name:uid)});}catch(e){}
   al.innerHTML=alrtH('ok','รีเซ็ตรหัสผ่านสำเร็จ');
   setTimeout(function(){var mw=$e('mwrap');if(mw)mw.innerHTML='';},1400);

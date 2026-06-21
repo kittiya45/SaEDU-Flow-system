@@ -34,7 +34,7 @@ async function vDet(docId){
   if(doc.final_recipient_id&&_aIds.indexOf(doc.final_recipient_id)===-1) _aIds.push(doc.final_recipient_id);
   var _aMap={};
   if(_aIds.length){
-    var _aus=await dg('users','?id=in.('+_aIds.map(safeId).join(',')+')'+'&select=id,full_name,contact_email,email');
+    var _aus=await dg('user_directory','?id=in.('+_aIds.map(safeId).join(',')+')'+'&select=id,full_name,contact_email,email');
     _aus.forEach(function(u){_aMap[u.id]=u})
   }
   var creator=_aMap[doc.created_by]||{full_name:'—'};
@@ -110,9 +110,13 @@ async function vDet(docId){
   if(doc.status==='completed'){
     // ซ่อนปุ่มส่งต่อเมื่อรอการรับเอกสารอยู่แล้ว
     var _fwdPending=doc.forwarded_to_id&&!hist.some(function(h){return h.action&&h.action.indexOf('เจ้าหน้าที่รับเอกสาร')>=0});
-    if(!_fwdPending){
+    // ผู้ที่ส่งต่อได้ต้องเป็นผู้ถือเอกสารอยู่ตอนนี้ (ผู้จัดทำถ้ายังไม่ส่งต่อ หรือผู้ที่ถูกส่งต่อล่าสุด) หรือแอดมิน/เจ้าหน้าที่
+    // — ต้องตรงกับสิทธิ์ที่ DB เช็คจริงใน documents_update RLS policy ไม่งั้นปุ่มจะกดได้แต่ขึ้น error
+    var _holdsDoc=doc.forwarded_to_id?doc.forwarded_to_id===CU.id:doc.created_by===CU.id;
+    var _canFwd=_holdsDoc||['ROLE-SYS','ROLE-STF'].includes(CU.role_code);
+    if(!_fwdPending&&_canFwd){
       html.push('<button class="btn btn-soft sm" data-action="showFwdModal" data-id="'+docId+'">'+svg('sign',13)+' ส่งต่อ</button>');
-    } else {
+    } else if(_fwdPending){
       html.push('<span style="font-size:12px;color:#D97706;display:flex;align-items:center;gap:4px">'+svg('clock',13)+' รอเจ้าหน้าที่รับเอกสาร</span>');
     }
   }
@@ -391,7 +395,7 @@ async function showVerHist(docId){
 async function showFwdModal(docId){
   var w=$e('mwrap'); if(!w)return;
   // กรองเฉพาะ เจ้าหน้าที่ (ROLE-STF) และ อาจารย์กิจการ (ROLE-ADV) เท่านั้น
-  var allUsers=await dg('users','?is_active=eq.true&approval_status=eq.approved&role_code=in.(ROLE-STF,ROLE-ADV)&order=full_name');
+  var allUsers=await dg('user_directory','?is_active=eq.true&approval_status=eq.approved&role_code=in.(ROLE-STF,ROLE-ADV)&order=full_name');
   var doc=(await dg('documents','?id=eq.'+safeId(docId)))[0]||{};
   var uOpts=allUsers.map(function(u){
     return '<option value="'+u.id+'"'+(doc.forwarded_to_id===u.id?' selected':'')+'>'+esc(u.full_name)+' ('+RTH[u.role_code]+')</option>'
@@ -424,7 +428,7 @@ async function doForward(docId){
     await dpa('documents',docId,{forwarded_to_id:toId,forwarded_at:new Date().toISOString()});
     await dp('document_history',{document_id:docId,action:'ส่งต่อเอกสาร',performed_by:CU.id,note:note||'ส่งต่อเอกสาร'});
     // Notify recipient — always log in-app, email only for non-gnk.student
-    var toUser=(await dg('users','?id=eq.'+safeId(toId)))[0];
+    var toUser=(await dg('user_directory','?id=eq.'+safeId(toId)))[0];
     var doc2=(await dg('documents','?id=eq.'+docId))[0]||{};
     var recipEmail=toUser?(toUser.contact_email||toUser.email):'';
     var emailSubj=(SETT.email_prefix||'[กนค.]')+' ส่งต่อเอกสาร: '+(doc2.title||'');
@@ -578,30 +582,28 @@ async function doAct(action,docId){
   // allDone: ไม่มี step ใดหลัง step ปัจจุบันที่ยังไม่ done (รวม rejected steps ใน cascade)
   var allDone=action==='approve'&&!wf.some(function(s){return s.step_number>cur.step_number&&s.status!=='done'});
 
-  // Cascade reject: หา step ก่อนหน้า (step_number > 1 = ไม่ใช่ step ผู้จัดทำ)
-  var _cascadePrev=null;
-  if(action==='reject'){
-    for(var _cpi=0;_cpi<wf.length;_cpi++){
-      if(wf[_cpi].step_number<cur.step_number&&wf[_cpi].step_number>1) _cascadePrev=wf[_cpi];
-    }
-  }
-
   // เมื่อลงนามครบ: ขาเข้า → numbering, ขาออก → completed
-  // เมื่อตีกลับ: มี step ก่อนหน้า → cascade (pending), ไม่มี → rejected (ถึงผู้จัดทำ)
-  var nst=action==='approve'?(allDone?(doc.doc_type==='incoming'?'numbering':'completed'):'pending'):(_cascadePrev?'pending':'rejected');
+  // เมื่อตีกลับ: กลับไปหาผู้จัดทำเอกสารโดยตรงเสมอ (ไม่ cascade ทีละขั้นแล้ว)
+  var nst=action==='approve'?(allDone?(doc.doc_type==='incoming'?'numbering':'completed'):'pending'):'rejected';
   await dpa('documents',docId,{status:nst,current_step:ns,updated_at:new Date().toISOString()});
 
-  // Cascade: re-activate ขั้นตอนก่อนหน้าพร้อม SLA (วันทำการ)
-  if(action==='reject'&&_cascadePrev){
-    var _slaDays=SETT.sla_cascade_days||3;
-    var _slaDt=addWorkingDays(new Date(),_slaDays);
-    _slaDt.setHours(23,59,0,0);
-    await dpa('workflow_steps',_cascadePrev.id,{status:'active',deadline_datetime:_slaDt.toISOString(),deadline_days:_slaDays,action_taken:null,note:null,revision_section:null,action_at:null,completed_at:null});
-  }
-
-  var _histAct=action==='approve'?'อนุมัติ / ลงนาม':(_cascadePrev?'ส่งคืนแก้ไข — ส่งต่อ: '+(_cascadePrev.step_name||'ขั้นตอนก่อนหน้า'):'ส่งคืนแก้ไขไปยังผู้จัดทำ');
+  var _histAct=action==='approve'?'อนุมัติ / ลงนาม':'ส่งคืนแก้ไขไปยังผู้จัดทำ';
   await dp('document_history',{document_id:docId,action:_histAct,performed_by:CU.id,note:note});
   if(action==='reject'){
+    // แจ้งเตือน (เพื่อทราบเท่านั้น) ผู้ที่อนุมัติ/ลงนามไปแล้วก่อนหน้า step ที่ตีกลับ
+    var _priorApproved=wf.filter(function(s){return s.step_number>1&&s.step_number<cur.step_number&&s.status==='done'&&s.assigned_to});
+    if(_priorApproved.length){
+      try{
+        var _paIds=_priorApproved.map(function(s){return s.assigned_to});
+        var _paUsers=await dg('user_directory','?id=in.('+_paIds.map(safeId).join(',')+')'+'&select=id,full_name,contact_email,email');
+        if(Array.isArray(_paUsers)&&_paUsers.length){
+          await dp('document_history',{document_id:docId,action:'แจ้งเตือนผู้อนุมัติก่อนหน้า (เพื่อทราบ): '+_paUsers.map(function(u){return u.full_name}).join(', '),performed_by:CU.id,note:note});
+          for(var _pi=0;_pi<_paUsers.length;_pi++){
+            try{ await sendRejectFyiEmail(docId,_paUsers[_pi],cur.step_name,note); }catch(_fe){console.warn('FYI email failed:',_fe)}
+          }
+        }
+      }catch(_pae){console.warn('Prior-approver lookup failed:',_pae)}
+    }
     var _rejFile=$e('rej-file');
     if(_rejFile&&_rejFile.files&&_rejFile.files.length){
       try{
@@ -683,7 +685,7 @@ async function doAct(action,docId){
   if(mw) mw.innerHTML='';
   var a=$e('dal');
   var _slaD=SETT.sla_cascade_days||3;
-  var _okMsg=nst==='numbering'?'ลายเซ็นครบทุกขั้นตอนแล้ว! ระบบส่งคืนผู้จัดทำเพื่อออกเลขที่หนังสือ':nst==='completed'?'เอกสารผ่านทุกขั้นตอนแล้ว! สถานะเปลี่ยนเป็น "เสร็จสิ้น" และส่งอีเมลแจ้งทุกคนแล้ว':action==='approve'?'อนุมัติเรียบร้อยแล้ว และส่งอีเมลแจ้งผู้รับผิดชอบขั้นตอนถัดไปแล้ว':(_cascadePrev?'ส่งคืนแก้ไขไปยัง "'+(_cascadePrev.step_name||'ขั้นตอนก่อนหน้า')+'" แล้ว — ผู้รับต้องดำเนินการภายใน '+_slaD+' วัน (SLA)':'ส่งคืนพร้อมระบุส่วนที่แก้ไขแล้ว — แจ้งผู้จัดทำทางอีเมลแล้ว (SLA '+_slaD+' วัน)');
+  var _okMsg=nst==='numbering'?'ลายเซ็นครบทุกขั้นตอนแล้ว! ระบบส่งคืนผู้จัดทำเพื่อออกเลขที่หนังสือ':nst==='completed'?'เอกสารผ่านทุกขั้นตอนแล้ว! สถานะเปลี่ยนเป็น "เสร็จสิ้น" และส่งอีเมลแจ้งทุกคนแล้ว':action==='approve'?'อนุมัติเรียบร้อยแล้ว และส่งอีเมลแจ้งผู้รับผิดชอบขั้นตอนถัดไปแล้ว':'ส่งคืนพร้อมระบุส่วนที่แก้ไขแล้ว — แจ้งผู้จัดทำทางอีเมลแล้ว (SLA '+_slaD+' วัน)';
   if(a) a.innerHTML=alrtH('ok',_okMsg);
   _actBusy=false;
   setTimeout(function(){nav('det',docId)},1200)

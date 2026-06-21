@@ -2,6 +2,20 @@
 function _safeUrl(url){
   try{var u=new URL(url);return u.protocol==='https:'?url:'';}catch(e){return ''}
 }
+// toolbar + canvas ของตัวแสดง PDF — ใช้ทั้งกรณีเปิดไฟล์ PDF ตรงๆ และกรณีแปลง DOCX→PDF แล้วนำมาแสดง
+function _pdfBodyHtml(url,name,safeUrl){
+  return '<div class="ped-toolbar" style="flex-shrink:0">'+
+    '<button id="pdf-prev" class="btn btn-soft sm btn-icon">'+svg('back',13)+'</button>'+
+    '<span id="pdf-page-info" style="font-size:12px;color:var(--text-3);min-width:80px;text-align:center">กำลังโหลด...</span>'+
+    '<button id="pdf-next" class="btn btn-soft sm btn-icon" style="transform:scaleX(-1)">'+svg('back',13)+'</button>'+
+    '<div style="width:1px;background:var(--border);height:24px;margin:0 4px"></div>'+
+    '<button id="pdf-zoom-out" class="btn btn-soft sm btn-icon" title="ย่อ">'+svg('zout',13)+'</button>'+
+    '<span id="pdf-zoom-lbl" style="font-size:11px;color:var(--text-2);min-width:40px;text-align:center;font-weight:600">100%</span>'+
+    '<button id="pdf-zoom-in" class="btn btn-soft sm btn-icon" title="ขยาย">'+svg('zin',13)+'</button>'+
+    '<button class="btn btn-ghost sm" style="margin-left:auto" data-action="dlFile" data-url="'+(safeUrl||url)+'" data-name="'+esc(name)+'">'+svg('dn',13)+' ดาวน์โหลด</button>'+
+    '</div>'+
+    (safeUrl?'<div id="pdf-canvas-wrap" class="ped-canvas-area" style="flex:1;min-height:0"><canvas id="pdf-canvas" style="box-shadow:0 2px 16px rgba(0,0,0,.18);border-radius:4px"></canvas></div>':'<p class="p-8 text-[#DC2626]">URL ไม่ถูกต้อง</p>');
+}
 function openViewer(url,name){
   // Audit log: file view
   if(CU&&CDI){
@@ -16,17 +30,7 @@ function openViewer(url,name){
   var inner='';
   var safeUrl=_safeUrl(url);
   if(isPDF){
-    inner='<div class="ped-toolbar" style="flex-shrink:0">'+
-      '<button id="pdf-prev" class="btn btn-soft sm btn-icon">'+svg('back',13)+'</button>'+
-      '<span id="pdf-page-info" style="font-size:12px;color:var(--text-3);min-width:80px;text-align:center">กำลังโหลด...</span>'+
-      '<button id="pdf-next" class="btn btn-soft sm btn-icon" style="transform:scaleX(-1)">'+svg('back',13)+'</button>'+
-      '<div style="width:1px;background:var(--border);height:24px;margin:0 4px"></div>'+
-      '<button id="pdf-zoom-out" class="btn btn-soft sm btn-icon" title="ย่อ">'+svg('zout',13)+'</button>'+
-      '<span id="pdf-zoom-lbl" style="font-size:11px;color:var(--text-2);min-width:40px;text-align:center;font-weight:600">100%</span>'+
-      '<button id="pdf-zoom-in" class="btn btn-soft sm btn-icon" title="ขยาย">'+svg('zin',13)+'</button>'+
-      '<button class="btn btn-ghost sm" style="margin-left:auto" data-action="dlFile" data-url="'+(safeUrl||url)+'" data-name="'+esc(name)+'">'+svg('dn',13)+' ดาวน์โหลด</button>'+
-      '</div>'+
-      (safeUrl?'<div id="pdf-canvas-wrap" class="ped-canvas-area" style="flex:1;min-height:0"><canvas id="pdf-canvas" style="box-shadow:0 2px 16px rgba(0,0,0,.18);border-radius:4px"></canvas></div>':'<p class="p-8 text-[#DC2626]">URL ไม่ถูกต้อง</p>')
+    inner=_pdfBodyHtml(url,name,safeUrl)
   } else if(isImg){
     inner='<div class="p-6 bg-[#F5F5F5] text-center overflow-auto flex-1">'+
       (safeUrl?'<img src="'+safeUrl+'" class="max-w-full rounded-lg shadow-[0_8px_32px_rgba(0,0,0,.15)]" onerror="this.outerHTML=\'<p class=text-[#DC2626]>โหลดรูปไม่ได้</p>\'">':'<p class="text-[#DC2626]">URL ไม่ถูกต้อง</p>')+
@@ -36,15 +40,15 @@ function openViewer(url,name){
       (safeUrl?'<iframe src="'+safeUrl+'" class="flex-1 border-none w-full min-h-[580px]"></iframe>':'<p class="p-8 text-[#DC2626]">URL ไม่ถูกต้อง</p>')+
       '</div>'
   } else if(isDocx){
-    inner='<div class="ped-toolbar" style="flex-shrink:0">'+
-      '<span style="font-size:12px;color:var(--text-3)" id="docx-status">กำลังแปลงไฟล์ Word...</span>'+
+    inner='<div id="docx-body" style="display:contents">'+
+      '<div class="ped-toolbar" style="flex-shrink:0">'+
+      '<span style="font-size:12px;color:var(--text-3)" id="docx-status">กำลังแปลงไฟล์ Word เป็น PDF เพื่อแสดงตัวอย่าง...</span>'+
       '<button class="btn btn-ghost sm" style="margin-left:auto" data-action="dlFile" data-url="'+(safeUrl||url)+'" data-name="'+esc(name)+'">'+svg('dn',13)+' ดาวน์โหลด</button>'+
       '</div>'+
-      '<div id="docx-view-wrap" class="ped-canvas-area" style="flex:1;min-height:0">'+
-      '<div id="docx-content" class="bg-white max-w-[820px] w-full px-16 py-12 shadow-[0_4px_24px_rgba(0,0,0,.15)] rounded-[4px] min-h-[500px]" style="font-family:TH Sarabun PSK,Sarabun,sans-serif;font-size:15px;line-height:1.8">'+
-      '<div class="sp sp-dark" style="width:36px;height:36px;border-width:3px;margin:0 auto 16px"></div>'+
-      '<p style="text-align:center;color:var(--text-3)">กำลังแปลงไฟล์ Word...</p>'+
-      '</div></div>'
+      '<div class="ped-canvas-area" style="flex:1;min-height:0;display:flex;align-items:center;justify-content:center">'+
+      (safeUrl?'<div class="sp sp-dark" style="width:36px;height:36px;border-width:3px"></div>':'<p class="p-8 text-[#DC2626]">URL ไม่ถูกต้อง</p>')+
+      '</div>'+
+      '</div>'
   } else {
     inner='<div class="p-10 text-center text-[#a89e99] flex-1">'+
       '<div class="mb-4 opacity-50">'+svg('doc',48)+'</div>'+
@@ -68,8 +72,28 @@ function openViewer(url,name){
     '</div></div>'
   ].join('');
   // Trigger rendering after modal is in DOM
-  if(isDocx) setTimeout(function(){renderDocxView(url)},100)
   if(isPDF&&safeUrl) setTimeout(function(){renderPdfView(safeUrl)},100)
+  if(isDocx&&safeUrl) setTimeout(function(){renderDocxAsPdf(safeUrl,name)},100)
+}
+
+async function renderDocxAsPdf(url,name){
+  var status=$e('docx-status');
+  var body=$e('docx-body');
+  try{
+    var headers={apikey:SK,Authorization:H.Authorization,'Content-Type':'application/json'};
+    var resp=await fetch(SU+'/functions/v1/convert-docx',{method:'POST',headers:headers,body:JSON.stringify({url:url})});
+    var data=await resp.json();
+    if(!resp.ok||!data.pdfUrl) throw new Error(data.error||'แปลงไฟล์ไม่สำเร็จ');
+    if(body) body.outerHTML=_pdfBodyHtml(data.pdfUrl,name,data.pdfUrl);
+    await renderPdfView(data.pdfUrl);
+  }catch(e){
+    if(status) status.textContent='แปลงไฟล์ไม่สำเร็จ';
+    var area=body&&body.querySelector('.ped-canvas-area');
+    if(area) area.innerHTML=
+      '<div style="padding:40px;text-align:center;color:#DC2626;font-size:13px">ไม่สามารถแสดงตัวอย่างไฟล์ Word ได้<br>'+esc(e.message)+'<br><br>'+
+      '<button class="btn btn-primary sm" data-action="dlFile" data-url="'+url+'" data-name="'+esc(name)+'">ดาวน์โหลดไฟล์แทน</button></div>';
+    console.warn('DOCX→PDF conversion failed:',e);
+  }
 }
 
 async function renderPdfView(url){
@@ -111,38 +135,4 @@ async function renderPdfView(url){
     console.warn('PDF.js failed:',e);
   }
 }
-
-async function renderDocxView(url){
-  var content=$e('docx-content');
-  var status=$e('docx-status');
-  if(!content) return;
-  try{
-    if(!window.mammoth){
-      await loadSc('https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js');
-    }
-    var resp=await fetch(url);
-    if(!resp.ok) throw new Error('HTTP '+resp.status);
-    var buf=await resp.arrayBuffer();
-    var result=await mammoth.convertToHtml({arrayBuffer:buf});
-    content.innerHTML=result.value||'<p style="color:var(--text-3);text-align:center">(เอกสารว่าง)</p>';
-    content.style.cssText='font-family:TH Sarabun PSK,Sarabun,sans-serif;font-size:15px;line-height:1.9;background:#fff;max-width:820px;width:100%;padding:64px;box-shadow:0 4px 24px rgba(0,0,0,.15);border-radius:4px;min-height:500px';
-    if(status) status.textContent='แสดงไฟล์ Word สำเร็จ';
-    if(result.messages&&result.messages.length){
-      var warn=document.createElement('div');
-      warn.style.cssText='margin-top:20px;padding:10px 14px;background:#FFFBEB;border-radius:6px;font-size:11px;color:#D97706';
-      warn.textContent='หมายเหตุ: รูปแบบบางส่วนอาจแตกต่างจากไฟล์ต้นฉบับ';
-      content.appendChild(warn);
-    }
-  }catch(e){
-    if(status) status.textContent='โหลดไม่สำเร็จ';
-    content.innerHTML=
-      '<div style="text-align:center;padding:40px">'+
-      '<p style="font-weight:600;color:#DC2626;margin-bottom:8px">โหลดไฟล์ Word ไม่สำเร็จ</p>'+
-      '<p style="font-size:13px;color:var(--text-3);margin-bottom:20px">'+e.message+'</p>'+
-      '<button class="btn btn-primary" data-action="dlFile" data-url="'+url+'" data-name="'+esc(name)+'">'+svg('dn',14)+' ดาวน์โหลดแทน</button>'+
-      '</div>';
-    console.warn('DOCX render failed:',e);
-  }
-}
-
 

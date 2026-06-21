@@ -9,32 +9,12 @@
 <link rel="preconnect" href="https://cdnjs.cloudflare.com">
 <link rel="preconnect" href="https://cdn.jsdelivr.net">
 <link rel="dns-prefetch" href="https://unpkg.com">
-<script>
-  window.tailwind = window.tailwind || {};
-  tailwind.config = {
-    theme: {
-      extend: {
-        fontFamily: {
-          thai: ['"Noto Sans Thai"', 'system-ui', 'sans-serif'],
-          mono: ['"IBM Plex Mono"', '"Courier New"', 'monospace'],
-        },
-        colors: {
-          brand:      { DEFAULT:'#E83A00', h:'#C03200', light:'#fff5f0', mid:'#ffc9a8', pale:'#fff8f4' },
-          navy:       '#100800',
-          app:        '#F4F2EF',
-          card:       '#FFFFFF',
-          'app-text': { DEFAULT:'#18120E', 2:'#6b6560', 3:'#a89e99' },
-          border:     '#EBEBEB',
-        },
-      }
-    }
-  }
-</script>
-<script src="https://cdn.tailwindcss.com" defer></script>
 <script src="https://unpkg.com/lucide@latest" defer></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<!-- คอมไพล์จาก tailwind.css ด้วย `npm run build` — ไม่ใช่ Tailwind CDN อีกต่อไป (ดู package.json) -->
+<link rel="stylesheet" href="styles.tailwind.css">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>

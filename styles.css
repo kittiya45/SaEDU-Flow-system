@@ -396,7 +396,7 @@ input[type=range]{width:100%;accent-color:var(--orange)}
 .app-wrap{display:flex;height:100vh;background:#F4F2EF;overflow:hidden}
 .app-side{width:240px;min-width:240px;flex-shrink:0;background:#fff;border-right:1px solid #EBEBEB;display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow-y:auto;z-index:100}
 .app-side-head{display:flex;align-items:center;gap:11px;padding:20px 18px 16px;border-bottom:1px solid #EBEBEB;flex-shrink:0}
-.app-side-logo{width:38px;height:38px;flex-shrink:0;border-radius:10px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.10)}
+.app-side-logo{width:48px;height:48px;flex-shrink:0;border-radius:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.10)}
 .app-side-logo img{width:100%;height:100%;object-fit:cover;display:block}
 .app-side-brand{flex:1;min-width:0}
 .app-side-label{font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;padding:20px 18px 8px;color:#c0bab4}
