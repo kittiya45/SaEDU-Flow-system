@@ -424,10 +424,21 @@ function makeDrag(div,el){
   var ox,oy,sx,sy,drag=false;
   div.onpointerdown=function(e){
     if(e.target.className==='del'||e.target.className==='rsz')return;
-    e.preventDefault(); drag=true; ox=e.clientX; oy=e.clientY; sx=el.x; sy=el.y; div.setPointerCapture(e.pointerId)
+    e.preventDefault(); drag=true; ox=e.clientX; oy=e.clientY; sx=el.x; sy=el.y;
+    div.style.willChange='transform'; div.setPointerCapture(e.pointerId)
   };
-  div.onpointermove=function(e){if(!drag)return;el.x=sx+(e.clientX-ox);el.y=sy+(e.clientY-oy);div.style.left=el.x+'px';div.style.top=el.y+'px'};
-  div.onpointerup=function(){drag=false}
+  div.onpointermove=function(e){
+    if(!drag)return;
+    // [PERF] ขยับด้วย transform (GPU compositing) ระหว่างลาก ไม่ใช้ left/top ที่บังคับ layout reflow ทุก pointermove — ลากจะลื่นขึ้นมาก
+    div.style.transform='translate3d('+(e.clientX-ox)+'px,'+(e.clientY-oy)+'px,0)'
+  };
+  div.onpointerup=function(e){
+    if(!drag)return;
+    drag=false;
+    el.x=sx+(e.clientX-ox); el.y=sy+(e.clientY-oy);
+    div.style.transform=''; div.style.willChange='';
+    div.style.left=el.x+'px'; div.style.top=el.y+'px'
+  }
 }
 function startRsz(e,img,el){
   e.preventDefault();var sx=e.clientX,sy=e.clientY,sw=el.w,sh=el.h;

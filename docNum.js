@@ -218,20 +218,28 @@ function _updateStampFontSize(){
 
 /* ─── Drag handler สำหรับ stamp overlays ─── */
 function _makeStampDraggable(el,container){
-  var drag=false,ox=0,oy=0,sx=0,sy=0;
+  var drag=false,ox=0,oy=0,sx=0,sy=0,ew=0,eh=0;
   el.addEventListener('pointerdown',function(e){
     drag=true; sx=e.clientX; sy=e.clientY;
     ox=parseInt(el.style.left)||0; oy=parseInt(el.style.top)||0;
+    ew=el.offsetWidth; eh=el.offsetHeight;
+    el.style.willChange='transform';
     el.setPointerCapture(e.pointerId); el.style.cursor='grabbing'; e.preventDefault();
   });
   el.addEventListener('pointermove',function(e){
     if(!drag) return;
-    var nl=ox+(e.clientX-sx), nt=oy+(e.clientY-sy);
-    el.style.left=Math.max(0,Math.min(container.offsetWidth-el.offsetWidth-2,nl))+'px';
-    el.style.top=Math.max(0,Math.min(container.offsetHeight-el.offsetHeight-2,nt))+'px';
+    // [PERF] ลากด้วย transform (GPU compositing) แทนการเซ็ต left/top ตรงๆ ซึ่งบังคับ layout reflow ทุก pointermove — เหมือนแก้ไขเอกสาร (editor.js)
+    var nl=Math.max(0,Math.min(container.offsetWidth-ew-2,ox+(e.clientX-sx)));
+    var nt=Math.max(0,Math.min(container.offsetHeight-eh-2,oy+(e.clientY-sy)));
+    el.style.transform='translate3d('+(nl-ox)+'px,'+(nt-oy)+'px,0)';
   });
   el.addEventListener('pointerup',function(e){
+    if(!drag) return;
     drag=false; el.releasePointerCapture(e.pointerId); el.style.cursor='grab';
+    var nl=Math.max(0,Math.min(container.offsetWidth-ew-2,ox+(e.clientX-sx)));
+    var nt=Math.max(0,Math.min(container.offsetHeight-eh-2,oy+(e.clientY-sy)));
+    el.style.transform=''; el.style.willChange='';
+    el.style.left=nl+'px'; el.style.top=nt+'px';
   });
 }
 
