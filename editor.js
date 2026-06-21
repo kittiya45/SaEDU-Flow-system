@@ -75,11 +75,11 @@ if(!PED.isPDF&&!isImg&&!isDocx){alert('รองรับ PDF, DOCX และร
     '<input type="range" id="sig-sz" min="1" max="8" value="2" oninput="PED.sigSz=+this.value">',
     '</div></div>',
     '<div id="sp-upload" style="display:none">',
-    '<div class="upload-zone" style="padding:16px">',
+    '<label for="sig-file" class="upload-zone" style="padding:16px">',
     '<div style="margin-bottom:4px">'+svg('sign',20)+'</div>',
     '<div style="font-size:12px;font-weight:600">อัปโหลดรูปลายเซ็น</div>',
     '<div style="font-size:10px;color:var(--text-3)">PNG โปร่งใสดีที่สุด</div>',
-    '</div>',
+    '</label>',
     '<input type="file" id="sig-file" style="display:none" accept="image/*">',
     '<img id="sig-prev" style="display:none;width:100%;max-height:90px;object-fit:contain;border:1px solid var(--border);border-radius:6px;margin-top:8px">',
     '<button class="btn btn-primary sm fw" id="sig-place" style="display:none;margin-top:8px" data-action="pedAddSigImg">+ วางลายเซ็น</button>',
@@ -118,10 +118,10 @@ if(!PED.isPDF&&!isImg&&!isDocx){alert('รองรับ PDF, DOCX และร
     // Img panel
     '<div class="tool-sec" id="ps-img" style="display:none">',
     '<div class="tool-head">แทรกรูปภาพ</div>',
-    '<div class="upload-zone" style="padding:16px">',
+    '<label for="ins-img" class="upload-zone" style="padding:16px">',
     '<div style="margin-bottom:4px">'+svg('img2',20)+'</div>',
     '<div style="font-size:12px;font-weight:600">อัปโหลดรูปภาพ</div>',
-    '</div>',
+    '</label>',
     '<input type="file" id="ins-img" style="display:none" accept="image/*">',
     '<img id="ins-prev" style="display:none;width:100%;max-height:90px;object-fit:contain;margin-top:8px">',
     '<button class="btn btn-primary sm fw" id="ins-btn" style="display:none;margin-top:8px" data-action="pedAddInsImg">+ วางรูป</button>',
@@ -183,11 +183,7 @@ function initPED(){
   }
   var sf=$e('sig-file'); if(sf) sf.onchange=function(){pedLoadSigImg(sf)};
   var ii=$e('ins-img');
-  if(ii){
-    ii.onchange=function(){pedLoadInsImg(ii)};
-    var uz=$e('ps-img').querySelector('.upload-zone');
-    if(uz) uz.onclick=function(){ii.click()}
-  }
+  if(ii) ii.onchange=function(){pedLoadInsImg(ii)};
   var pl=$e('ped-local'); if(pl) pl.onchange=function(){pedLoadLocal(pl)}
 }
 

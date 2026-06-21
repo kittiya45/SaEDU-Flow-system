@@ -71,8 +71,11 @@ All state is global variables — no module system.
 - `DTYPE_CFG` — per-type form field config (also overridden by `loadDocTypes()`)
 - `LETTER_TYPES` — 13 incoming document subject types
 - `OUT_LTYPES` — outgoing letter types (index 1–9, index 0 is empty)
-- `POSS`/`PTH`/`PR` — กนค. committee position codes, Thai labels, and position→role_code mapping (only ~24 fixed positions; club-level positions aren't represented here — see admin.js's `department` fallback rendering)
-- `RTH` — role_code → Thai label
+- `POSS`/`PTH`/`PR` — position codes → Thai label → default role_code. 25 fixed กนค.-committee positions (`GNK-PRE`, `GNK-ACA`, etc.) plus 4 club-officer roles (`GNK-CPR`/`CVP`/`CSEC`/`CTRS` — president/VP/secretary/treasurer). The club-officer codes identify the *role*, not *which* club — the club name itself still goes in the user's free-text `department` column (admin.js edit-user modal), conventionally as `"{role label} — {club name}"`.
+- `GNK_NUM` — position code → 2-digit numbering code (digits 2–3 of an outgoing/incoming doc number, see Document Numbering below). `11` is an intentionally-unused gap; `27`–`30` are the 4 club-officer codes.
+- `CLUBS` — 2-digit club code → club name, used for the `{club}` suffix (digits 8–9) when numbering a document.
+- `SENDER_POS` — flat `{name, code, isClub}` list for the "ตำแหน่ง/สังกัดผู้ส่ง" picker on **incoming** docs; overlaps with but is independent of `POSS`/`GNK_NUM` (a club entry here can share a 2-digit code with a non-club entry).
+- `RTH` — role_code → Thai label. `UTH` — user_type (`gnk`/`advisor`/`staff`/`admin`) → Thai label; only `gnk`/`advisor`/`staff` are ever actually assigned (by `doRegG`/`doRegS` in auth.js) — `admin` has no registration path.
 - `CAN` — client-side permission helpers: `CAN.sg(role)`, `CAN.rv(role)`, `CAN.cr(role)`, `CAN.ed(role)`, `CAN.up(role)`
 
 ### Supabase API Helpers (config.js)
@@ -175,6 +178,8 @@ RLS is enabled on every table. Policies generally follow this split (see `supaba
 
 **If you add a new table that the app should read/write, it needs an explicit RLS policy** — there is no default-allow. `supabase/enable_rls.sql` is a separate, deliberately-deferred script that flips `ENABLE ROW LEVEL SECURITY` on (run together with a frontend deploy, never alone — see comments in that file).
 
+**`user_directory` view (`supabase/user_directory_view.sql`):** because `users` RLS only lets a caller see their *own* row, every screen that needs to list/look up *other* people (workflow assignee/reviewer dropdowns, document creator/uploader names, forward-recipient pickers, etc.) reads from this view instead of the `users` table directly — it exposes only directory-safe columns (no email/password) to any authenticated user. Used across docForm.js, docDetail.js, docList.js, docNum.js, notif.js, sysAdmin.js, report.js, templates.js. **When adding a new lookup of another user's name/role, query `user_directory`, not `users`** — querying `users` for anyone but yourself returns `[]` once RLS is live, not an error, so the bug only shows up as silently-blank names.
+
 ### Roles & Permissions
 
 | Role | Code | Access |
@@ -190,10 +195,16 @@ RLS is enabled on every table. Policies generally follow this split (see `supaba
 
 ### `supabase/` folder — ops tooling, not app code
 
-Not part of the deployed static site; these are one-time/admin scripts for managing the Supabase project itself:
+Not part of the deployed static site; these are one-time/admin scripts for managing the Supabase project itself. All are plain SQL files run manually in the Supabase Dashboard SQL Editor (or via `npx supabase db query --linked --file <path>` if the CLI is linked) — none are auto-applied on deploy. Listed roughly in the order they'd be needed on a fresh project:
 - `migration_auth_rls.sql` — schema (the `auth_uid` column + indexes), helper SQL functions, the linking trigger, and all RLS policies. Idempotent (`if not exists` / `drop ... if exists` throughout) — safe to re-run.
 - `enable_rls.sql` — the actual `ENABLE ROW LEVEL SECURITY` statements, kept separate so it can be run deliberately at cutover time, together with a frontend deploy.
 - `backfill_auth_users.mjs` — one-time Node script (run locally by a project admin with their own `SUPABASE_SERVICE_ROLE_KEY`, never shared) that calls the Admin API to create a real `auth.users` account for every existing `public.users` row. Supports `--dry-run` and `--only=email1,email2` for testing a small batch first.
+- `user_directory_view.sql` — creates the `user_directory` view (see "Row Level Security" above) — a post-RLS follow-up fix, run after `enable_rls.sql` broke every other-user lookup.
+- `tighten_workflow_rls.sql`, `tighten_audit_rls.sql` — follow-up RLS hardening: the former scopes `documents`/`workflow_steps`/`document_files` writes to actual participants (creator/forwarded-to/assignee) instead of "any logged-in user"; the latter closes a `document_history` impersonation gap. Both close gaps left by the initial `migration_auth_rls.sql` pass, found by auditing actual write call sites against the policies.
+- `create_admin_config_tables.sql` — creates `app_settings`/`email_templates`/`workflow_templates`/`workflow_template_steps` with RLS (see "Admin config tables" above).
+- `backfill_club_officer_positions.sql` — one-time data fix setting `position_code` on real accounts whose club-officer/กนค.-position role was only ever recorded as free text in `department`.
+- `add_doc_number_out_prefix.sql`, `add_doc_number_seq_reset.sql` — add admin-configurable `out_prefix` / `seq_reset_at` columns to `doc_number_settings` (outgoing-number org prefix; mid-year sequence reset).
+- `update_template_leadtimes.sql` — one-time data fix setting lead-time requirements on existing `form_templates` rows, matched by the numeric prefix in `name` (same prefix `templates.js`'s `_tmplNumParts()` parses for sorting).
 - `functions/` — Edge Function source (`admin-delete-user`, `admin-set-password`, `send-email`, `convert-docx`, `_shared/`). Deploy with `npx supabase functions deploy <name>` (requires `npx supabase login` + `npx supabase link --project-ref jrubupvzltxqstzcpoov` first). Deploying the same source via the Supabase Dashboard's inline editor is unreliable for multi-file functions — it has silently produced a working function under a *different*, auto-generated URL slug than the one you named it, leaving the real endpoint 404ing. The CLI route always makes the URL match the folder name. `admin-delete-user`/`admin-set-password` gate on `is_admin()` via `_shared/requireAdmin.ts`; `send-email`/`convert-docx` are open to any authenticated user (platform-level JWT check only, no role check) since they're not mutating `auth.users`.
 
 ### Document Preview (viewer.js)
@@ -225,9 +236,9 @@ The actual flow (`renderDocxAsPdf()` in `viewer.js`): calls the `convert-docx` E
 
 ### Document Numbering (docNum.js)
 
-`showNumModal(docId)` opens the numbering modal. On confirm, `doSetDocNumber(docId)` captures **all form values into a `_cap` object before calling `showConfirm`** (because `showConfirm` replaces `mwrap`, destroying the form). `_doSetDocNumberConfirmed(docId, cap)` then uses `cap.xxx` instead of reading from the DOM.
+`showNumModal(docId)` opens the numbering modal. On confirm, `doSetDocNumber(docId)` captures **all form values into a `_cap` object before calling `showConfirm`** (because `showConfirm` replaces `mwrap`, destroying the form). `_doSetDocNumberConfirmed(docId, cap)` then uses `cap.xxx` instead of reading from the DOM, computes the real number via `_nextDocNum()`, and PATCHes `documents.doc_number`/`status:'completed'`.
 
-Outgoing number format: `กนค. {sem}{pos}{lt}{NNN}[-{club}]/{thaiYear}` — computed by `genOutDocNumber()` (docForm.js) which scans existing doc numbers in the same category to find the next sequence.
+The real bureaucratic format (`กนค. {sem}{pos}{lt}{NNN}[-{club}]/{thaiYear}`) is **only** computed here, in `_nextDocNum()`/`_doSetDocNumberConfirmed()` — never by `genDocNumber()`/`genOutDocNumber()` (docForm.js), which just assign a throwaway sequential placeholder (`GNK-{year}-{seq}` / `กนค.{year}.{seq}`) at doc creation time, overwritten once numbering completes. `{pos}` comes from a different source depending on doc type: outgoing uses the **creator's own** `position_code` (via `GNK_NUM`/`PTH`); incoming uses `SENDER_POS` matched against `doc.addressed_to` (the sender being recorded, not the creator) — `position_code`/`GNK_NUM` are not consulted for incoming numbering at all.
 
 ### UI Conventions
 
@@ -248,3 +259,4 @@ Outgoing number format: `กนค. {sem}{pos}{lt}{NNN}[-{club}]/{thaiYear}` —
 - Student ID length/suffix (`student_id_length`, `student_id_suffix` — defaults 10 digits ending in `27`, the กนค. cohort identifier) are editable via `app_settings` the same way.
 - `showConfirm()` destroys the modal container's innerHTML. Any function that needs form values after a confirm step must capture them first. Pattern: capture → confirm → use captured values.
 - Deleting a `users` row requires unlinking every FK that points at it first (`document_files.uploaded_by`, `form_templates.uploaded_by`, `workflow_steps.assigned_to`/`rejected_by`, `documents.forwarded_to_id`/`final_recipient_id`) — see `_admDelConfirmed()` in admin.js for the full sequence. This list has grown by trial and error (each omission surfaces as a Postgres FK-violation error on delete); if you add a new column referencing `users.id`, add the corresponding unlink step too.
+- **For raw `fetch()` calls that bypass `dd()`/`dp()`/`dpa()`** (e.g. bulk-deleting child rows by a non-`id` filter before re-inserting, like wiping `workflow_template_steps`/`doc_type_fields` before a save), always use `headers:{apikey:SK,'Authorization':H.Authorization}` — never `'Authorization':'Bearer '+SK`. The latter authenticates as the anon role (no `auth.uid()`), so `is_admin()`-gated RLS silently denies the request — the fetch still resolves with a non-2xx-but-truthy response, no exception, and the UI reports success while the row never actually changes. Check `r.ok` and throw on failure, matching `dd()`'s own pattern.

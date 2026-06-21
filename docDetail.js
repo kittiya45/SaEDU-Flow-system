@@ -166,7 +166,10 @@ async function vDet(docId){
     html.push('<div class="detail-row"><span class="detail-key">'+r[0]+'</span><span class="detail-val">'+r[1]+'</span></div>')
   });
   html.push('</div>');
-  if(doc.description) html.push('<div class="mt-3.5 p-3 bg-[#FAFAFA] rounded-[10px] text-[13px] text-[#6b6560] leading-[1.7] border-l-[3px] border-l-[#ffc9a8]">'+esc(doc.description)+'</div>');
+  if(doc.description){
+    var _descBoxText=(doc.description==='เรื่องอื่น ๆ'&&doc.subject_line)?'เรื่องอื่น ๆ: '+doc.subject_line:doc.description;
+    html.push('<div class="mt-3.5 p-3 bg-[#FAFAFA] rounded-[10px] text-[13px] text-[#6b6560] leading-[1.7] border-l-[3px] border-l-[#ffc9a8]">'+esc(_descBoxText)+'</div>');
+  }
   // Show forwarded_to info
   if(doc.forwarded_to_id&&doc.status==='completed'){
     var _fwdUser=_aMap[doc.forwarded_to_id];

@@ -4,16 +4,19 @@ function rWfPeople(){
   return FS.map(function(s,i){
     var u=(FU||[]).find(function(x){return x.id===s.assigned_to});
     var nm=u?esc(u.full_name):(s.step_name||'—');
-    var roleLabel=RTH[s.role_required]||s.role_required||'—';
+    /* แสดงตำแหน่งจริงของคนที่เลือก ถ้ามี (ไม่ใช่ role ของ step) เพราะคนส่วนใหญ่เป็น ROLE-CRT เหมือนกันหมด
+       ทำให้ดูไม่ออกว่าใครเป็นใคร — สีของ label ยังอิงตาม role_required ของ step เดิม (บอกว่า step นี้ต้องการ role ไหน) */
+    var posLabel=u&&u.position_code?(PTH[u.position_code]||u.position_code):'';
+    var roleLabel=posLabel||RTH[s.role_required]||s.role_required||'—';
     var roleColorCls={'ROLE-SGN':'text-[#16A34A]','ROLE-REV':'text-[#D97706]','ROLE-ADV':'text-[#6A1B9A]','ROLE-CRT':'text-[#2563EB]','ROLE-STF':'text-[#a89e99]'}[s.role_required]||'text-[#a89e99]';
     var rowBg=s.locked?'border-[#FFD9CC] bg-[#FFFBF9]':'border-[#EBEBEB] bg-white';
-    var lockBadge=s.locked?'<span class="text-[10px] font-semibold text-[#E83A00] ml-1 border border-[#FFD9CC] rounded px-1 py-px">บังคับ</span>':'';
+    var lockBadge=s.locked?'<span class="text-[10px] font-semibold text-[#E83A00] ml-2 border border-[#FFD9CC] rounded px-1.5 py-px">บังคับ</span>':'';
     var actionBtn=i===0?'<span class="w-7"></span>':
       s.locked?'<span class="w-7 h-6 flex items-center justify-center text-[#a89e99]" title="ขั้นตอนบังคับ — ลบไม่ได้">'+svg('lock',12)+'</span>':
       '<button class="btn btn-danger xs btn-icon" data-action="rmWfPerson" data-id="'+i+'" title="ลบ">'+svg('x',12)+'</button>';
-    return '<div class="flex items-center gap-2.5 px-3 py-2.5 border rounded-[10px] mb-2 '+rowBg+'">'+
-      '<span class="min-w-[24px] h-6 rounded-full bg-[#E83A00] text-white flex items-center justify-center text-[11px] font-bold shrink-0">'+(i+1)+'</span>'+
-      '<div class="flex-1 min-w-0">'+
+    return '<div class="flex items-center gap-3 px-3.5 py-3 border rounded-[10px] mb-2.5 '+rowBg+'">'+
+      '<span class="min-w-[28px] h-7 rounded-full bg-[#E83A00] text-white flex items-center justify-center text-[12px] font-bold shrink-0">'+(i+1)+'</span>'+
+      '<div class="flex-1 min-w-0 flex flex-col gap-0.5">'+
         '<div class="text-[13px] font-semibold overflow-hidden text-ellipsis whitespace-nowrap">'+nm+lockBadge+'</div>'+
         '<span class="text-[11px] font-semibold '+roleColorCls+'">'+esc(roleLabel)+'</span>'+
       '</div>'+

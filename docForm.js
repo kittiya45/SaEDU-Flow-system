@@ -21,20 +21,18 @@ async function vForm(editId){
     return '<option value="'+e[0]+'"'+(doc.doc_type===e[0]?' selected':'')+'>'+e[1]+'</option>'
   }).join('');
   var uOpts=Object.entries(URG).map(function(e){return '<option value="'+e[0]+'"'+(doc.urgency===e[0]?' selected':'')+'>'+e[1]+'</option>'}).join('');
-  /* [UX] จัดกลุ่ม dropdown workflow ตาม role ลดความสับสน */
-  var _wfGroups=[
-    {role:'ROLE-SGN', label:'ผู้ลงนาม'},
-    {role:'ROLE-REV', label:'ผู้ตรวจทาน'},
-    {role:'ROLE-ADV', label:'อาจารย์กิจการ'},
-    {role:'ROLE-STF', label:'เจ้าหน้าที่'},
-    {role:'ROLE-CRT', label:'ผู้จัดทำ'}
-  ];
+  /* [UX] จัดกลุ่ม dropdown workflow ตามตำแหน่ง (POSS) แทน role — ผู้จัดทำ (ROLE-CRT)
+     คือคนส่วนใหญ่ในระบบ ถ้าจัดกลุ่มตาม role อย่างเดียวจะกลายเป็นลิสต์รวมยาวๆไม่มีโครงสร้าง
+     ตำแหน่งช่วยแยกย่อยได้จริง ส่วนคนที่ไม่มีตำแหน่ง (staff/advisor หรือถูกตั้ง role ลงนาม/ตรวจทานโดยไม่ผ่านตำแหน่ง) ใช้ role label แทน */
   var _wfFiltered=(FU||[]).filter(function(u){return u.id!==CU.id&&u.role_code!=='ROLE-SYS'});
+  var _wfGroupOrder=POSS.concat(['ROLE-SGN','ROLE-REV','ROLE-ADV','ROLE-STF','ROLE-CRT']);
+  var _wfGroupLabel=function(key){return PTH[key]||RTH[key]||key};
+  var _wfGroupKey=function(u){return u.position_code||u.role_code};
   var wfPersonOpts='<option value="">— เลือกผู้ดำเนินการ —</option>';
-  _wfGroups.forEach(function(g){
-    var members=_wfFiltered.filter(function(u){return u.role_code===g.role});
+  _wfGroupOrder.forEach(function(key){
+    var members=_wfFiltered.filter(function(u){return _wfGroupKey(u)===key});
     if(!members.length) return;
-    wfPersonOpts+='<optgroup label="'+g.label+'">';
+    wfPersonOpts+='<optgroup label="'+esc(_wfGroupLabel(key))+'">';
     members.forEach(function(u){
       wfPersonOpts+='<option value="'+u.id+'">'+esc(u.full_name)+'</option>';
     });
@@ -112,7 +110,7 @@ html.push('<div id="fprog"></div></div></div>');
     html.push('<div class="card" id="wf-card"><div class="card-head">'+_ico('user','#FFF3EE','#E83A00')+'<span class="card-head-title">ผู้ดำเนินการตามลำดับ</span></div>');
     html.push('<div class="card-body">');
     html.push('<div class="al al-in text-xs mb-3"><span class="al-icon">'+svg('info',13)+'</span><span>เลือกผู้ที่ต้องอนุมัติ / ตรวจสอบเอกสารตามลำดับ</span></div>');
-    html.push('<div class="flex gap-[7px] mb-2.5">');
+    html.push('<div class="flex gap-[7px] mb-3.5">');
     html.push('<select class="fi flex-1 text-[13px]" id="wfadd">'+wfPersonOpts+'</select>');
     html.push('<button class="btn btn-primary sm" data-action="addWfPerson">'+svg('plus',12)+' เพิ่ม</button>');
     html.push('</div>');
@@ -231,6 +229,7 @@ function renderTypeFields(type, doc){
     var _ltOpts='<option value="">— เลือกประเภทหนังสือ —</option>'+LETTER_TYPES.map(function(t){
       return '<option value="'+esc(t)+'"'+(_curDesc===t?' selected':'')+'>'+esc(t)+'</option>'
     }).join('');
+    var _curLtHint=LT_LEADTIME[_curDesc]||'';
     var _spGnk=SENDER_POS.filter(function(p){return !p.isClub&&parseInt(p.code,10)<=14;});
     var _spDept=SENDER_POS.filter(function(p){return !p.isClub&&parseInt(p.code,10)>=15;});
     var _spClub=SENDER_POS.filter(function(p){return p.isClub;});
@@ -242,10 +241,11 @@ function renderTypeFields(type, doc){
     };
     var _spOpts='<option value="">— เลือกตำแหน่ง / สังกัด —</option>'+
       _spGrp('กนค.',_spGnk)+_spGrp('แผนก',_spDept)+_spGrp('ชมรม',_spClub);
-    html.push('<div class="fg"><label class="fl">ประเภทหนังสือ <span class="req">*</span></label><select class="fi" id="fdsc">'+_ltOpts+'</select></div>');
+    html.push('<div class="fg"><label class="fl">ประเภทหนังสือ <span class="req">*</span></label><select class="fi" id="fdsc" onchange="_updateLtHint()">'+_ltOpts+'</select>'+
+      '<div id="lt-hint" style="margin-top:6px">'+(_curLtHint?alrtH('in',_curLtHint):'')+'</div></div>');
     html.push('<div class="fg"><label class="fl">ชื่อผู้ส่งเอกสาร <span class="req">*</span></label><input class="fi" id="ffromdept" value="'+esc(_curFrom)+'" placeholder="ระบุชื่อผู้ส่งหรือหน่วยงาน"></div>');
     html.push('<div class="fg"><label class="fl">ตำแหน่ง / สังกัด</label><select class="fi" id="fto">'+_spOpts+'</select></div>');
-    html.push('<input type="hidden" id="fsubject" value="'+esc(_curSubj)+'">');
+    html.push('<div class="fg" id="fsubject-wrap" style="display:'+(_curDesc==='เรื่องอื่น ๆ'?'block':'none')+'"><label class="fl">ระบุว่าเป็นเรื่องอะไร <span class="req">*</span></label><input class="fi" id="fsubject" value="'+esc(_curSubj)+'" placeholder="ระบุเรื่อง"></div>');
     html.push('<div class="fg"><label class="fl">วันที่รับเอกสาร</label><input type="date" class="fi" id="fdate" value="'+esc(_curDate)+'"></div>');
     html.push('<div class="fg"><label class="fl">วันที่ต้องดำเนินการเสร็จ</label><input type="date" class="fi" id="feventdate" value="'+esc(_curEv)+'" oninput="calcDeadline()"></div>');
     html.push('<div id="deadline-info"></div>');
@@ -400,6 +400,17 @@ function _onProjSelChange(val){
     inp.style.display='none';
     inp.value=val;
   }
+}
+
+/* แสดงระยะเวลาที่ต้องยื่นล่วงหน้า ตามประเภทหนังสือขาเข้าที่เลือก (LT_LEADTIME)
+   และเปิดช่องให้ระบุเรื่อง เมื่อเลือก "เรื่องอื่น ๆ" */
+function _updateLtHint(){
+  var hint=$e('lt-hint'); if(!hint) return;
+  var val=gv('fdsc')||'';
+  var msg=LT_LEADTIME[val]||'';
+  hint.innerHTML=msg?alrtH('in',msg):'';
+  var wrap=$e('fsubject-wrap');
+  if(wrap) wrap.style.display=(val==='เรื่องอื่น ๆ')?'block':'none';
 }
 
 function _getProjValue(){
@@ -572,6 +583,7 @@ async function saveDoc(status){
   }
   if(_dtype==='incoming'){
     if(!(gv('fdsc')||'').trim()){a.innerHTML=alrtH('er','กรุณาเลือกประเภทหนังสือ');return}
+    if(gv('fdsc')==='เรื่องอื่น ๆ'&&!(gv('fsubject')||'').trim()){a.innerHTML=alrtH('er','กรุณาระบุว่าเป็นเรื่องอะไร');return}
     if(!(gv('ffromdept')||'').trim()){a.innerHTML=alrtH('er','กรุณาระบุชื่อผู้ส่งเอกสาร');return}
   }
   if(_dtype==='outgoing'&&status!=='draft'){

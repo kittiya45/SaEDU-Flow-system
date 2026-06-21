@@ -45,12 +45,17 @@ async function showActModal(action,docId){
       '<button class="btn btn-soft sm mt-1.5 w-full" onclick="clearASig()">ล้างลายเซ็น</button>',
       '</div>',
       '<div id="sig-panel-upload" class="hidden">',
-      '<div class="border-2 border-dashed border-[#EBEBEB] rounded-[10px] p-3 text-center cursor-pointer" id="asig-drop-zone">',
-      '<div class="flex justify-center mb-1" style="color:#a89e99">'+svg('pen',20)+'</div>',
-      '<div class="text-xs font-semibold">คลิกอัปโหลดรูปลายเซ็น</div>',
-      '<div class="text-[10px] text-[#a89e99]">PNG โปร่งใสแนะนำ</div></div>',
+      '<label for="asig-file" class="upload-zone" id="asig-drop-zone" style="min-height:104px;padding:14px;border-radius:12px">',
+      '<div class="upload-zone-inner" style="gap:4px">',
+      '<div class="upload-zone-icon" style="margin-bottom:0;opacity:.35;transform:scale(.85)">'+svg('pen',30)+'</div>',
+      '<div class="upload-zone-text" style="font-size:12.5px">คลิกเพื่ออัปโหลดรูปลายเซ็น</div>',
+      '<div class="upload-zone-hint">PNG พื้นหลังโปร่งใส แนะนำ</div>',
+      '</div></label>',
       '<input type="file" id="asig-file" accept="image/*" class="hidden">',
-      '<img id="asig-prev" class="hidden max-h-[60px] mt-2 max-w-full object-contain mx-auto">',
+      '<div id="asig-prev-wrap" class="hidden" style="margin-top:8px;display:flex;align-items:center;gap:10px;border:1px solid #EBEBEB;border-radius:12px;padding:10px;background:#fff">',
+      '<img id="asig-prev" style="height:72px;max-width:150px;object-fit:contain">',
+      '<button type="button" class="btn btn-soft sm" id="asig-change" style="margin-left:auto;flex-shrink:0">เปลี่ยนรูป</button>',
+      '</div>',
       '</div></div>',
 
       // หมายเหตุ
@@ -160,8 +165,13 @@ function initActSig(){
   _actSigCtx=sc.getContext('2d');
   var af=$e('asig-file');
   if(af) af.onchange=function(){previewASig(af)};
-  var dz=$e('asig-drop-zone');
-  if(dz&&af) dz.onclick=function(){af.click()};
+  var ach=$e('asig-change');
+  if(ach) ach.onclick=function(){
+    var w=$e('asig-prev-wrap');if(w)w.classList.add('hidden');
+    var dz=$e('asig-drop-zone');if(dz)dz.classList.remove('hidden');
+    if(af)af.value='';
+    window._actSigSrc=null;
+  };
   sc.onpointerdown=function(e){_actSigDrawing=true;var r=sc.getBoundingClientRect();_actSigCtx.beginPath();_actSigCtx.moveTo((e.clientX-r.left)*(sc.width/r.width),(e.clientY-r.top)*(sc.height/r.height))};
   sc.onpointermove=function(e){if(!_actSigDrawing)return;var r=sc.getBoundingClientRect();_actSigCtx.lineTo((e.clientX-r.left)*(sc.width/r.width),(e.clientY-r.top)*(sc.height/r.height));_actSigCtx.strokeStyle='#1C1C1E';_actSigCtx.lineWidth=2;_actSigCtx.lineCap='round';_actSigCtx.lineJoin='round';_actSigCtx.stroke()};
   sc.onpointerup=sc.onpointerleave=function(){_actSigDrawing=false}
@@ -170,7 +180,9 @@ function clearASig(){var sc=$e('asgc');if(sc&&_actSigCtx)_actSigCtx.clearRect(0,
 function previewASig(inp){
   var f=inp.files[0];if(!f)return;
   var r=new FileReader();r.onload=function(e){
-    var p=$e('asig-prev');if(p){p.src=e.target.result;p.style.display='block'}
+    var p=$e('asig-prev');if(p)p.src=e.target.result;
+    var w=$e('asig-prev-wrap');if(w)w.classList.remove('hidden');
+    var dz=$e('asig-drop-zone');if(dz)dz.classList.add('hidden');
     window._actSigSrc=e.target.result
   };r.readAsDataURL(f)
 }
