@@ -5,8 +5,10 @@ var _thFontCache=null;
    ให้ขาเข้าได้รหัสชมรมเดียวกับขาออกเสมอ (เดิมขาเข้าใช้รหัส SENDER_POS ที่ไม่ตรงกับ CLUBS)
    normalize: ตัดช่องว่าง + ส่วนท้าย "คณะครุศาสตร์ จุฬาฯ/จุฬาลงกรณ์มหาวิทยาลัย" ให้ชื่อสองชุดแมตช์กัน
    คืน '' ถ้าไม่พบใน CLUBS (ผู้เรียกจะ fallback รหัสเดิม ไม่ให้สูญหาย) */
+var _CLUB_NAME_ALIAS={'ชมรมกิจกรรมและสันทนาการ':'07'}; // ชื่อใน SENDER_POS ที่ตรงกับชมรมเดิมใน CLUBS (เชียร์และสันทนาการ)
 function _clubCodeByName(name){
   if(!name) return '';
+  if(_CLUB_NAME_ALIAS[name]) return _CLUB_NAME_ALIAS[name];
   var _norm=function(s){return String(s||'').replace(/\s+/g,'').replace(/คณะครุศาสตร์จุฬา(ลงกรณ์มหาวิทยาลัย|ฯ)?$/,'');};
   var t=_norm(name);
   if(!t) return '';
