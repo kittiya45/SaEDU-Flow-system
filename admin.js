@@ -23,7 +23,7 @@ async function vAdm(){
      val:cnt.pnd, sub:'กรุณาตรวจสอบและดำเนินการ',
      ico:'bell_f', grad:'linear-gradient(135deg,#7C3AED 0%,#A855F7 100%)', shadow:'rgba(124,58,237,.30)'}
   ];
-  html.push('<div class="grid grid-cols-3 max-[600px]:grid-cols-1 gap-4 mb-5">');
+  html.push('<div class="grid grid-cols-3 max-[600px]:grid-cols-1 gap-6 mb-6">');
   uCards.forEach(function(c){
     html.push(
       '<div class="adm-stat-card" style="border-radius:16px;padding:16px 18px;background:'+c.grad+';position:relative;overflow:hidden;box-shadow:0 4px 16px '+c.shadow+';cursor:default">'+
@@ -229,9 +229,13 @@ async function _admApvConfirmed(uid){
   var _exp=u&&u.user_type==='gnk'?new Date(Date.now()+365*24*60*60*1000).toISOString():null;
   var _patch={approval_status:'approved',is_active:true,approved_at:new Date().toISOString()};
   if(_exp) _patch.expires_at=_exp;
-  await dpa('users',uid,_patch);
-  try{await dp('document_history',{action:'อนุมัติบัญชีผู้ใช้',performed_by:CU.id,note:'อนุมัติ: '+(u?u.full_name:uid)+(_exp?' (หมดอายุ '+new Date(_exp).toLocaleDateString('th-TH')+')':'')});}catch(e){}
-  nav('adm')
+  try{
+    await dpa('users',uid,_patch);
+    try{await dp('document_history',{action:'อนุมัติบัญชีผู้ใช้',performed_by:CU.id,note:'อนุมัติ: '+(u?u.full_name:uid)+(_exp?' (หมดอายุ '+new Date(_exp).toLocaleDateString('th-TH')+')':'')});}catch(e){}
+    nav('adm')
+  }catch(e){
+    showAlert('อนุมัติบัญชีไม่สำเร็จ — '+(e.message||''),'er');
+  }
 }
 
 function admRenew(uid){
@@ -246,9 +250,13 @@ function admRenew(uid){
 async function _admRenewConfirmed(uid){
   var u=(AUSERS||[]).filter(function(x){return x.id===uid})[0];
   var _exp=new Date(Date.now()+365*24*60*60*1000).toISOString();
-  await dpa('users',uid,{expires_at:_exp,is_active:true});
-  try{await dp('document_history',{action:'ต่ออายุบัญชีผู้ใช้',performed_by:CU.id,note:'ต่ออายุ: '+(u?u.full_name:uid)+' จนถึง '+new Date(_exp).toLocaleDateString('th-TH')});}catch(e){}
-  nav('adm')
+  try{
+    await dpa('users',uid,{expires_at:_exp,is_active:true});
+    try{await dp('document_history',{action:'ต่ออายุบัญชีผู้ใช้',performed_by:CU.id,note:'ต่ออายุ: '+(u?u.full_name:uid)+' จนถึง '+new Date(_exp).toLocaleDateString('th-TH')});}catch(e){}
+    nav('adm')
+  }catch(e){
+    showAlert('ต่ออายุบัญชีไม่สำเร็จ — '+(e.message||''),'er');
+  }
 }
 /* [UX] admRej: ใช้ modal แทน prompt() ดิบ */
 function admRej(uid){
@@ -271,10 +279,14 @@ function admRej(uid){
 async function _admRejConfirmed(uid){
   var u=(AUSERS||[]).filter(function(x){return x.id===uid})[0];
   var r=gv('rej-reason')||'';
-  await dpa('users',uid,{approval_status:'rejected',is_active:false,reject_reason:r||''});
-  try{await dp('document_history',{action:'ปฏิเสธบัญชีผู้ใช้',performed_by:CU.id,note:'ปฏิเสธ: '+(u?u.full_name:uid)+(r?' — เหตุผล: '+r:'')});}catch(e){}
-  var mw=$e('mwrap');if(mw)mw.innerHTML='';
-  nav('adm')
+  try{
+    await dpa('users',uid,{approval_status:'rejected',is_active:false,reject_reason:r||''});
+    try{await dp('document_history',{action:'ปฏิเสธบัญชีผู้ใช้',performed_by:CU.id,note:'ปฏิเสธ: '+(u?u.full_name:uid)+(r?' — เหตุผล: '+r:'')});}catch(e){}
+    var mw=$e('mwrap');if(mw)mw.innerHTML='';
+    nav('adm')
+  }catch(e){
+    showAlert('ปฏิเสธบัญชีไม่สำเร็จ — '+(e.message||''),'er');
+  }
 }
 /* [UX] admDel: แทน confirm() ด้วย showConfirm — destructive action ต้องชัดเจน */
 async function admDel(uid){
@@ -367,9 +379,13 @@ async function saveEU(uid,ut){
   var u=(AUSERS||[]).filter(function(x){return x.id===uid})[0];
   var b={full_name:gv('enm'),role_code:gv('erl'),department:gv('edp')};
   if(ut==='gnk') b.position_code=gv('epos')||null;
-  await dpa('users',uid,b);
-  try{await dp('document_history',{action:'แก้ไขข้อมูลผู้ใช้',performed_by:CU.id,note:'แก้ไข: '+(u?u.full_name:uid)+' → role='+b.role_code});}catch(e){}
-  $e('mwrap').innerHTML=''; nav('adm')
+  try{
+    await dpa('users',uid,b);
+    try{await dp('document_history',{action:'แก้ไขข้อมูลผู้ใช้',performed_by:CU.id,note:'แก้ไข: '+(u?u.full_name:uid)+' → role='+b.role_code});}catch(e){}
+    $e('mwrap').innerHTML=''; nav('adm')
+  }catch(e){
+    showAlert('บันทึกการเปลี่ยนแปลงไม่สำเร็จ — '+(e.message||''),'er');
+  }
 }
 
 function admToggle(uid, isActive){
@@ -385,9 +401,13 @@ function admToggle(uid, isActive){
 }
 async function _admToggleConfirmed(uid,isActive,label){
   var u=(AUSERS||[]).filter(function(x){return x.id===uid})[0];
-  await dpa('users',uid,{is_active:!isActive});
-  try{await dp('document_history',{action:label+'บัญชี',performed_by:CU.id,note:label+': '+(u?u.full_name:uid)});}catch(e){}
-  nav('adm');
+  try{
+    await dpa('users',uid,{is_active:!isActive});
+    try{await dp('document_history',{action:label+'บัญชี',performed_by:CU.id,note:label+': '+(u?u.full_name:uid)});}catch(e){}
+    nav('adm');
+  }catch(e){
+    showAlert(label+'บัญชีไม่สำเร็จ — '+(e.message||''),'er');
+  }
 }
 
 function admResetPw(uid){
@@ -522,10 +542,17 @@ async function saveAddAdvisor(){
   if(pw.length<6){if(_aaAlert)_aaAlert.innerHTML=alrtH('er','รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร');return}
   var exist=await dg('users','?email=eq.'+encodeURIComponent(em));
   if(exist.length){if(_aaAlert)_aaAlert.innerHTML=alrtH('er','อีเมลนี้มีในระบบแล้ว');return}
-  var pwHash=await hashPw(pw);
-  await dp('users',{email:em,full_name:nm,role_code:'ROLE-ADV',department:dept||'สำนักกิจการนิสิต',
-    user_type:'advisor',approval_status:'approved',is_active:true,password_hash:pwHash,
-    contact_email:cemail||em,approved_at:new Date().toISOString(),approved_by:CU.full_name});
+  try{
+    // สร้างบัญชีจริงต้องผ่าน Edge Function (ใช้ service-role สร้าง auth.users ทำใน browser ตรงๆไม่ได้)
+    // [ห้ามใช้ H ตรงๆ] header 'Prefer' ของ H เป็นของ PostgREST เท่านั้น Edge Function ไม่อนุญาต header นี้ใน CORS เลยพังเงียบๆ
+    var r=await fetch(SU+'/functions/v1/admin-create-user',{method:'POST',headers:{apikey:SK,'Authorization':H.Authorization,'Content-Type':'application/json'},body:JSON.stringify({
+      email:em,password:pw,full_name:nm,role_code:'ROLE-ADV',department:dept||'สำนักกิจการนิสิต',
+      user_type:'advisor',contact_email:cemail||em,approved_by:CU.full_name
+    })});
+    if(!r.ok){var e=await r.json().catch(function(){return{}});throw new Error(e.error||'สร้างบัญชีไม่สำเร็จ')}
+  }catch(e){
+    if(_aaAlert)_aaAlert.innerHTML=alrtH('er',e.message||'สร้างบัญชีไม่สำเร็จ');return;
+  }
   $e('mwrap').innerHTML=''; nav('adm')
 }
 

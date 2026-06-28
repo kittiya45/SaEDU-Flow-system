@@ -69,6 +69,8 @@ document.addEventListener('click', function(e){
   else if(a==='admDelDoc') admDelDoc(id);
   else if(a==='admChgStatus') admChgStatus(id);
   else if(a==='doAdmChgStatus') doAdmChgStatus(id, el.dataset.status);
+  else if(a==='showChgUrgency') showChgUrgency(id);
+  else if(a==='doChgUrgency') doChgUrgency(id, action);
   else if(a==='showEU') showEU(id);
   else if(a==='saveEU') saveEU(el.dataset.uid, el.dataset.utype);
   else if(a==='showAddAdvisor') showAddAdvisor();

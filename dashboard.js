@@ -28,9 +28,11 @@ function _calEvtNav(dir){
   _calEvtPg+=dir; _renderCal()
 }
 /* เปิด popup เพิ่มกิจกรรม — โครงเดียวกับ showTmplUpload() ใน templates.js */
+var _calNewEvtPrivate=false;
 function showCalAddEvt(){
   var w=$e('mwrap'); if(!w) return;
   var defDate=_calSel||new Date().toISOString().substring(0,10);
+  _calNewEvtPrivate=false;
 
   w.innerHTML=[
     '<div id="cal-evt-overlay" class="mo" style="position:fixed;inset:0;z-index:9999;background:rgba(24,18,14,0.4);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;">',
@@ -74,6 +76,16 @@ function showCalAddEvt(){
             '<input class="fi" id="cal-date" type="date" value="'+defDate+'" style="width:100%;height:44px;padding:0 14px;font-size:12.5px;border-radius:12px;border:1.5px solid #F1F1F1;background:#FAFAFA;">',
           '</div>',
 
+          '<div class="fg" style="margin:16px 0 0">',
+            '<label class="fl" style="display:block;font-size:11.5px;font-weight:700;color:#18120E;margin-bottom:6px;">',
+              'การมองเห็น',
+            '</label>',
+            '<div style="display:flex;gap:8px">',
+              '<button type="button" id="cal-vis-pub" onclick="_calSetVis(false)" style="flex:1;height:40px;border-radius:12px;border:1.5px solid #E83A00;background:#FFF5F0;color:#E83A00;font-size:12px;font-weight:700;cursor:pointer;">สาธารณะ — ทุกคนเห็น</button>',
+              '<button type="button" id="cal-vis-priv" onclick="_calSetVis(true)" style="flex:1;height:40px;border-radius:12px;border:1.5px solid #EBEBEB;background:#FAFAFA;color:#6b6560;font-size:12px;font-weight:700;cursor:pointer;">ส่วนตัว — เห็นแค่ฉัน</button>',
+            '</div>',
+          '</div>',
+
         '</div>',
 
         // FOOTER
@@ -107,11 +119,22 @@ function showCalAddEvt(){
 
   setTimeout(function(){var i=$e('cal-inp');if(i)i.focus()},50);
 }
+function _calSetVis(priv){
+  _calNewEvtPrivate=priv;
+  var pub=$e('cal-vis-pub'), pv=$e('cal-vis-priv');
+  if(!pub||!pv) return;
+  function style(btn,on){
+    btn.style.border=on?'1.5px solid #E83A00':'1.5px solid #EBEBEB';
+    btn.style.background=on?'#FFF5F0':'#FAFAFA';
+    btn.style.color=on?'#E83A00':'#6b6560';
+  }
+  style(pub,!priv); style(pv,priv);
+}
 async function _calSaveEvt(){
   var ti=$e('cal-inp'), da=$e('cal-date');
   if(!ti||!ti.value.trim()) return;
   var date=da&&da.value?da.value:(_calSel||new Date().toISOString().substring(0,10));
-  await dp('calendar_events',{date:date,title:ti.value.trim(),color:'#3B82F6',created_by:CU.id});
+  await dp('calendar_events',{date:date,title:ti.value.trim(),color:'#3B82F6',created_by:CU.id,is_private:!!_calNewEvtPrivate});
   if(!_calSel) _calSel=date;
   var mw=$e('mwrap'); if(mw) mw.innerHTML='';
   await _loadEvtsDB(); _renderCal()
@@ -139,7 +162,7 @@ function _buildCal(docs){
   });
   _calEvts.forEach(function(e){
     if(!eMap[e.date]) eMap[e.date]=[];
-    eMap[e.date].push({type:'cust',title:e.title,eid:e.id})
+    eMap[e.date].push({type:'cust',title:e.title,eid:e.id,priv:e.is_private})
   });
   var firstDay=new Date(yr,mo,1).getDay();
   var dim=new Date(yr,mo+1,0).getDate();
@@ -282,7 +305,7 @@ function _buildCal(docs){
           h.push(
             '<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:#EFF6FF;border-radius:10px;margin-bottom:6px;border:1px solid rgba(59,130,246,.1)">'+
               '<div style="width:7px;height:7px;border-radius:50%;background:#3B82F6;flex-shrink:0"></div>'+
-              '<div style="flex:1;min-width:0;font-size:11px;font-weight:700;color:#18120E;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(e.title)+'</div>'+
+              '<div style="flex:1;min-width:0;font-size:11px;font-weight:700;color:#18120E;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(e.title)+(e.priv?' <span style="color:#a89e99;font-weight:600">(ส่วนตัว)</span>':'')+'</div>'+
               '<button onclick="_calDelEvt(\''+e.eid+'\')" style="background:none;border:none;color:#c0b9b4;cursor:pointer;padding:2px;line-height:1;flex-shrink:0;display:inline-flex;align-items:center" title="ลบ">'+svg('x',13)+'</button>'+
             '</div>'
           );
@@ -307,7 +330,8 @@ async function vDash(){
   var _myActive=_mySteps2.filter(function(s){return s.status==='active'}).length;
   var _canSeeAll=CU.role_code==='ROLE-SYS'||CU.position_code==='GNK-SEC';
   var docs=_canSeeAll?_allD2:_allD2.filter(function(d){
-    if(CU.role_code==='ROLE-STF') return d.created_by===CU.id||d.forwarded_to_id===CU.id||d.status==='numbering'||_myIds2.indexOf(d.id)!==-1;
+    // ROLE-ADV เห็นภาพรวมกว้างเหมือน ROLE-STF (ตรงกับที่ vDocs()/vStat() ให้เห็นอยู่แล้ว) ไม่ใช่แค่เอกสารของตัวเอง
+    if(['ROLE-STF','ROLE-ADV'].includes(CU.role_code)) return d.created_by===CU.id||d.forwarded_to_id===CU.id||d.status==='numbering'||_myIds2.indexOf(d.id)!==-1;
     return d.created_by===CU.id||_myIds2.indexOf(d.id)!==-1;
   });
 
@@ -341,13 +365,13 @@ async function vDash(){
   // ── 4 Stat cards — white neutral ──
   var cards=[
     {label:'เอกสารทั้งหมด', val:cnt.total, sub:'ร่าง '+cnt.draft+' · ส่งคืน '+cnt.rej,
-     ico:'doc_f', grad:'linear-gradient(135deg,#E83A00 0%,#FF6B35 100%)', sh:'rgba(232,58,0,.35)', navTarget:'docs'},
+     ico:'doc_f', grad:'linear-gradient(135deg,#1D4ED8 0%,#3B82F6 100%)', sh:'rgba(29,78,216,.35)', navTarget:'docs'},
     {label:'รอลงนาม',        val:cnt.pnd,   sub:'รอการอนุมัติจากผู้รับผิดชอบ',
-     ico:'pen_f', grad:'linear-gradient(135deg,#D97706 0%,#FBBF24 100%)', sh:'rgba(217,119,6,.35)', navTarget:'docs'},
+     ico:'pen_f', grad:'linear-gradient(135deg,#D97706 0%,#F59E0B 100%)', sh:'rgba(217,119,6,.35)', navTarget:'docs'},
     {label:'เสร็จสิ้นแล้ว', val:cnt.cplt,  sub:'ผ่านทุกขั้นตอนเรียบร้อย',
-     ico:'check_f', grad:'linear-gradient(135deg,#16A34A 0%,#34D399 100%)', sh:'rgba(22,163,74,.35)', navTarget:'docs'},
+     ico:'check_f', grad:'linear-gradient(135deg,#15803D 0%,#22C55E 100%)', sh:'rgba(21,128,61,.35)', navTarget:'docs'},
     {label:'งานรอฉัน',       val:_myActive, sub:'ขั้นตอนที่ต้องดำเนินการ',
-     ico:'bell_f', grad:'linear-gradient(135deg,#2563EB 0%,#60A5FA 100%)', sh:'rgba(37,99,235,.35)', navTarget:'todo'}
+     ico:'bell_f', grad:'linear-gradient(135deg,#7C3AED 0%,#A855F7 100%)', sh:'rgba(124,58,237,.35)', navTarget:'todo'}
   ];
 
   html.push('<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:28px">');

@@ -60,6 +60,26 @@ select.fi{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns=
 textarea.fi{resize:vertical;min-height:80px}
 .fr{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .hint{font-size:11px;margin-top:5px}.hint.ok{color:var(--ok)}.hint.er{color:var(--er)}.hint.muted{color:var(--text-3)}
+/* paired fields (วันที่ คู่กัน ฯลฯ) — ยุบเป็นคอลัมน์เดียวบนจอแคบ */
+.two-col-sm{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:520px){.two-col-sm{grid-template-columns:1fr}}
+
+/* ── DOC TYPE CHOOSER (เลือกประเภทเอกสารแบบการ์ด) ──
+   การ์ดแนวตั้ง: ไอคอนซ้ายบน + วงกลมเลือกขวาบน → หัวเรื่อง → คำอธิบาย
+   แบนเรียบ (พื้นขาว เส้นอุ่น 1px) ตอน rest; ตอนเลือกใช้กรอบส้ม + พื้นส้มจาง ไม่ใช้เงา ring (เงียบกว่า) */
+.dtype-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(228px,1fr));gap:12px}
+.dtype-opt{display:flex;flex-direction:column;gap:11px;text-align:left;padding:16px 16px 17px;border:1px solid #ECE6DD;border-radius:14px;background:#fff;cursor:pointer;transition:border-color .18s cubic-bezier(.4,0,.2,1),background-color .18s;font-family:inherit;width:100%}
+.dtype-opt:hover{border-color:#DFD7CA;background:#FCFBF9}
+.dtype-opt.on{border-color:var(--orange);background:var(--orange-pale)}
+.dtype-opt-head{display:flex;align-items:center;justify-content:space-between}
+.dtype-opt-ico{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;background:#F4F0EA;color:#8C8279;transition:background .18s,color .18s}
+.dtype-opt:hover .dtype-opt-ico{background:#F0EBE3}
+.dtype-opt.on .dtype-opt-ico{background:var(--orange);color:#fff}
+.dtype-check{width:20px;height:20px;border-radius:50%;border:1.5px solid #D9D2CB;display:flex;align-items:center;justify-content:center;color:#fff;transition:border-color .18s,background-color .18s;flex-shrink:0}
+.dtype-opt.on .dtype-check{background:var(--orange);border-color:var(--orange)}
+.dtype-opt:not(.on) .dtype-check svg{display:none}
+.dtype-opt-title{font-size:14.5px;font-weight:700;color:var(--text);line-height:1.45}
+.dtype-opt-desc{font-size:12px;color:var(--text-2);line-height:1.65}
 
 /* ── BUTTONS ── */
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:10px 18px;border-radius:10px;font-size:14px;font-weight:600;border:1.5px solid transparent;transition:all .2s cubic-bezier(.4,0,.2,1);cursor:pointer;white-space:nowrap;font-family:inherit;line-height:1.4;text-decoration:none}
@@ -84,12 +104,12 @@ textarea.fi{resize:vertical;min-height:80px}
 .btn-icon{width:32px;height:32px;padding:0;border-radius:8px}
 
 /* ── ALERTS ── */
-.al{padding:12px 15px;border-radius:10px;font-size:13px;margin-bottom:14px;display:flex;align-items:flex-start;gap:9px;line-height:1.55}
+.al{padding:12px 15px;border-radius:10px;font-size:13px;margin-bottom:6px;display:flex;align-items:flex-start;gap:9px;line-height:1.55}
 .al-ok{background:var(--ok-bg);color:#15803D;border:1px solid #BBF7D0}
 .al-er{background:var(--er-bg);color:#B91C1C;border:1px solid #FECACA}
-.al-in{background:var(--in-bg);color:#1D4ED8;border:1px solid #BFDBFE}
+.al-in{background:var(--in-bg);border-color:var(--in-line);color:#1B4ED5}
 .al-wa{background:var(--wa-bg);color:#B45309;border:1px solid #FDE68A}
-.al-icon{font-size:15px;flex-shrink:0;margin-top:1px}
+.al-icon{font-size:15px;flex-shrink:0;margin-top:5px} /* ปรับเพิ่มเป็น 5px เพื่อดันไอคอนลงมา */
 
 /* ── SPINNER ── */
 .sp{width:16px;height:16px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .65s linear infinite;display:inline-block;vertical-align:middle;flex-shrink:0}
@@ -102,9 +122,22 @@ textarea.fi{resize:vertical;min-height:80px}
 .page-title .accent{display:block;width:28px;height:3px;background:linear-gradient(90deg,var(--orange),#FF6B35);border-radius:2px;margin-bottom:9px}
 
 /* ── CARDS ── */
-.card{background:var(--card);border-radius:var(--r);border:1px solid rgba(0,0,0,.055);box-shadow:var(--sh-card);overflow:hidden;margin-bottom:16px}
-.card-head{padding:14px 18px;border-bottom:1px solid rgba(0,0,0,.05);display:flex;align-items:center;gap:10px;background:#FAFAF8}
-.card-head-title{font-size:13px;font-weight:700;color:var(--text)}
+.card{
+  background:var(--card);
+  border:1px solid var(--hairline-soft);
+  border-radius:var(--r-lg);
+  overflow:hidden;margin-bottom:18px;
+  box-shadow:var(--sh-1);
+  transition:box-shadow .3s var(--ease), transform .3s var(--ease);
+}
+.card:hover{box-shadow:var(--sh-2)}
+.card-head{
+  padding:16px 20px;
+  border-bottom:1px solid var(--hairline-soft);
+  display:flex;align-items:center;gap:10px;
+  background:transparent;
+}
+.card-head-title{font-size:13.5px;font-weight:600;color:var(--ink);letter-spacing:-.005em;text-transform:none}
 .card-body{padding:18px}
 .card-empty{padding:56px 20px;text-align:center;color:var(--text-3)}
 .card-empty-icon{font-size:46px;margin-bottom:14px;opacity:.5}
@@ -139,12 +172,16 @@ tbody tr:hover{background:#FDFBF9}
 .ptab:hover{color:var(--text);background:var(--orange-pale)}.ptab.on{color:var(--orange);border-bottom-color:var(--orange);font-weight:700}
 
 /* ── FILE ITEMS ── */
-.file-item{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1.5px solid var(--border);border-radius:11px;margin-bottom:8px;background:#fff}
+.file-item{display:flex;align-items:center;gap:13px;padding:13px 14px;border:1px solid var(--border);border-radius:12px;margin-bottom:8px;background:#fff}
+.file-item:last-child{margin-bottom:0}
 .file-item:hover{border-color:var(--orange-mid);background:var(--orange-pale)}
+/* [UX] ไอคอนไฟล์ในกล่องสีพื้น (chip) ให้ดูมีน้ำหนัก แทน svg ลอยๆ — สี chip บอกสถานะ (เขียว=ฉบับล่าสุด) แทนการย้อมทั้งแถวเขียวซึ่งทำให้ชื่อไฟล์อ่านยาก */
+.file-chip{width:40px;height:40px;border-radius:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:#F5F3F0;color:var(--text-2)}
+.file-chip-cur{background:var(--ok-bg);color:var(--ok)}
 .file-icon{font-size:22px;flex-shrink:0}
 .file-info{flex:1;min-width:0}
-.file-name{font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.file-meta{font-size:11px;color:var(--text-3);margin-top:3px}
+.file-name{font-size:13.5px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.file-meta{font-size:11px;color:var(--text-3)}
 .file-actions{display:flex;gap:6px;flex-shrink:0}
 
 /* ── UPLOAD ZONE ── */
@@ -240,11 +277,31 @@ tbody tr:hover{background:#FDFBF9}
 
 /* ── LAYOUT HELPERS ── */
 .two-col{display:grid;grid-template-columns:1fr 320px;gap:18px;align-items:start}
-.detail-list{display:flex;flex-direction:column}
-.detail-row{display:flex;justify-content:space-between;align-items:flex-start;padding:10px 0;border-bottom:1px solid #F5F5F5;gap:12px}
-.detail-row:last-child{border-bottom:none}
-.detail-key{font-size:12px;color:var(--text-3);flex-shrink:0}
-.detail-val{font-size:13px;font-weight:600;text-align:right}
+/* ── INFO CARD (ข้อมูลเอกสาร) ── 3 โซน: หัวเรื่อง → ผู้รับ/ผู้ส่ง → เมตาดาต้า → รายละเอียด คั่นด้วยเส้นบางให้กวาดตาเป็นกลุ่มชัด */
+.detail-head{display:flex;align-items:center;justify-content:space-between;gap:14px;padding-bottom:16px;border-bottom:1px solid var(--border);flex-wrap:wrap}
+.detail-title{font-size:18px;font-weight:700;line-height:1.55;color:var(--text);letter-spacing:-.2px}
+/* [UX] โซนผู้รับ/ผู้ส่ง และเมตาดาต้า ใช้ grid 3 คอลัมน์ชุดเดียวกัน — ทุก label/value จึงเรียงตรงคอลัมน์เดียวกันทั้งการ์ด กวาดตาง่าย เรียน=คอลัมน์ 1, จากฝ่าย=คอลัมน์ 2-3 (ค่ามักยาวกว่า) */
+.detail-addr{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px 24px;padding:18px 0}
+.detail-addr .addr-from{grid-column:span 2}
+.stat-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px 24px;padding-top:18px;border-top:1px solid #F5F5F5}
+.stat-cell{display:flex;flex-direction:column;gap:6px;min-width:0}
+.stat-label{font-size:12px;font-weight:500;color:var(--text-3);letter-spacing:.2px;line-height:1.5}
+.stat-value{font-size:13.5px;font-weight:600;color:var(--text);display:flex;align-items:center;gap:6px;flex-wrap:wrap;line-height:1.6}
+/* [UX] รายละเอียดเพิ่มเติม — กล่อง callout โทนอุ่น มีหัวข้อสี + ไอคอน ให้เด่นกว่าฟิลด์ทั่วไป (เป็นเนื้อหา/วัตถุประสงค์ของเอกสารที่ควรอ่าน) */
+.detail-desc{margin-top:18px;padding:13px 16px;background:var(--bg);border:1px solid var(--border);border-radius:12px}
+.detail-desc-label{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;letter-spacing:.3px;color:var(--text-3);margin-bottom:7px}
+.detail-desc-text{font-size:14px;color:var(--text-2);line-height:1.8}
+@media(max-width:620px){.detail-addr,.stat-grid{grid-template-columns:1fr 1fr}.detail-addr .addr-from{grid-column:auto}}
+@media(max-width:420px){.detail-addr,.stat-grid{grid-template-columns:1fr}}
+/* ── HISTORY TIMELINE (ประวัติการดำเนินการ) ── เธรดเหตุการณ์ต่อเนื่อง: ไอคอนสีตามชนิด action เชื่อมด้วยเส้นบาง อ่านเป็นลำดับเวลา */
+.htl-item{position:relative;display:flex;gap:13px;padding-bottom:20px}
+.htl-item:last-child{padding-bottom:0}
+.htl-item:not(:last-child)::before{content:'';position:absolute;left:16px;top:38px;bottom:2px;width:2px;background:var(--border);border-radius:2px}
+.htl-ic{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;position:relative;z-index:1}
+.htl-body{flex:1;min-width:0;padding-top:6px}
+.htl-action{font-size:13px;font-weight:600;line-height:1.5;color:var(--text)}
+.htl-note{font-size:12px;color:var(--text-3);font-style:italic;margin-top:4px;line-height:1.65}
+.htl-time{font-size:11px;color:var(--text-3);margin-top:5px}
 .search-wrap{position:relative;flex:1}
 .search-wrap .search-icon{position:absolute;left:12px;top:50%;transform:translateY(-50%);pointer-events:none;color:var(--text-3)}
 .search-wrap input{padding-left:38px}
@@ -257,6 +314,12 @@ tbody tr:hover{background:#FDFBF9}
 
 /* ── URGENCY ── */
 .urg-normal{color:var(--text-3)}.urg-urgent{color:var(--wa);font-weight:600}.urg-vurgent{color:var(--er);font-weight:600}
+/* badge แบ่งสีตามระดับความเร่งด่วน */
+.ubadge{display:inline-flex;align-items:center;gap:5px;padding:3px 11px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap;letter-spacing:.1px}
+.ubadge .bdot{width:5px;height:5px;border-radius:50%;background:currentColor;flex-shrink:0}
+.u-normal{background:var(--ok-bg);color:#15803D}
+.u-urgent{background:var(--wa-bg);color:#B45309}
+.u-vurgent{background:var(--er-bg);color:#B91C1C}
 
 /* ── PENDING PAGE ── */
 .pending-page{min-height:100vh;background:#fff7f5;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center}

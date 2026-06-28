@@ -57,15 +57,17 @@ async function exportDocPDF(docId){
 }
 
 async function exportCSV(){
-  if(!ADOCS||!ADOCS.length){alert('ไม่มีข้อมูลเอกสารให้ส่งออก');return}
-  var _uids=[...new Set(ADOCS.map(function(d){return d.created_by}).filter(Boolean))];
+  // ส่งออกตามรายการที่กำลังกรอง/แสดงอยู่จริงบนตาราง (tab/ประเภท/โครงการ/คำค้น) ไม่ใช่ทั้งหมดที่ role เห็นได้ (ADOCS)
+  var _docs=_curFilteredDocs||ADOCS;
+  if(!_docs||!_docs.length){alert('ไม่มีข้อมูลเอกสารให้ส่งออก');return}
+  var _uids=[...new Set(_docs.map(function(d){return d.created_by}).filter(Boolean))];
   var _umap={};
   if(_uids.length){
     var _urows=await dg('user_directory','?id=in.('+_uids.map(safeId).join(',')+')'+'&select=id,full_name');
     (_urows||[]).forEach(function(u){_umap[u.id]=u.full_name});
   }
   var headers=['เลขที่เอกสาร','ชื่อเรื่อง','ประเภท','ความเร่งด่วน','สถานะ','จากฝ่าย','เรียน','วันที่สร้าง','Deadline/วันที่กิจกรรม','ผู้สร้าง'];
-  var rows=ADOCS.map(function(d){
+  var rows=_docs.map(function(d){
     return [
       d.doc_number||'—',
       d.title||'',

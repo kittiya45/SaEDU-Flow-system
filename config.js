@@ -7,8 +7,20 @@ var sb = supabase.createClient(SU, SK);
 var H = {apikey:SK,'Authorization':'Bearer '+SK,'Content-Type':'application/json','Prefer':'return=representation'};
 
 async function dg(t,q){var r=await fetch(SU+'/rest/v1/'+t+(q||''),{headers:H});return r.json()}
-async function dp(t,b){var r=await fetch(SU+'/rest/v1/'+t,{method:'POST',headers:H,body:JSON.stringify(b)});return r.json()}
-async function dpa(t,id,b){var r=await fetch(SU+'/rest/v1/'+t+'?id=eq.'+id,{method:'PATCH',headers:H,body:JSON.stringify(b)});return r.json()}
+async function dp(t,b){
+  var r=await fetch(SU+'/rest/v1/'+t,{method:'POST',headers:H,body:JSON.stringify(b)});
+  if(!r.ok){var e=await r.json().catch(function(){return{}});throw new Error(e.message||String(r.status))}
+  return r.json()
+}
+async function dpa(t,id,b){
+  var r=await fetch(SU+'/rest/v1/'+t+'?id=eq.'+id,{method:'PATCH',headers:H,body:JSON.stringify(b)});
+  if(!r.ok){var e=await r.json().catch(function(){return{}});throw new Error(e.message||String(r.status))}
+  var rows=await r.json();
+  // PostgREST เงียบ ๆ คืน [] เมื่อ RLS กรองแถวออกหมด (ไม่ใช่ error) — ต้องเช็คเองว่ามีแถวที่แก้ไขจริง
+  // ไม่งั้นปุ่ม "อนุมัติ"/"แก้ไข" จะดูเหมือนกดได้ปกติ แต่ข้อมูลไม่เปลี่ยนเลยเงียบ ๆ
+  if(Array.isArray(rows)&&!rows.length) throw new Error('ไม่มีสิทธิ์แก้ไขข้อมูลนี้ หรือไม่พบรายการ (RLS/0 rows affected)');
+  return rows
+}
 // ตาราง document_history และ notifications ห้ามลบจาก client เด็ดขาด
 var _PROTECTED_TABLES=['document_history','notifications'];
 async function dd(t,id){
@@ -17,6 +29,12 @@ async function dd(t,id){
   if(!r.ok){var e=await r.json().catch(function(){return{}});throw new Error(e.message||String(r.status))}
 }
 function safeId(id){return encodeURIComponent(String(id||''))}
+/* [Safety net] dp()/dpa() เพิ่งเปลี่ยนให้ throw จริงเมื่อ RLS ปฏิเสธหรือ error (เดิมเงียบ ๆ คืน [] ทำให้ปุ่มดูเหมือนใช้งานไม่ได้)
+   จุดเรียกใช้บางจุดยังไม่ได้ครอบ try/catch ของตัวเอง — ดักด้วย unhandledrejection กลาง ๆ ไว้ ไม่ให้ error หายไปเงียบ ๆ อีก */
+window.addEventListener('unhandledrejection',function(ev){
+  console.error('Unhandled error:',ev.reason);
+  if(typeof showAlert==='function') showAlert('เกิดข้อผิดพลาด: '+((ev.reason&&ev.reason.message)||ev.reason||'ไม่ทราบสาเหตุ'),'er');
+});
 async function upFile(path,file){
   var r=await fetch(SU+'/storage/v1/object/documents/'+encodeURIComponent(path),{method:'POST',headers:{apikey:SK,'Authorization':H.Authorization,'x-upsert':'true'},body:file});
   return r.json()

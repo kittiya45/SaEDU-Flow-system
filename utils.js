@@ -48,35 +48,6 @@ function alrtH(t,m){
   return '<div class="al al-'+t+'"><span class="al-icon">'+ic[t]+'</span><span>'+esc(m)+'</span></div>'
 }
 
-/* ─── PASSWORD HASHING (PBKDF2 + salt via Web Crypto API) ─── */
-async function hashPw(pw){
-  var salt=crypto.getRandomValues(new Uint8Array(16));
-  var saltHex=Array.from(salt).map(function(b){return b.toString(16).padStart(2,'0')}).join('');
-  var key=await crypto.subtle.importKey('raw',new TextEncoder().encode(pw),'PBKDF2',false,['deriveBits']);
-  var bits=await crypto.subtle.deriveBits({name:'PBKDF2',hash:'SHA-256',salt:salt,iterations:100000},key,256);
-  var hashHex=Array.from(new Uint8Array(bits)).map(function(b){return b.toString(16).padStart(2,'0')}).join('');
-  return 'pbkdf2$'+saltHex+'$'+hashHex
-}
-async function _verifyPbkdf2(pw,stored){
-  var parts=stored.split('$');
-  if(parts.length!==3||parts[0]!=='pbkdf2') return false;
-  var salt=new Uint8Array(parts[1].match(/.{2}/g).map(function(b){return parseInt(b,16)}));
-  var key=await crypto.subtle.importKey('raw',new TextEncoder().encode(pw),'PBKDF2',false,['deriveBits']);
-  var bits=await crypto.subtle.deriveBits({name:'PBKDF2',hash:'SHA-256',salt:salt,iterations:100000},key,256);
-  var hashHex=Array.from(new Uint8Array(bits)).map(function(b){return b.toString(16).padStart(2,'0')}).join('');
-  return hashHex===parts[2]
-}
-async function _hashSha256(pw){
-  var buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(pw));
-  return Array.from(new Uint8Array(buf)).map(function(b){return b.toString(16).padStart(2,'0')}).join('')
-}
-// ตรวจสอบรหัสผ่าน: รองรับ PBKDF2 ใหม่ และ SHA-256 legacy (auto-upgrade ตอน login)
-async function checkPw(input,stored){
-  if(!stored||!input) return false;
-  if(stored.startsWith('pbkdf2$')) return _verifyPbkdf2(input,stored);
-  if(/^[0-9a-f]{64}$/.test(stored)) return (await _hashSha256(input))===stored; // SHA-256 legacy
-  return false // plaintext ไม่รองรับแล้ว
-}
 function sBadge(s){
   var cls={draft:'b-draft',pending:'b-pending',signed:'b-signed',rejected:'b-rejected',numbering:'b-advisor',completed:'b-completed'};
   var txt={draft:'ร่างเอกสาร',pending:'รอลงนาม',signed:'ลงนามแล้ว',rejected:'ส่งคืนแก้ไข',numbering:'รอออกเลขหนังสือ',completed:'เสร็จสิ้น'};
@@ -88,6 +59,12 @@ function tBadge(t){
   return '<span class="badge '+(cls[t]||'b-draft')+'">'+esc(lbl[t]||t)+'</span>'
 }
 function urgCls(u){if(u==='urgent')return'urg-urgent';if(u==='very_urgent')return'urg-vurgent';return'urg-normal'}
+/* ความเร่งด่วนแบบ badge แบ่งสี: เขียว=ปกติ, เหลือง=เร่งด่วน, แดง=ด่วนมาก */
+function uBadge(u){
+  var cls={normal:'u-normal',urgent:'u-urgent',very_urgent:'u-vurgent'};
+  var txt={normal:'ปกติ',urgent:'เร่งด่วน',very_urgent:'ด่วนมาก'};
+  return '<span class="ubadge '+(cls[u]||'u-normal')+'"><span class="bdot"></span>'+esc(txt[u]||u)+'</span>'
+}
 
 function svg(n,s){
   s=s||16;
@@ -183,6 +160,12 @@ function workingDaysLeft(targetDate){
   var count=0; var cur=new Date(now);
   while(cur<end){cur.setDate(cur.getDate()+1);var d=cur.getDay();if(d!==0&&d!==6)count++;}
   return count;
+}
+/* เส้นตายของ workflow step ที่กำลังจะ active — deadlineDays วันทำการจากเวลานี้ สิ้นสุดวันนั้น 23:59 */
+function stepDeadline(deadlineDays){
+  var d=addWorkingDays(new Date(),deadlineDays||2);
+  d.setHours(23,59,0,0);
+  return d.toISOString();
 }
 
 /* ─── fdTime: แสดงวันที่ + เวลา HH:MM (ใช้ใน history log) ─── */

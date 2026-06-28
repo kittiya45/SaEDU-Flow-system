@@ -28,10 +28,12 @@ function _cleanupSession(){
   document.removeEventListener('click',_actHandler,true);
   document.removeEventListener('keydown',_actHandler,true);
   CU=null;
+  // เคลียร์ JWT session ฝั่ง Supabase Auth ด้วยเสมอ — ไม่งั้น session_timeout จะแค่เด้งไปหน้า login
+  // แต่ session เดิมยังใช้งานได้จริงอยู่ (refresh หน้าแล้วจะ login กลับเข้ามาเองเงียบๆ)
+  sb.auth.signOut().catch(function(){});
 }
 async function doLogout(){
   if(CU){try{await dp('document_history',{action:'logout',performed_by:CU.id,note:'ออกจากระบบ'});}catch(e){}}
-  try{await sb.auth.signOut();}catch(e){}
   _cleanupSession();
   showAuth();
 }

@@ -262,8 +262,14 @@ async function sendOverdueNotifs(){
   var since=new Date(Date.now()-24*60*60*1000).toISOString();
   for(var i=0;i<overdueDocs.length;i++){
     var did=overdueDocs[i].id;
-    var recent=await dg('notifications','?document_id=eq.'+did+'&notification_type=eq.overdue&sent_at=gt.'+encodeURIComponent(since)+'&limit=1');
-    if(!Array.isArray(recent)||recent.length) continue;
+    // dedup ผ่าน RPC (security definer) แทน SELECT ตรง — เพราะ RLS ใหม่ปิด notifications ให้เห็นเฉพาะของตัวเอง
+    // (ดู supabase/restrict_notifications_select.sql) ถ้า RPC ยังไม่ถูก deploy ให้ถือว่า "ยังไม่เคยส่ง" แล้วส่งต่อ
+    var _already=false;
+    try{
+      var _rr=await fetch(SU+'/rest/v1/rpc/overdue_notif_exists',{method:'POST',headers:H,body:JSON.stringify({p_doc:did})});
+      if(_rr.ok) _already=(await _rr.json())===true;
+    }catch(e){}
+    if(_already) continue;
     try{await sendNotifEmail(did,'overdue','overdue','')}catch(e){console.warn('Overdue notif failed:',e)}
   }
 }

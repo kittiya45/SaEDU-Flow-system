@@ -21,10 +21,7 @@ async function vForm(editId){
     return '<option value="'+e[0]+'"'+(doc.doc_type===e[0]?' selected':'')+'>'+e[1]+'</option>'
   }).join('');
   var uOpts=Object.entries(URG).map(function(e){return '<option value="'+e[0]+'"'+(doc.urgency===e[0]?' selected':'')+'>'+e[1]+'</option>'}).join('');
-  /* [UX] จัดกลุ่ม dropdown workflow ตามตำแหน่ง (POSS) แทน role — ผู้จัดทำ (ROLE-CRT)
-     คือคนส่วนใหญ่ในระบบ ถ้าจัดกลุ่มตาม role อย่างเดียวจะกลายเป็นลิสต์รวมยาวๆไม่มีโครงสร้าง
-     ตำแหน่งช่วยแยกย่อยได้จริง ส่วนคนที่ไม่มีตำแหน่ง (staff/advisor หรือถูกตั้ง role ลงนาม/ตรวจทานโดยไม่ผ่านตำแหน่ง) ใช้ role label แทน */
-  var _wfFiltered=(FU||[]).filter(function(u){return u.id!==CU.id&&u.role_code!=='ROLE-SYS'});
+    var _wfFiltered=(FU||[]).filter(function(u){return u.id!==CU.id&&u.role_code!=='ROLE-SYS'});
   var _wfGroupOrder=POSS.concat(['ROLE-SGN','ROLE-REV','ROLE-ADV','ROLE-STF','ROLE-CRT']);
   var _wfGroupLabel=function(key){return PTH[key]||RTH[key]||key};
   var _wfGroupKey=function(u){return u.position_code||u.role_code};
@@ -38,8 +35,7 @@ async function vForm(editId){
     });
     wfPersonOpts+='</optgroup>';
   });
-
-  var _ico=function(i,bg,cl){return '<div style="width:26px;height:26px;border-radius:7px;background:'+bg+';display:flex;align-items:center;justify-content:center;color:'+cl+'">'+svg(i,13)+'</div>'};
+  var _ico=function(i,bg,cl){return '<div style="width:28px;height:28px;border-radius:9px;background:'+bg+';display:flex;align-items:center;justify-content:center;color:'+cl+'">'+svg(i,14)+'</div>'};
 
   var html=[
     '<div class="flex items-center gap-2.5 mb-[18px]">',
@@ -53,16 +49,28 @@ async function vForm(editId){
   // SYS, STF, ADV เห็นทุกประเภท; ROLE-CRT เห็นเฉพาะ incoming/outgoing
   var _extRoles=['ROLE-SYS','ROLE-STF','ROLE-ADV'];
   var _VISIBLE_TYPES=_extRoles.includes(CU.role_code)?Object.keys(DTYPES):['incoming','outgoing'];
-  var dtOpts='<option value="">— กรุณาเลือกประเภทเอกสาร —</option>'+Object.entries(DTYPES).filter(function(e){return _VISIBLE_TYPES.includes(e[0])}).map(function(e){
-    return '<option value="'+e[0]+'"'+(editId&&doc.doc_type===e[0]?' selected':'')+'>'+e[1]+'</option>';
+  var _DTYPE_META={
+    incoming:{ico:'dn',desc:'รับเอกสารจากภายนอก เข้าสู่ขั้นตอนตรวจทาน / ลงนาม'},
+    outgoing:{ico:'up',desc:'จัดทำเพื่อส่งออก ออกเลขหนังสือก่อนเผยแพร่ให้ดาวน์โหลด'},
+    certificate:{ico:'shield',desc:'ออกหนังสือรับรองสถานะหรือการเข้าร่วมกิจกรรม'},
+    memo:{ico:'doc',desc:'บันทึกข้อความภายในระหว่างหน่วยงาน'}
+  };
+  var dtCards=Object.entries(DTYPES).filter(function(e){return _VISIBLE_TYPES.includes(e[0])}).map(function(e){
+    var meta=_DTYPE_META[e[0]]||{ico:'doc',desc:''};
+    var on=editId&&doc.doc_type===e[0];
+    return '<button type="button" class="dtype-opt'+(on?' on':'')+'" data-dtype="'+e[0]+'" onclick="selectDocType(\''+e[0]+'\')">'+
+      '<span class="dtype-opt-head">'+
+        '<span class="dtype-opt-ico">'+svg(meta.ico,20)+'</span>'+
+        '<span class="dtype-check">'+svg('check',12)+'</span>'+
+      '</span>'+
+      '<span class="dtype-opt-title">'+esc(e[1])+'</span>'+
+      '<span class="dtype-opt-desc">'+esc(meta.desc)+'</span>'+
+    '</button>';
   }).join('');
   html.push('<div class="card" style="margin-bottom:16px"><div class="card-head">'+_ico('doc','#FFF3EE','#E83A00')+'<span class="card-head-title">ประเภทเอกสาร <span class="req">*</span></span></div><div class="card-body">');
-  html.push('<div class="fg" style="margin-bottom:0">');
-  html.push('<label class="fl">เลือกประเภทเอกสาร <span class="req">*</span></label>');
-  html.push('<select class="fi" id="ftype-sel" onchange="selectDocType(this.value)">'+dtOpts+'</select>');
+  html.push('<div class="dtype-grid">'+dtCards+'</div>');
   html.push('<input type="hidden" id="ftype" value="'+(editId?doc.doc_type||'':'')+'" >');
-  html.push('</div>');
-  if(!editId) html.push('<div id="ftype-hint" class="text-[#a89e99] text-xs mt-2.5">กรุณาเลือกประเภทเอกสารเพื่อดำเนินการต่อ</div>');
+  if(!editId) html.push('<div id="ftype-hint" class="text-[#a89e99] text-xs mt-3">เลือกประเภทเอกสารเพื่อเริ่มกรอกแบบฟอร์ม</div>');
   html.push('</div></div>');
 
   // ── Step 2: ฟอร์มทั้งหมด (ซ่อนไว้จนกว่าจะเลือกประเภท) ──
@@ -106,12 +114,12 @@ html.push('<div id="fprog"></div></div></div>');
 
   // Right col
   html.push('<div>');
-  if(!editId){
-    html.push('<div class="card" id="wf-card"><div class="card-head">'+_ico('user','#FFF3EE','#E83A00')+'<span class="card-head-title">ผู้ดำเนินการตามลำดับ</span></div>');
+    if(!editId){
+    html.push('<div class="card" id="wf-card"><div class="card-head">'+_ico('user','#FFF1E8','#E83A00')+'<span class="card-head-title">ผู้ดำเนินการตามลำดับ</span></div>');
     html.push('<div class="card-body">');
-    html.push('<div class="al al-in text-xs mb-3"><span class="al-icon">'+svg('info',13)+'</span><span>เลือกผู้ที่ต้องอนุมัติ / ตรวจสอบเอกสารตามลำดับ</span></div>');
-    html.push('<div class="flex gap-[7px] mb-3.5">');
-    html.push('<select class="fi flex-1 text-[13px]" id="wfadd">'+wfPersonOpts+'</select>');
+    html.push('<div class="al al-in"><span class="al-icon">'+svg('info',14)+'</span><span>เลือกผู้ที่ต้องอนุมัติ / ตรวจสอบเอกสารตามลำดับ</span></div>');
+    html.push('<div style="display:flex;gap:8px;margin:14px 0 20px">');
+    html.push('<select class="fi" style="flex:1" id="wfadd">'+wfPersonOpts+'</select>');
     html.push('<button class="btn btn-primary sm" data-action="addWfPerson">'+svg('plus',12)+' เพิ่ม</button>');
     html.push('</div>');
     html.push('<div id="wfwrap"></div>');
@@ -243,11 +251,11 @@ function renderTypeFields(type, doc){
       _spGrp('กนค.',_spGnk)+_spGrp('แผนก',_spDept)+_spGrp('ชมรม',_spClub);
     html.push('<div class="fg"><label class="fl">ประเภทหนังสือ <span class="req">*</span></label><select class="fi" id="fdsc" onchange="_updateLtHint()">'+_ltOpts+'</select>'+
       '<div id="lt-hint" style="margin-top:6px">'+(_curLtHint?alrtH('in',_curLtHint):'')+'</div></div>');
+    html.push('<div class="fg" id="fsubject-wrap" style="display:'+(_curDesc==='เรื่องอื่น ๆ'?'block':'none')+'"><label class="fl">ระบุว่าเป็นเรื่องอะไร <span class="req">*</span></label><input class="fi" id="fsubject" value="'+esc(_curSubj)+'" placeholder="ระบุเรื่อง"></div>');
     html.push('<div class="fg"><label class="fl">ชื่อผู้ส่งเอกสาร <span class="req">*</span></label><input class="fi" id="ffromdept" value="'+esc(_curFrom)+'" placeholder="ระบุชื่อผู้ส่งหรือหน่วยงาน"></div>');
     html.push('<div class="fg"><label class="fl">ตำแหน่ง / สังกัด</label><select class="fi" id="fto">'+_spOpts+'</select></div>');
-    html.push('<div class="fg" id="fsubject-wrap" style="display:'+(_curDesc==='เรื่องอื่น ๆ'?'block':'none')+'"><label class="fl">ระบุว่าเป็นเรื่องอะไร <span class="req">*</span></label><input class="fi" id="fsubject" value="'+esc(_curSubj)+'" placeholder="ระบุเรื่อง"></div>');
-    html.push('<div class="fg"><label class="fl">วันที่รับเอกสาร</label><input type="date" class="fi" id="fdate" value="'+esc(_curDate)+'"></div>');
-    html.push('<div class="fg"><label class="fl">วันที่ต้องดำเนินการเสร็จ</label><input type="date" class="fi" id="feventdate" value="'+esc(_curEv)+'" oninput="calcDeadline()"></div>');
+    html.push('<div class="two-col-sm"><div class="fg"><label class="fl">วันที่รับเอกสาร</label><input type="date" class="fi" id="fdate" value="'+esc(_curDate)+'"></div>');
+    html.push('<div class="fg"><label class="fl">วันที่ต้องดำเนินการเสร็จ</label><input type="date" class="fi" id="feventdate" value="'+esc(_curEv)+'" oninput="calcDeadline()"></div></div>');
     html.push('<div id="deadline-info"></div>');
     return html.join('');
   }
@@ -318,7 +326,7 @@ function renderTypeFields(type, doc){
 function selectDocType(type){
   if(!type) return;
   var fi=$e('ftype'); if(fi) fi.value=type;
-  var sel=$e('ftype-sel'); if(sel) sel.value=type;
+  document.querySelectorAll('.dtype-opt').forEach(function(b){b.classList.toggle('on',b.getAttribute('data-dtype')===type)});
   var hint=$e('ftype-hint'); if(hint) hint.style.display='none';
   var fr=$e('form-rest');
   if(fr){
@@ -608,7 +616,7 @@ async function saveDoc(status){
   await dpa('documents',FDI,Object.assign({},body,{updated_at:new Date().toISOString()}));
   if(status==='pending'){
     var _wfRej=await dg('workflow_steps','?document_id=eq.'+FDI+'&status=eq.rejected&order=step_number&limit=1');
-    if(_wfRej.length) await dpa('workflow_steps',_wfRej[0].id,{status:'active',action_taken:null,note:null,revision_section:null,action_at:null,completed_at:null,deadline_datetime:null,deadline_days:null});
+    if(_wfRej.length) await dpa('workflow_steps',_wfRej[0].id,{status:'active',action_taken:null,note:null,revision_section:null,action_at:null,completed_at:null,deadline_datetime:stepDeadline(_wfRej[0].deadline_days)});
   }
   await dp('document_history',{document_id:FDI,action:'แก้ไขเอกสาร',performed_by:CU.id});
   a.innerHTML=alrtH('ok','บันทึกเรียบร้อยแล้ว');
@@ -630,9 +638,10 @@ async function saveDoc(status){
           if(finalStatus==='pending'&&i===0){
             stepSt='done';extraSt={action_taken:'approve',action_at:_now,completed_at:_now};
           }else if(finalStatus==='pending'&&i===1){
-            stepSt='active';
+            stepSt='active';extraSt={deadline_datetime:stepDeadline(FS[i].deadline_days)};
           }else{
             stepSt=i===0?'active':'pending';
+            if(stepSt==='active') extraSt={deadline_datetime:stepDeadline(FS[i].deadline_days)};
           }
           await dp('workflow_steps',Object.assign({},FS[i],extraSt,{document_id:did,step_number:i+1,status:stepSt}));
         }

@@ -116,15 +116,18 @@ async function doImport(){
   btn.innerHTML=_SPINSVG+'กำลังนำเข้า...';
   var ok=0,skip=0,fail=0;
   for(var i=0;i<_impRows.length;i++){
-    
+
     var r=_impRows[i];
     try{
       var ex=await dg('users','?email=eq.'+encodeURIComponent(r.email)+'&select=id');
       if(ex.length){skip++;continue}
-      var pwHash=await hashPw(r.password);
-      await dp('users',{full_name:r.full_name,email:r.email,password_hash:pwHash,role_code:r.role_code,
-        department:r.department,user_type:r.user_type,approval_status:'approved',is_active:true,
-        contact_email:r.email,approved_at:new Date().toISOString(),approved_by:CU.full_name});
+      // สร้างบัญชีจริงต้องผ่าน Edge Function (ใช้ service-role สร้าง auth.users ทำใน browser ตรงๆไม่ได้)
+      // [ห้ามใช้ H ตรงๆ] header 'Prefer' ของ H เป็นของ PostgREST เท่านั้น Edge Function ไม่อนุญาต header นี้ใน CORS เลยพังเงียบๆ
+      var resp=await fetch(SU+'/functions/v1/admin-create-user',{method:'POST',headers:{apikey:SK,'Authorization':H.Authorization,'Content-Type':'application/json'},body:JSON.stringify({
+        email:r.email,password:r.password,full_name:r.full_name,role_code:r.role_code,
+        department:r.department,user_type:r.user_type,contact_email:r.email,approved_by:CU.full_name
+      })});
+      if(!resp.ok){fail++;continue}
       ok++;
     }catch(e){fail++}
   }

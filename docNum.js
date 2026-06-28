@@ -1,6 +1,20 @@
 /* ─── DOC NUM — ออกเลขที่หนังสือขาออก (กนค. SPPTNNN/BBBB หรือ กนค. SPPTNNN-CC/BBBB) ─── */
 var _thFontCache=null;
 
+/* แปลงชื่อชมรม → รหัส CLUBS (หลัก 8-9 ของเลขหนังสือ) — ยึด CLUBS เป็น canonical เดียว
+   ให้ขาเข้าได้รหัสชมรมเดียวกับขาออกเสมอ (เดิมขาเข้าใช้รหัส SENDER_POS ที่ไม่ตรงกับ CLUBS)
+   normalize: ตัดช่องว่าง + ส่วนท้าย "คณะครุศาสตร์ จุฬาฯ/จุฬาลงกรณ์มหาวิทยาลัย" ให้ชื่อสองชุดแมตช์กัน
+   คืน '' ถ้าไม่พบใน CLUBS (ผู้เรียกจะ fallback รหัสเดิม ไม่ให้สูญหาย) */
+function _clubCodeByName(name){
+  if(!name) return '';
+  var _norm=function(s){return String(s||'').replace(/\s+/g,'').replace(/คณะครุศาสตร์จุฬา(ลงกรณ์มหาวิทยาลัย|ฯ)?$/,'');};
+  var t=_norm(name);
+  if(!t) return '';
+  var keys=Object.keys(CLUBS);
+  for(var i=0;i<keys.length;i++){ if(_norm(CLUBS[keys[i]])===t) return keys[i]; }
+  return '';
+}
+
 // Query the next available sequence number for a given category, excluding the current doc
 async function _nextDocNum(docId,docType,catPfx,club,thisYear,thaiYear){
   var gnkPfx='กนค. ',fullPfx=gnkPfx+catPfx;
@@ -110,6 +124,8 @@ async function showNumModal(docId){
   var _sEntry=(SENDER_POS||[]).filter(function(p){return p.name===doc.addressed_to})[0]||null;
   var _sCode=_sEntry?_sEntry.code:'00';
   var _sIsClub=_sEntry?_sEntry.isClub:false;
+  // หลัก 8-9 (ชมรม) ยึด CLUBS เป็นหลัก ให้ตรงกับขาออก; ถ้าไม่พบใน CLUBS fallback รหัส SENDER_POS เดิม
+  var _sClubCode=_sIsClub?(_clubCodeByName(doc.addressed_to)||_sCode):'';
   var semOpts=Object.keys(SEMS).map(function(k){return '<option value="'+k+'">'+k+' — '+esc(SEMS[k])+'</option>';}).join('');
   var incLtOpts='<option value="">— กรุณาเลือกประเภทหนังสือ —</option>'+LETTER_TYPES.map(function(t,i){
     var code=String(i+1);
@@ -128,7 +144,7 @@ async function showNumModal(docId){
     '<div class="fg"><label class="fl">ตำแหน่ง / สังกัดผู้ส่ง (หลักที่ 2–3'+(_sIsClub?' และ 8–9':'')+')</label>',
     '<div class="fi" style="background:#f9f7f5;color:#6b6560;cursor:default;font-size:12px">'+esc(_sCode)+' — '+esc(doc.addressed_to||'—')+'</div></div>',
     '<input type="hidden" id="num-sendercode" value="'+esc(_sCode)+'">',
-    '<input type="hidden" id="num-senderclub" value="'+(_sIsClub?esc(_sCode):'')+'">',
+    '<input type="hidden" id="num-senderclub" value="'+esc(_sClubCode)+'">',
     '<div class="fg"><label class="fl">ประเภทหนังสือ (หลักที่ 4) <span class="req">*</span></label>',
     '<select class="fi" id="num-lt" onchange="_previewIncNum()">'+incLtOpts+'</select></div>',
     '<div class="fg"><label class="fl">วันที่หนังสือ</label>',
@@ -396,19 +412,25 @@ async function _doSetDocNumberConfirmed(docId,cap){
 
     var upd={doc_number:docNum,doc_date:docDate,status:'completed',updated_at:new Date().toISOString()};
     if(fwdId) Object.assign(upd,{forwarded_to_id:fwdId,forwarded_at:new Date().toISOString()});
-    await dpa('documents',docId,upd);
-    // Detect-and-retry: ถ้าเลขซ้ำจาก race condition ให้คำนวณใหม่และ patch อีกครั้ง (สูงสุด 2 รอบ)
-    // หมายเหตุ: ถ้าชนครั้งที่ 3 (ซึ่งแทบเป็นไปไม่ได้จริง) ให้ log แล้วดำเนินต่อ
-    // เพราะ document อยู่ใน completed แล้ว — throw จะทำให้ user เห็น error ทั้งที่เลขถูก save ไปแล้ว
-    if(doc.doc_type==='outgoing'||doc.doc_type==='incoming'){
-      for(var _r=0;_r<3;_r++){
-        var _ck=await dg('documents','?doc_number=eq.'+encodeURIComponent(docNum)+'&id=neq.'+safeId(docId)+'&select=id&limit=1');
-        if(!_ck||!_ck.length)break;
-        if(_r===2){console.warn('[docNum] 3 consecutive collisions, proceeding with last written number:',docNum,'doc:',docId);break;}
-        docNum=await _nextDocNum(docId,doc.doc_type,catPfx,club,thisYear,thaiYear);
-        if(doc.doc_type==='outgoing') note='ออกเลขหนังสือขาออก: '+docNum;
-        else if(doc.doc_type==='incoming'&&!cap.note) note='ออกเลขหนังสือขาเข้า: '+docNum;
-        await dpa('documents',docId,{doc_number:docNum,updated_at:new Date().toISOString()});
+    // เขียนเลข + retry เมื่อชนเลขซ้ำ — อาศัย partial unique index บน documents(doc_number)
+    // (ดู supabase/add_doc_number_unique_index.sql) ให้ DB ปฏิเสธเลขซ้ำจริง ถ้าชนจาก race
+    // condition ให้คำนวณเลขถัดไปใหม่แล้วลองใหม่ (กันเลขหนังสือราชการซ้ำได้จริง ไม่ใช่แค่ best-effort)
+    var _isSeqDoc=(doc.doc_type==='outgoing'||doc.doc_type==='incoming');
+    var _saved=false;
+    for(var _r=0;_r<4&&!_saved;_r++){
+      try{
+        await dpa('documents',docId,upd);
+        _saved=true;
+      }catch(_ue){
+        var _isDup=/duplicate key|unique|23505/i.test((_ue&&_ue.message)||'');
+        if(_isSeqDoc&&_isDup&&_r<3){
+          docNum=await _nextDocNum(docId,doc.doc_type,catPfx,club,thisYear,thaiYear);
+          upd.doc_number=docNum;
+          if(doc.doc_type==='outgoing') note='ออกเลขหนังสือขาออก: '+docNum;
+          else if(doc.doc_type==='incoming'&&!cap.note) note='ออกเลขหนังสือขาเข้า: '+docNum;
+        }else{
+          throw _ue; // เลขซ้ำเกิน 4 รอบ (แทบเป็นไปไม่ได้) หรือ error อื่น — โยนให้ catch แสดงผล ผู้ใช้กดใหม่ได้
+        }
       }
     }
     await dp('document_history',{document_id:docId,action:'ออกเลขที่หนังสือ: '+docNum,performed_by:CU.id,note:note||'ออกเลขหนังสือและวันที่เรียบร้อยแล้ว'});
@@ -438,25 +460,27 @@ async function _doSetDocNumberConfirmed(docId,cap){
               }
               _stampFont=await _pdfDoc.embedFont(_thFontCache.slice(0));
             }catch(_fe){
-              console.warn('Thai font load failed, using fallback:',_fe.message);
-              // หากโหลดฟอนต์ไทยไม่ได้ ต้องลบภาษาไทยออกเพื่อป้องกัน pdf-lib error (WinAnsi cannot encode)
-              docNum = docNum.replace(/[^\x00-\x7F]/g, '').trim(); 
-              _dateText = ''; 
+              console.warn('Thai font load failed, skipping auto-stamp:',_fe.message);
+              // ฟอนต์ไทยโหลดไม่ได้ → ห้ามลบภาษาไทยแล้วปั๊มเลขผิด (เดิมทำให้ "กนค. ..." หายเหลือแต่ตัวเลข
+              // = เลขบนเอกสารไม่ตรงกับเลขจริงในระบบ) ให้ "ข้าม" การปั๊มอัตโนมัติแทน เลขในระบบถูกต้องอยู่แล้ว
+              _stampFont=null;
             }
-            if(!_stampFont) _stampFont=await _pdfDoc.embedFont(PDFLib.StandardFonts.HelveticaBold);
-            var _clr=PDFLib.rgb(0.07,0.38,0.67);
-            var clamp=function(v,lo,hi){return Math.max(lo,Math.min(hi,v));};
-            
-            var _stampSz=cap.fontsize||12;
-            if(docNum) _pg.drawText(docNum,{x:clamp(_numPdfX,0,_pw2-10),y:clamp(_numPdfY,10,_ph-10),size:_stampSz,font:_stampFont,color:_clr});
-            if(_dateText) _pg.drawText(_dateText,{x:clamp(_datPdfX,0,_pw2-10),y:clamp(_datPdfY,10,_ph-10),size:_stampSz,font:_stampFont,color:_clr});
-            
-            var _stampBytes=await _pdfDoc.save();
-            var _stampPath='stamped_'+Date.now()+'_'+_pf.file_name.replace(/[^a-zA-Z0-9._-]/g,'_');
-            var _stampBlob=new Blob([_stampBytes],{type:'application/pdf'});
-            await upFile(_stampPath,_stampBlob);
-            await dp('document_files',{document_id:docId,file_name:_pf.file_name,file_path:_stampPath,file_size:_stampBlob.size,file_type:'application/pdf',uploaded_by:CU.id,version:(_pf.version||1)+1});
-            await dp('document_history',{document_id:docId,action:'ประทับเลขหนังสือลงในเอกสาร: '+docNum,performed_by:CU.id});
+            if(_stampFont){
+              var _clr=PDFLib.rgb(0.07,0.38,0.67);
+              var clamp=function(v,lo,hi){return Math.max(lo,Math.min(hi,v));};
+              var _stampSz=cap.fontsize||12;
+              if(docNum) _pg.drawText(docNum,{x:clamp(_numPdfX,0,_pw2-10),y:clamp(_numPdfY,10,_ph-10),size:_stampSz,font:_stampFont,color:_clr});
+              if(_dateText) _pg.drawText(_dateText,{x:clamp(_datPdfX,0,_pw2-10),y:clamp(_datPdfY,10,_ph-10),size:_stampSz,font:_stampFont,color:_clr});
+              var _stampBytes=await _pdfDoc.save();
+              var _stampPath='stamped_'+Date.now()+'_'+_pf.file_name.replace(/[^a-zA-Z0-9._-]/g,'_');
+              var _stampBlob=new Blob([_stampBytes],{type:'application/pdf'});
+              await upFile(_stampPath,_stampBlob);
+              await dp('document_files',{document_id:docId,file_name:_pf.file_name,file_path:_stampPath,file_size:_stampBlob.size,file_type:'application/pdf',uploaded_by:CU.id,version:(_pf.version||1)+1});
+              await dp('document_history',{document_id:docId,action:'ประทับเลขหนังสือลงในเอกสาร: '+docNum,performed_by:CU.id});
+            }else{
+              // ปั๊มอัตโนมัติไม่สำเร็จ — บันทึก audit ให้รู้ว่าต้องปั๊มเอง (เลขที่ในระบบยังถูกต้อง)
+              await dp('document_history',{document_id:docId,action:'ปั๊มเลขอัตโนมัติไม่สำเร็จ (โหลดฟอนต์ไทยไม่ได้) เลขที่ในระบบถูกต้อง โปรดดาวน์โหลดไฟล์แล้วปั๊มเลขเอง',performed_by:CU.id,note:'เลขที่: '+docNum});
+            }
           }
         }
       }catch(_se){console.warn('PDF stamp failed:',_se)}

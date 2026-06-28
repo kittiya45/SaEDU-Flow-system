@@ -1,0 +1,124 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-06-23T00:00:00Z",
+  "title": "Design System: SAEDU Flow",
+  "extensions": {
+    "colorMeta": {
+      "primary":      { "role": "primary", "displayName": "กนค. Orange", "canonical": "#E83A00", "tonalRamp": ["#3A0E00", "#5C1700", "#8A2300", "#C03200", "#E83A00", "#FF6B3D", "#FFC9A8", "#FFF8F4"] },
+      "ink":          { "role": "neutral", "displayName": "Ink", "canonical": "#18120E", "tonalRamp": ["#18120E", "#3A332E", "#5C534D", "#6B6560", "#A89E99", "#CFC8C2", "#E8E4DE", "#FAFAF8"] },
+      "app-bg":       { "role": "neutral", "displayName": "Paper", "canonical": "#F4F2EF", "tonalRamp": ["#23211E", "#45413C", "#6B6560", "#A89E99", "#D6D1CB", "#EBEBEB", "#F4F2EF", "#FFFFFF"] },
+      "success":      { "role": "tertiary", "displayName": "Success Green", "canonical": "#16A34A", "tonalRamp": ["#06311A", "#0A5C30", "#0F8A45", "#16A34A", "#34C76A", "#86E0A6", "#C6F1D5", "#F0FDF4"] },
+      "warning":      { "role": "tertiary", "displayName": "Warning Amber", "canonical": "#D97706", "tonalRamp": ["#3D2102", "#6B3A04", "#A55A05", "#D97706", "#F59E2C", "#FBC97E", "#FDE7C0", "#FFFBEB"] },
+      "error":        { "role": "tertiary", "displayName": "Error Red", "canonical": "#DC2626", "tonalRamp": ["#3D0A0A", "#6B1313", "#A51C1C", "#DC2626", "#EE5656", "#F59E9E", "#FBD0D0", "#FEF2F2"] },
+      "info":         { "role": "tertiary", "displayName": "Info Blue", "canonical": "#2563EB", "tonalRamp": ["#0A1E47", "#12356B", "#1B4DA5", "#2563EB", "#5285F2", "#93B4F8", "#C8D9FB", "#EFF6FF"] }
+    },
+    "typographyMeta": {
+      "headline": { "displayName": "Headline", "purpose": "Page titles. Largest type on a screen, used sparingly." },
+      "title":    { "displayName": "Title", "purpose": "Section and modal titles." },
+      "body":     { "displayName": "Body", "purpose": "All running text and field values, line-height 1.7 for Thai." },
+      "label":    { "displayName": "Label", "purpose": "Form field labels, slightly tracked muted ink." },
+      "mono":     { "displayName": "Mono", "purpose": "Document numbers, student IDs, number-format previews only." }
+    },
+    "shadows": [
+      { "name": "card-rest", "value": "0 1px 3px rgba(0,0,0,.05), 0 8px 24px rgba(0,0,0,.07)", "purpose": "Default soft lift for cards, barely there." },
+      { "name": "hover-lift", "value": "0 4px 12px rgba(0,0,0,.08), 0 12px 32px rgba(0,0,0,.1)", "purpose": "Reserved for cards that are themselves controls, on hover." },
+      { "name": "focus-ring", "value": "0 0 0 4px rgba(232,58,0,.1)", "purpose": "Orange halo on a focused input. Means focus, nothing else." },
+      { "name": "primary-glow", "value": "0 4px 14px rgba(232,58,0,.32)", "purpose": "Warm glow under the single bold primary button." }
+    ],
+    "motion": [
+      { "name": "ease-standard", "value": "cubic-bezier(.4,0,.2,1)", "purpose": "Default easing for state transitions (160-220ms)." }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "480px" },
+      { "name": "two-col-collapse", "value": "520px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The single tactile, confident action element. One per screen.",
+      "html": "<button class=\"ds-btn-primary\">เพิ่ม</button>",
+      "css": ".ds-btn-primary{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:10px 18px;border-radius:10px;font-size:14px;font-weight:600;border:1.5px solid transparent;color:#fff;background:linear-gradient(135deg,#E83A00 0%,#FF5520 100%);box-shadow:0 4px 14px rgba(232,58,0,.32);cursor:pointer;font-family:'Noto Sans Thai',system-ui,sans-serif;transition:background .2s cubic-bezier(.4,0,.2,1)}.ds-btn-primary:hover{background:linear-gradient(135deg,#C03200 0%,#E83A00 100%)}.ds-btn-primary:focus-visible{outline:none;box-shadow:0 4px 14px rgba(232,58,0,.32),0 0 0 4px rgba(232,58,0,.25)}.ds-btn-primary:active{transform:translateY(1px)}"
+    },
+    {
+      "name": "Soft Button",
+      "kind": "button",
+      "refersTo": "button-soft",
+      "description": "Default non-committal action: back, save draft, cancel. Flat, no glow.",
+      "html": "<button class=\"ds-btn-soft\">บันทึกร่าง</button>",
+      "css": ".ds-btn-soft{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:10px 18px;border-radius:10px;font-size:14px;font-weight:600;background:#F5F3F0;color:#6B6560;border:1.5px solid #E8E4DE;cursor:pointer;font-family:'Noto Sans Thai',system-ui,sans-serif;transition:background .2s cubic-bezier(.4,0,.2,1)}.ds-btn-soft:hover{background:#ECEAE6}.ds-btn-soft:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(232,58,0,.15)}"
+    },
+    {
+      "name": "Text Field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Sunk well that lifts to white with an orange halo on focus.",
+      "html": "<label class=\"ds-field\"><span class=\"ds-field-label\">ชื่อเรื่อง / หัวข้อ</span><input class=\"ds-input\" placeholder=\"ระบุชื่อเรื่องเอกสาร\"></label>",
+      "css": ".ds-field{display:block}.ds-field-label{display:block;font-size:12px;font-weight:600;color:#6B6560;margin-bottom:6px;letter-spacing:.2px;font-family:'Noto Sans Thai',system-ui,sans-serif}.ds-input{width:100%;padding:12px 14px;border:1.5px solid #E8E4DE;border-radius:11px;font-size:14px;color:#18120E;background:#FAFAF8;outline:none;font-family:'Noto Sans Thai',system-ui,sans-serif;transition:border-color .2s cubic-bezier(.4,0,.2,1),background .2s,box-shadow .2s}.ds-input::placeholder{color:#C0BAB4}.ds-input:focus{border-color:#E83A00;background:#fff;box-shadow:0 0 0 4px rgba(232,58,0,.1)}"
+    },
+    {
+      "name": "Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "White surface on warm paper, recessed header with orange icon chip. One soft shadow.",
+      "html": "<div class=\"ds-card\"><div class=\"ds-card-head\"><span class=\"ds-card-ico\"><svg width=\"13\" height=\"13\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z\"/><path d=\"M14 2v6h6\"/></svg></span><span class=\"ds-card-title\">ข้อมูลเอกสาร</span></div><div class=\"ds-card-body\">เนื้อหาในการ์ด เว้นระยะให้หายใจ บรรทัดอ่านสบายตา</div></div>",
+      "css": ".ds-card{background:#fff;border-radius:14px;border:1px solid rgba(0,0,0,.055);box-shadow:0 1px 3px rgba(0,0,0,.05),0 8px 24px rgba(0,0,0,.07);overflow:hidden;font-family:'Noto Sans Thai',system-ui,sans-serif}.ds-card-head{padding:18px 20px;border-bottom:1px solid rgba(0,0,0,.05);display:flex;align-items:center;gap:10px;background:#FAFAF8}.ds-card-ico{width:26px;height:26px;border-radius:7px;background:#FFF3EE;color:#E83A00;display:flex;align-items:center;justify-content:center;flex-shrink:0}.ds-card-title{font-size:13px;font-weight:700;color:#18120E}.ds-card-body{padding:18px;font-size:15px;line-height:1.7;color:#18120E}"
+    },
+    {
+      "name": "Status Badge",
+      "kind": "chip",
+      "refersTo": "badge",
+      "description": "Tonal pill, soft tinted background with darker same-hue text and a leading dot.",
+      "html": "<span class=\"ds-badge ds-badge-pending\"><span class=\"ds-bdot\"></span>รอดำเนินการ</span>",
+      "css": ".ds-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap;letter-spacing:.1px;font-family:'Noto Sans Thai',system-ui,sans-serif}.ds-bdot{width:5px;height:5px;border-radius:50%;background:currentColor;flex-shrink:0}.ds-badge-pending{background:#FFFBEB;color:#B45309}"
+    },
+    {
+      "name": "Document Type Chooser",
+      "kind": "custom",
+      "refersTo": "choice-card",
+      "description": "Signature gate: selectable type cards replace a dropdown. Rest, hover, and selected states.",
+      "html": "<div class=\"ds-dtype-grid\"><button class=\"ds-dtype on\"><span class=\"ds-dtype-ico\"><svg width=\"19\" height=\"19\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><polyline points=\"22 12 16 12 14 15 10 15 8 12 2 12\"/><path d=\"M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z\"/></svg></span><span class=\"ds-dtype-body\"><span class=\"ds-dtype-title\">หนังสือขาเข้า<span class=\"ds-dtype-check\"><svg width=\"11\" height=\"11\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"3\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><polyline points=\"20 6 9 17 4 12\"/></svg></span></span><span class=\"ds-dtype-desc\">รับเอกสารจากภายนอก เข้าสู่ขั้นตอนตรวจทาน / ลงนาม</span></span></button><button class=\"ds-dtype\"><span class=\"ds-dtype-ico\"><svg width=\"19\" height=\"19\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4\"/><polyline points=\"17 8 12 3 7 8\"/><line x1=\"12\" y1=\"3\" x2=\"12\" y2=\"15\"/></svg></span><span class=\"ds-dtype-body\"><span class=\"ds-dtype-title\">หนังสือขาออก<span class=\"ds-dtype-check\"><svg width=\"11\" height=\"11\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"3\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><polyline points=\"20 6 9 17 4 12\"/></svg></span></span><span class=\"ds-dtype-desc\">จัดทำเพื่อส่งออก ออกเลขหนังสือก่อนเผยแพร่</span></span></button></div>",
+      "css": ".ds-dtype-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;font-family:'Noto Sans Thai',system-ui,sans-serif}.ds-dtype{display:flex;align-items:flex-start;gap:13px;text-align:left;padding:15px 16px;border:1.5px solid #E8E4DE;border-radius:14px;background:#FAFAF8;cursor:pointer;width:100%;transition:border-color .18s cubic-bezier(.4,0,.2,1),background .18s,box-shadow .18s}.ds-dtype:hover{border-color:#FFC9A8;background:#fff}.ds-dtype.on{border-color:#E83A00;background:#FFF8F4;box-shadow:0 0 0 3px rgba(232,58,0,.1)}.ds-dtype-ico{width:38px;height:38px;border-radius:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:#F0ECE7;color:#A89E99;transition:background .18s,color .18s}.ds-dtype:hover .ds-dtype-ico{background:#FFF3EE;color:#E83A00}.ds-dtype.on .ds-dtype-ico{background:#E83A00;color:#fff}.ds-dtype-body{min-width:0;flex:1}.ds-dtype-title{font-size:14px;font-weight:700;color:#18120E;line-height:1.5;display:flex;align-items:center;gap:7px}.ds-dtype-check{width:17px;height:17px;border-radius:50%;border:2px solid #D9D2CB;flex-shrink:0;margin-left:auto;display:flex;align-items:center;justify-content:center;color:#fff;transition:all .18s}.ds-dtype.on .ds-dtype-check{background:#E83A00;border-color:#E83A00}.ds-dtype:not(.on) .ds-dtype-check svg{display:none}.ds-dtype-desc{font-size:12px;color:#6B6560;line-height:1.6;margin-top:3px}"
+    }
+  ],
+  "narrative": {
+    "northStar": "Paperwork That Breathes",
+    "overview": "SAEDU Flow takes a paper bureaucracy and lets it exhale. The structure stays exact because the structure is the point; what changes is the air around it. Generous line-height, deliberate grouping, and quiet surfaces turn a dense procedure into something readable at a glance. The system commits to one bold gesture (a single warm orange) and keeps everything else calm. Surfaces are warm-tinted whites, never the cool gray of a government intranet. Type does the heavy lifting through weight and scale. Depth is whispered through one soft shadow.",
+    "keyCharacteristics": [
+      "One saturated accent (orange), used on roughly 10% of any screen; the rest is warm neutral.",
+      "Thai readability as a structural constraint: line-height 1.7 on body, never tighter.",
+      "Real bureaucratic structure made visually legible: numbered steps, role color-coding, monospace document numbers.",
+      "Quiet, flat-leaning surfaces; a single soft shadow lifts cards just off the page.",
+      "IBM Plex Mono reserved for the things that are literally codes."
+    ],
+    "rules": [
+      { "name": "The One Voice Rule", "body": "Orange appears on no more than about 10% of any screen and only where it means action or live state. A second saturated color never competes with it; role and status colors live exclusively inside badges and small status dots.", "section": "colors" },
+      { "name": "The No Cool Gray Rule", "body": "Every neutral is tinted warm toward the paper hue. Tailwind gray and slate families are forbidden; reach for the ink and surface tokens.", "section": "colors" },
+      { "name": "The Breathing Room Rule", "body": "Body line-height never drops below 1.7. Thai vowels and tone marks stack vertically; cramp them and the UI looks broken, not dense.", "section": "typography" },
+      { "name": "The Mono-Means-Code Rule", "body": "IBM Plex Mono is reserved for document numbers, student IDs, and number-format previews. Never use it for prose, labels, or decoration.", "section": "typography" },
+      { "name": "The Flat-By-Default Rule", "body": "Surfaces are flat at rest except for the one soft card shadow. If something needs to stand out, raise its surface tone or type weight first. Stacking shadows is forbidden.", "section": "elevation" },
+      { "name": "The One Bold Layer Rule", "body": "The orange primary button is the only element allowed to feel tactile. Everything else stays quiet. Do not promote a second element to that level of attention on the same screen.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do keep orange to roughly 10% of any screen, reserved for action and live state.",
+      "Do tint every neutral warm toward the #F4F2EF paper hue.",
+      "Do hold body line-height at 1.7 or higher. Thai readability is load-bearing.",
+      "Do make bureaucratic structure visible: number the workflow steps, color-code status, group the people picker by ตำแหน่ง.",
+      "Do keep surfaces flat at rest with the single soft card shadow; convey depth through surface tone.",
+      "Do set document numbers, student IDs, and number previews in IBM Plex Mono.",
+      "Do let exactly one element (the orange primary button) feel tactile per screen."
+    ],
+    "donts": [
+      "Don't look like a generic Thai government or university intranet: no dense unstyled tables, no gray-on-gray, no cramped rows, no status by text label alone.",
+      "Don't use a colored border-left or border-right greater than 1px as a stripe accent.",
+      "Don't use gradient text (background-clip: text). Emphasize with weight and scale.",
+      "Don't reach for glassmorphism, hero-metric blocks, or identical icon-heading-text card grids.",
+      "Don't introduce Tailwind gray or slate classes; they read cool and broken next to the warm neutrals.",
+      "Don't stack shadows or deepen shadow opacity to make something pop.",
+      "Don't promote a second element to the orange button's level of boldness on the same screen.",
+      "Don't build a Tailwind class from a variable; the v4 build scanner only sees complete literal strings."
+    ]
+  }
+}

@@ -3,6 +3,7 @@ var _PROJ_FILTER='';  // โครงการที่เลือก filter
 var _DTYPE_FILTER=''; // ประเภทเอกสารที่เลือก filter
 var _FWD_ACT={};      // {docId: 'accepted'|'declined'} — populated in vDocs
 var _ACTIVE_STEPS={}; // {docId: full_name} — ผู้รับผิดชอบขั้นตอน active ปัจจุบัน
+var _curFilteredDocs=null; // รายการที่กำลังแสดงในตารางจริง (หลัง filter tab/ประเภท/โครงการ/คำค้น) — ใช้โดย exportCSV() ใน report.js จะได้ export ตรงกับที่เห็นบนจอ
 
 async function vDocs(){
   // ดึง workflow steps ของ user ก่อน เพื่อใช้ filter documents ฝั่ง server
@@ -12,7 +13,7 @@ async function vDocs(){
   var _allDocs;
   if(CU.role_code==='ROLE-SYS'||CU.position_code==='GNK-SEC'){
     _allDocs=await dg('documents','?order=created_at.desc');
-  } else if(CU.role_code==='ROLE-STF'){
+  } else if(['ROLE-STF','ROLE-ADV'].includes(CU.role_code)){
     var _stfOr='created_by.eq.'+safeId(CU.id)+',forwarded_to_id.eq.'+safeId(CU.id)+',status.eq.numbering';
     if(_myStepDocIds.length) _stfOr+=',id.in.('+_myStepDocIds.map(safeId).join(',')+')'
     _allDocs=await dg('documents','?or=('+_stfOr+')&order=created_at.desc');
@@ -146,6 +147,7 @@ function fDocs(){
     });
     var _fwdOnly=_actionDocs.filter(function(d){return d.forwarded_to_id===CU.id&&d.status==='completed'&&!_FWD_ACT[d.id]});
     var _mainOnly=_actionDocs.filter(function(d){return _fwdOnly.indexOf(d)===-1});
+    _curFilteredDocs=_actionDocs;
     var w=$e('dtbl'); if(!w) return;
     var html2=(_mainOnly.length||!_fwdOnly.length)?rDocTbl(_mainOnly):'';
     if(_fwdOnly.length) html2+='<div class="px-4 pt-4 pb-1 text-[11px] font-bold tracking-wide text-[#a89e99] uppercase">เอกสารที่ส่งมาให้คุณ</div>'+rFwdTbl(_fwdOnly);
@@ -160,6 +162,7 @@ function fDocs(){
     var matchType=!_DTYPE_FILTER||d.doc_type===_DTYPE_FILTER;
     return matchTab&&matchProj&&matchType&&_matchQ(d,q);
   });
+  _curFilteredDocs=f;
   var w=$e('dtbl'); if(w)w.innerHTML=rDocTbl(f)
 }
 

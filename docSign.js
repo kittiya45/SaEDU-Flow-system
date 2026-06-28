@@ -7,19 +7,10 @@ async function showActModal(action,docId){
   var isIncoming=_doc.doc_type==='incoming';
   var isApprove=action==='approve';
 
-  // Reject modal: หา cascade destination (step ก่อนหน้าที่จะถูก re-activate)
-  var _cascadeTargetModal=null;
-  if(!isApprove){
-    var _wfModal=await dg('workflow_steps','?document_id=eq.'+docId+'&order=step_number');
-    var _curActModal=_wfModal.filter(function(s){return s.status==='active'})[0];
-    if(_curActModal){
-      for(var _mi=0;_mi<_wfModal.length;_mi++){
-        if(_wfModal[_mi].step_number<_curActModal.step_number&&_wfModal[_mi].step_number>1) _cascadeTargetModal=_wfModal[_mi];
-      }
-    }
-  }
   _actSigPos={xFrac:null,yFrac:null};
   _actSigPdf=null; _actSigPage=1; _actSigZoom=1.0;
+  _actSigColor='#1C1C1E'; _actSigSz=2;
+  var sigColors=['#1C1C1E','#D32F2F','#1565C0','#1B5E20','#7B1FA2'];
 
   if(isApprove){
     // ── โหมดอนุมัติ: 2-column layout (ซ้าย=form, ขวา=PDF preview) ──
@@ -43,6 +34,12 @@ async function showActModal(action,docId){
       '<div id="sig-panel-draw">',
       '<canvas id="asgc" class="border-[1.5px] border-[#EBEBEB] rounded-[10px] bg-white block w-full cursor-crosshair touch-none" height="110"></canvas>',
       '<button class="btn btn-soft sm mt-1.5 w-full" onclick="clearASig()">ล้างลายเซ็น</button>',
+      '<div style="margin-top:10px"><div class="fl" style="margin-bottom:6px">สีหมึก</div>',
+      '<div style="display:flex;gap:6px;flex-wrap:wrap">',
+      sigColors.map(function(c,i){return '<div class="csw'+(i===0?' on':'')+'" style="width:24px;height:24px;border-radius:50%;cursor:pointer;border:2px solid '+(i===0?'var(--text)':'transparent')+';background:'+c+'" onclick="actSigColor(\''+c+'\',this)"></div>'}).join(''),
+      '</div></div>',
+      '<div class="fl" style="margin:10px 0 6px">ขนาด</div>',
+      '<input type="range" id="asig-sz" min="1" max="8" value="2" oninput="_actSigSz=+this.value">',
       '</div>',
       '<div id="sig-panel-upload" class="hidden">',
       '<label for="asig-file" class="upload-zone" id="asig-drop-zone" style="min-height:104px;padding:14px;border-radius:12px">',
@@ -104,8 +101,9 @@ async function showActModal(action,docId){
   }
 
   // ── โหมดส่งคืน: single-column ──
-  var _cascadeTargetName=_cascadeTargetModal?esc(_cascadeTargetModal.step_name):'ผู้จัดทำ (เอกสารจะถูกส่งคืน)';
-  var _cascadeSlaNote=_cascadeTargetModal?'ผู้รับจะต้องดำเนินการภายใน 3 วัน (SLA)':'ผู้จัดทำจะต้องแก้ไขและส่งใหม่ภายใน 3 วัน (SLA)';
+  // ตีกลับกลับไปหาผู้จัดทำเอกสารโดยตรงเสมอ (ไม่ cascade ทีละขั้นแล้ว — ดู doAct() ใน docDetail.js)
+  var _cascadeTargetName='ผู้จัดทำ (เอกสารจะถูกส่งคืน)';
+  var _cascadeSlaNote='ผู้จัดทำจะต้องแก้ไขและส่งใหม่ภายใน '+(SETT.sla_cascade_days||3)+' วัน (SLA)';
   var html=[
     '<div class="mo"><div class="modal">',
     '<div class="modal-head">',
@@ -149,6 +147,7 @@ async function showActModal(action,docId){
 
 // ─── Signature state ───
 var _actSigCtx=null, _actSigDrawing=false;
+var _actSigColor='#1C1C1E', _actSigSz=2;
 var _actSigPos={xFrac:null,yFrac:null};
 var _actSigPdfW=595,_actSigPdfH=842;
 var _actSigPdf=null, _actSigPage=1, _actSigZoom=1.0;
@@ -176,8 +175,13 @@ function initActSig(){
     _updateSigPosIndicator();
   };
   sc.onpointerdown=function(e){_actSigDrawing=true;var r=sc.getBoundingClientRect();_actSigCtx.beginPath();_actSigCtx.moveTo((e.clientX-r.left)*(sc.width/r.width),(e.clientY-r.top)*(sc.height/r.height))};
-  sc.onpointermove=function(e){if(!_actSigDrawing)return;var r=sc.getBoundingClientRect();_actSigCtx.lineTo((e.clientX-r.left)*(sc.width/r.width),(e.clientY-r.top)*(sc.height/r.height));_actSigCtx.strokeStyle='#1C1C1E';_actSigCtx.lineWidth=2;_actSigCtx.lineCap='round';_actSigCtx.lineJoin='round';_actSigCtx.stroke()};
+  sc.onpointermove=function(e){if(!_actSigDrawing)return;var r=sc.getBoundingClientRect();_actSigCtx.lineTo((e.clientX-r.left)*(sc.width/r.width),(e.clientY-r.top)*(sc.height/r.height));_actSigCtx.strokeStyle=_actSigColor;_actSigCtx.lineWidth=_actSigSz;_actSigCtx.lineCap='round';_actSigCtx.lineJoin='round';_actSigCtx.stroke()};
   sc.onpointerup=sc.onpointerleave=function(){if(_actSigDrawing){_actSigDrawing=false;_updateSigPosIndicator()}}
+}
+function actSigColor(c,el){
+  _actSigColor=c;
+  document.querySelectorAll('#sig-panel-draw .csw').forEach(function(s){s.classList.remove('on')});
+  if(el)el.classList.add('on')
 }
 function clearASig(){var sc=$e('asgc');if(sc&&_actSigCtx)_actSigCtx.clearRect(0,0,sc.width,sc.height);_updateSigPosIndicator()}
 function previewASig(inp){
