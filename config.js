@@ -74,6 +74,25 @@ var LT_LEADTIME={
   'ขอความอนุเคราะห์ประชาสัมพันธ์ ภายในคณะ':'ไม่ต่ำกว่า 2 สัปดาห์ก่อนเริ่มกิจกรรม/โครงการ',
   'ขอความอนุเคราะห์ใช้ยานพาหนะรถตู้คณะ':'ไม่ต่ำกว่า 3 สัปดาห์ก่อนเริ่มกิจกรรม/โครงการ (ต้องประสานกับกายภาพก่อน)'
 };
+/* ─── ขั้นตอนบังคับ (Fixed Workflow) สำหรับหนังสือขาเข้า ───
+   สายทั่วไป 4 ขั้น / สายตรวจงบประมาณ 7 ขั้น — ล็อกโครงลำดับขั้นตอน แต่เปลี่ยนตัวบุคคลในแต่ละขั้นได้
+   ใช้ใน _applyFixedFlow() (docForm.js); ROLE-STF/ROLE-SYS ได้รับการยกเว้น (จัดขั้นตอนเองได้อิสระ)
+   pos: เติมคนที่ถือตำแหน่งนี้เป็นค่าเริ่มต้น | role: เติมคนแรกที่มี role นี้ | self: ผู้สร้างเอกสารเอง (เปลี่ยนไม่ได้) */
+var BUDGET_LTYPES=[
+  'ขออนุมัติโครงการ ไม่เกิน 1 แสนบาท',
+  'ขออนุมัติโครงการ เกิน 1 แสนบาท',
+  'ขออนุมัติปรับงบ'
+];
+var FLOW_STEPS_GENERAL=[
+  {step_name:'ประธานฝ่าย',role_required:'ROLE-SGN'},
+  {step_name:'หัวหน้านิสิต',role_required:'ROLE-SGN',pos:'GNK-PRE'},
+  {step_name:'อาจารย์ที่ปรึกษา',role_required:'ROLE-ADV',role:'ROLE-ADV'}
+];
+var FLOW_STEPS_BUDGET=[
+  {step_name:'เหรัญญิก',role_required:'ROLE-SGN',pos:'GNK-TRS'},
+  {step_name:'เจ้าหน้าที่กิจการนิสิต',role_required:'ROLE-STF',role:'ROLE-STF'},
+  {step_name:'ผู้รับผิดชอบโครงการ',role_required:'ROLE-CRT',self:true}
+].concat(FLOW_STEPS_GENERAL);
 var SENDER_POS=[
   {name:'หัวหน้านิสิต',code:'01',isClub:false},
   {name:'ชมรมต้นกล้าคณิตศาสตร์',code:'01',isClub:true},
@@ -206,7 +225,9 @@ var SETT={
   system_announcement:'',
   system_announcement_type:'info',
   line_oa_id:'',   // Basic ID ของ LINE OA (เช่น @123abcd) — ใช้สร้างลิงก์แอดเพื่อนใน modal เชื่อมต่อ LINE
-  app_url:''       // URL ระบบ — แนบท้ายข้อความแจ้งเตือน LINE
+  app_url:'',      // URL ระบบ — แนบท้ายข้อความแจ้งเตือน LINE
+  line_group_id:'',                             // groupId กลุ่มเจ้าหน้าที่ (webhook เขียนให้ตอนพิมพ์รหัสเชื่อมกลุ่ม)
+  line_group_events:'create,resubmit,overdue'   // เหตุการณ์ที่แจ้งเข้ากลุ่ม (action ของ sendNotifEmail)
 };
 async function loadAppSettings(){
   try{

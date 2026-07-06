@@ -468,7 +468,9 @@ async function doForward(docId){
     // LINE OA push (ช่องทางเสริม — ข้ามเงียบ ๆ ถ้าผู้รับไม่ได้ผูก LINE)
     try{
       var fwdLine=(SETT.email_prefix||'[กนค.]')+' 📨 มีเอกสารส่งต่อถึงคุณ\nเรียน '+(toUser?toUser.full_name:'')+'\nเรื่อง: '+(doc2.title||'')+(note?'\nหมายเหตุ: '+note:'')+'\n\n'+(SETT.app_url?'เข้าสู่ระบบเพื่อรับเอกสาร: '+SETT.app_url:'กรุณาเข้าสู่ระบบ SAEDU Flow เพื่อรับเอกสาร');
-      await sendLineWithLog(docId,toId,recipEmail,emailSubj,fwdLine,'forward');
+      var fwdFlex=null;
+      try{fwdFlex=buildLineFlex({headText:'📨 มีเอกสารส่งต่อถึงคุณ',recipName:(toUser?toUser.full_name:''),subj:doc2.title||'',rows:note?[['หมายเหตุ',note]]:[],infoText:'เอกสารผ่านการอนุมัติครบทุกขั้นตอนแล้ว กดรับเอกสารเพื่อดาวน์โหลดไฟล์',button:'เข้าสู่ระบบเพื่อรับเอกสาร'})}catch(fe){}
+      await sendLineWithLog(docId,toId,recipEmail,emailSubj,fwdLine,'forward',fwdFlex);
     }catch(le){console.warn('Forward LINE failed:',le)}
     $e('mwrap').innerHTML='';
     var a=$e('dal');if(a)a.innerHTML=alrtH('ok','ส่งต่อเอกสารเรียบร้อยแล้ว และแจ้งเตือนทางอีเมลแล้ว');
@@ -853,7 +855,9 @@ async function _doRecallConfirmed(docId){
         // LINE OA push (ส่งได้แม้ผู้รับไม่มีอีเมลจริง)
         if(_u){
           var _lineTxt=(SETT.email_prefix||'[กนค.]')+' ↩️ ผู้จัดทำดึงเอกสารกลับ\nเรียน '+_u.full_name+'\nเรื่อง: '+(doc.title||'')+'\nเอกสารถูกดึงกลับไปแก้ไขแล้ว ไม่ต้องดำเนินการใด ๆ หากส่งเข้าระบบใหม่จะมีการแจ้งอีกครั้ง';
-          try{await sendLineWithLog(docId,_u.id,_em||'',_subj,_lineTxt,'recall')}catch(le){console.warn('Recall LINE failed:',le)}
+          var _rcFlex=null;
+          try{_rcFlex=buildLineFlex({headText:'↩️ ผู้จัดทำดึงเอกสารกลับ',recipName:_u.full_name,subj:doc.title||'',infoText:'เอกสารถูกดึงกลับไปแก้ไขแล้ว ไม่ต้องดำเนินการใด ๆ หากส่งเข้าระบบใหม่จะมีการแจ้งอีกครั้ง'})}catch(fe){}
+          try{await sendLineWithLog(docId,_u.id,_em||'',_subj,_lineTxt,'recall',_rcFlex)}catch(le){console.warn('Recall LINE failed:',le)}
         }
       }catch(ne){console.warn('Recall notify failed:',ne)}
     }

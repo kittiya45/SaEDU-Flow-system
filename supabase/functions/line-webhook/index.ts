@@ -3,6 +3,11 @@
 // ผู้ใช้พิมพ์รหัส 6 หลัก (ที่แอปสร้างไว้ใน users.line_link_code) ส่งในแชท OA
 // → จับคู่รหัส → เขียน line_user_id → ตอบยืนยันด้วย reply token (ฟรี ไม่กินโควตา push)
 //
+// รองรับกลุ่มด้วย: เชิญบอทเข้ากลุ่ม (join event) → แอดมินสร้าง "รหัสเชื่อมกลุ่ม" ใน
+// ตั้งค่าระบบ (app_settings: line_group_link_code + line_group_link_expires) แล้วพิมพ์
+// รหัสในกลุ่ม → บันทึก groupId ลง app_settings key 'line_group_id' (กลุ่มเดียวทั้งระบบ)
+// บอทถูกเอาออกจากกลุ่ม (leave event) → ล้าง line_group_id ทิ้ง
+//
 // Secrets: LINE_CHANNEL_SECRET (verify ลายเซ็น), LINE_CHANNEL_ACCESS_TOKEN (ส่ง reply)
 // Deploy: npx supabase functions deploy line-webhook --no-verify-jwt
 //   ⚠️ ต้องมี --no-verify-jwt เพราะเซิร์ฟเวอร์ LINE ไม่มี JWT ของ Supabase —
@@ -62,9 +67,58 @@ Deno.serve(async (req: Request) => {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
 
+  // helper: อ่าน/เขียนค่าใน app_settings (key เป็น primary key → upsert ได้)
+  async function getSetting(key: string): Promise<string> {
+    const { data } = await admin.from("app_settings").select("value").eq("key", key).maybeSingle();
+    return data?.value ?? "";
+  }
+  async function setSetting(key: string, value: string) {
+    await admin.from("app_settings").upsert(
+      { key, value, label: key, value_type: "text", updated_at: new Date().toISOString() },
+      { onConflict: "key" },
+    );
+  }
+
   for (const ev of payload.events ?? []) {
     try {
       const lineUserId = ev?.source?.userId ?? "";
+      const groupId    = ev?.source?.type === "group" ? (ev?.source?.groupId ?? "") : "";
+
+      // ── บอทถูกเชิญเข้ากลุ่ม ──
+      if (ev.type === "join" && groupId) {
+        await reply(ev.replyToken,
+          "สวัสดีค่ะ 👋 นี่คือระบบแจ้งเตือน SAEDU Flow\n\n" +
+          "หากต้องการให้กลุ่มนี้รับแจ้งเตือนเอกสาร:\n" +
+          "ให้ผู้ดูแลระบบเข้า \"จัดการระบบ → ตั้งค่าระบบ\" กด \"สร้างรหัสเชื่อมกลุ่ม\" " +
+          "แล้วนำรหัส 6 หลักมาพิมพ์ส่งในกลุ่มนี้ภายใน 10 นาทีค่ะ");
+        continue;
+      }
+
+      // ── บอทถูกเอาออกจากกลุ่ม — ถ้าเป็นกลุ่มที่ผูกไว้ ให้ล้างทิ้ง (push ไม่ได้อีกแล้ว) ──
+      if (ev.type === "leave" && groupId) {
+        if ((await getSetting("line_group_id")) === groupId) await setSetting("line_group_id", "");
+        continue;
+      }
+
+      // ── ข้อความในกลุ่ม: สนใจเฉพาะรหัสเชื่อมกลุ่ม (ไม่ผูกบัญชีส่วนตัวจากในกลุ่ม —
+      //    รหัสส่วนตัวที่พิมพ์ในกลุ่มคนอื่นเห็นและแย่งใช้ได้) ──
+      if (ev.type === "message" && ev.message?.type === "text" && groupId) {
+        const gText = String(ev.message.text || "").trim();
+        if (!LINK_CODE_RE.test(gText)) continue;
+        const code = await getSetting("line_group_link_code");
+        const exp  = await getSetting("line_group_link_expires");
+        if (!code || gText !== code || (exp && new Date(exp) < new Date())) {
+          await reply(ev.replyToken,
+            "❌ รหัสเชื่อมกลุ่มไม่ถูกต้องหรือหมดอายุแล้ว\nกรุณาสร้างรหัสใหม่ใน \"ตั้งค่าระบบ\" แล้วส่งมาใหม่ภายใน 10 นาทีค่ะ");
+          continue;
+        }
+        await setSetting("line_group_id", groupId);
+        await setSetting("line_group_link_code", "");
+        await setSetting("line_group_link_expires", "");
+        await reply(ev.replyToken,
+          "✅ เชื่อมต่อกลุ่มสำเร็จ!\nกลุ่มนี้จะได้รับการแจ้งเตือนเอกสารจากระบบ SAEDU Flow ค่ะ 📄");
+        continue;
+      }
 
       if (ev.type === "follow") {
         await reply(ev.replyToken,
@@ -86,7 +140,8 @@ Deno.serve(async (req: Request) => {
         continue;
       }
 
-      if (ev.type === "message" && ev.message?.type === "text" && lineUserId) {
+      // ── ข้อความ 1:1 เท่านั้น (ผูกบัญชีส่วนตัว) — แชทกลุ่ม/ห้องไม่เข้าเงื่อนไขนี้ ──
+      if (ev.type === "message" && ev.message?.type === "text" && lineUserId && ev.source?.type === "user") {
         const text = String(ev.message.text || "").trim();
         // สนใจเฉพาะข้อความหน้าตาเป็นรหัส 6 หลัก — ข้อความอื่นเงียบไว้ ไม่ spam ตอบกลับ
         if (!LINK_CODE_RE.test(text)) continue;

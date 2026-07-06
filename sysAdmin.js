@@ -500,6 +500,23 @@ function rAppSettingsCard(settings){
         '<div style="font-size:10px;color:#a89e99;margin-bottom:8px">แนบท้ายข้อความแจ้งเตือน LINE เช่น https://saedu-flow.vercel.app</div>'+
         '<input id="sett-line-1" data-key="app_url" type="text" class="fi text-[13px]" style="font-family:monospace" value="'+esc(_val('app_url',''))+'" placeholder="https://...">'+
       '</div>'+
+    '</div>'+
+    // ── กลุ่ม LINE เจ้าหน้าที่ (แจ้งเอกสารใหม่ + เลยกำหนดเข้ากลุ่มเดียวทั้งระบบ) ──
+    '<div style="background:#FAFAF8;border-radius:12px;padding:14px 16px;border:1px solid #EBEBEB;margin-top:10px">'+
+      '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">'+
+        '<div style="flex:1;min-width:220px">'+
+          '<div style="font-size:11px;font-weight:700;color:#18120E;margin-bottom:2px">กลุ่ม LINE เจ้าหน้าที่ '+
+            (SETT.line_group_id
+              ?'<span style="color:#06C755;font-weight:700">● เชื่อมต่อแล้ว</span>'
+              :'<span style="color:#a89e99">○ ยังไม่เชื่อมต่อ</span>')+'</div>'+
+          '<div style="font-size:10px;color:#a89e99;line-height:1.7">เอกสารใหม่และเอกสารเลยกำหนดจะแจ้งเข้ากลุ่มนี้ — เชิญบอท OA เข้ากลุ่ม แล้วกดสร้างรหัส นำรหัสไปพิมพ์ส่งในกลุ่มภายใน 10 นาที</div>'+
+        '</div>'+
+        '<div style="display:flex;gap:8px;flex-shrink:0">'+
+          '<button type="button" class="btn btn-soft sm" onclick="_genLineGroupCode(this)">สร้างรหัสเชื่อมกลุ่ม</button>'+
+          (SETT.line_group_id?'<button type="button" class="btn btn-soft sm" style="color:#DC2626;border-color:#FECACA" onclick="_lineGroupDisconnect()">ยกเลิก</button>':'')+
+        '</div>'+
+      '</div>'+
+      '<div id="line-group-box"></div>'+
     '</div>';
 
   // ── กลุ่ม 3: ประกาศระบบ ──
@@ -570,6 +587,59 @@ async function saveAppSettings(){
   }finally{
     if(btn){btn.disabled=false;btn.innerHTML=svg('ok',12)+' บันทึกทั้งหมด';}
   }
+}
+
+/* ── กลุ่ม LINE เจ้าหน้าที่ (เชื่อม/ยกเลิกกลุ่มรับแจ้งเตือน) ── */
+async function _setAppSetting(key,val){
+  var ex=await dg('app_settings','?key=eq.'+encodeURIComponent(key)+'&select=key&limit=1');
+  if(Array.isArray(ex)&&ex.length){
+    var r=await fetch(SU+'/rest/v1/app_settings?key=eq.'+encodeURIComponent(key),{method:'PATCH',headers:H,body:JSON.stringify({value:val,updated_by:CU.id,updated_at:new Date().toISOString()})});
+    if(!r.ok) throw new Error('บันทึก '+key+' ไม่สำเร็จ ('+r.status+')');
+  }else{
+    await dp('app_settings',{key:key,value:val,label:key,value_type:'text',updated_by:CU.id,updated_at:new Date().toISOString()});
+  }
+  SETT[key]=val;
+}
+
+async function _genLineGroupCode(btn){
+  if(btn){btn.disabled=true;btn.innerHTML='<span class="sp sp-dark"></span>'}
+  var code=String(Math.floor(100000+Math.random()*900000));
+  var exp=new Date(Date.now()+10*60000).toISOString();
+  try{
+    await _setAppSetting('line_group_link_code',code);
+    await _setAppSetting('line_group_link_expires',exp);
+    var box=$e('line-group-box');
+    if(box) box.innerHTML=
+      '<div style="background:#F0FDF4;border:1.5px dashed #06C755;border-radius:12px;padding:14px;text-align:center;margin-top:12px">'+
+        '<div style="font-size:10px;color:#a89e99;margin-bottom:4px">รหัสเชื่อมกลุ่ม (หมดอายุใน 10 นาที)</div>'+
+        '<div class="mono" style="font-size:26px;font-weight:800;letter-spacing:7px;color:#18120E">'+code+'</div>'+
+        '<div style="font-size:11px;color:#18120E;margin-top:6px;line-height:1.7">พิมพ์รหัสนี้ส่งใน<strong>กลุ่ม LINE</strong> ที่เชิญบอทเข้าไปแล้ว<br>เมื่อบอทตอบยืนยันในกลุ่ม กดปุ่มตรวจสอบด้านล่าง</div>'+
+        '<button type="button" class="btn btn-soft sm" style="margin-top:10px" onclick="_lineGroupRefresh(this)">'+svg('refresh',12)+' เชื่อมแล้ว — ตรวจสอบสถานะ</button>'+
+      '</div>';
+  }catch(e){showAlert('เกิดข้อผิดพลาด: '+esc(e.message||String(e)),'er')}
+  finally{if(btn){btn.disabled=false;btn.innerHTML='สร้างรหัสใหม่'}}
+}
+
+async function _lineGroupRefresh(btn){
+  if(btn){btn.disabled=true;btn.innerHTML='<span class="sp sp-dark"></span>'}
+  try{await loadAppSettings()}catch(e){}
+  if(SETT.line_group_id){
+    showAlert('เชื่อมต่อกลุ่ม LINE เรียบร้อยแล้ว! เอกสารใหม่และเอกสารเลยกำหนดจะแจ้งเข้ากลุ่ม','ok');
+    nav('sys');
+  }else{
+    showAlert('ยังไม่พบการเชื่อมต่อ — กรุณาพิมพ์รหัส 6 หลักส่งในกลุ่ม LINE ก่อน แล้วตรวจสอบอีกครั้ง','wa');
+    if(btn){btn.disabled=false;btn.innerHTML=svg('refresh',12)+' เชื่อมแล้ว — ตรวจสอบสถานะ'}
+  }
+}
+
+function _lineGroupDisconnect(){
+  showConfirm('ยกเลิกการเชื่อมกลุ่ม LINE','กลุ่มจะไม่ได้รับการแจ้งเตือนเอกสารอีก (การแจ้งเตือนรายคนและอีเมลยังทำงานตามปกติ) ต้องการยกเลิกหรือไม่?',async function(){
+    try{
+      await _setAppSetting('line_group_id','');
+      showAlert('ยกเลิกการเชื่อมกลุ่มเรียบร้อยแล้ว','ok');
+      nav('sys');
+    }catch(e){showAlert('เกิดข้อผิดพลาด: '+esc(e.message||String(e)),'er')}
+  });
 }
 
 /* ══════════════════════════════════════════════

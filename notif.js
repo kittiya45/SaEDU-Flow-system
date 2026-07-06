@@ -54,6 +54,9 @@ async function sendNotifEmail(docId, action, newStatus, note){
 
   if(!recipients.length) return;
 
+  // ── สรุปขั้นตอน + ชื่อผู้รับผิดชอบ สำหรับแถบความคืบหน้าบนการ์ด LINE ──
+  var lineSteps=await _lineStepsInfo(Array.isArray(wfSteps)?wfSteps:[]);
+
   // ── ดึงไฟล์ลงนามล่าสุด (กรณี completed) ──
   var signedFileUrl='';
   if(newStatus==='completed'){
@@ -135,14 +138,33 @@ async function sendNotifEmail(docId, action, newStatus, note){
 
     // ── LINE OA push (ช่องทางเสริม — ข้ามเงียบ ๆ ถ้าผู้รับไม่ได้ผูก LINE) ──
     try{
-      var lineText=buildLineText({
+      var _lineO={
         recipName:recip.user.full_name, action:action, newStatus:newStatus,
         subj:subj, deadlineStr:deadlineStr, nextStep:nextStep, urgency:doc.urgency,
         note:note, autoApprove:_autoQ, slaDays:SETT.sla_cascade_days||3
-      });
-      await sendLineWithLog(docId,recip.user.id,recip.email,emailSubj,lineText,action||'email');
+      };
+      var lineText=buildLineText(_lineO);
+      var lineFlex=null;
+      try{lineFlex=buildLineFlex(Object.assign({steps:lineSteps},_lineO))}catch(fe){console.warn('LINE flex build failed:',fe)}
+      await sendLineWithLog(docId,recip.user.id,recip.email,emailSubj,lineText,action||'email',lineFlex);
     }catch(e){console.warn('LINE notify error:',e)}
   }
+
+  // ── แจ้งเข้ากลุ่ม LINE เจ้าหน้าที่ (ครั้งเดียวต่อเหตุการณ์ ไม่ใช่ต่อผู้รับ) ──
+  // ค่าเริ่มต้น: เอกสารใหม่/ส่งใหม่ + เลยกำหนด — ปรับได้ผ่าน app_settings key 'line_group_events'
+  try{
+    var _gEv=String(SETT.line_group_events||'create,resubmit,overdue').split(',');
+    if(SETT.line_group_id&&_gEv.indexOf(action)>=0){
+      var _gO={
+        action:action, newStatus:newStatus, subj:subj, deadlineStr:deadlineStr,
+        nextStep:nextStep, urgency:doc.urgency, note:note,
+        autoApprove:_autoQ, slaDays:SETT.sla_cascade_days||3
+      };
+      var _gFlex=null;
+      try{_gFlex=buildLineFlex(Object.assign({steps:lineSteps},_gO))}catch(fe){}
+      await sendLineGroupPush(buildLineText(_gO),_gFlex);
+    }
+  }catch(e){console.warn('LINE group notify error:',e)}
 
   if(sentEmails.length) showEmailToast(sentEmails,emailSubj);
 }
@@ -157,11 +179,17 @@ async function sendRejectFyiEmail(docId, recipientUser, rejectedStepName, note){
 
   // ── LINE OA push (ส่งได้แม้ผู้รับไม่มีอีเมลจริง) ──
   try{
-    var lineText=buildLineText({
+    var _fyiO={
       recipName:recipientUser.full_name, action:'reject_fyi', newStatus:'rejected',
       subj:subj, note:note, rejectedStepName:rejectedStepName, urgency:doc.urgency
-    });
-    await sendLineWithLog(docId,recipientUser.id,em,emailSubj,lineText,'reject_fyi');
+    };
+    var lineText=buildLineText(_fyiO);
+    var _fyiFlex=null;
+    try{
+      var _fyiWs=await dg('workflow_steps','?document_id=eq.'+docId+'&order=step_number');
+      _fyiFlex=buildLineFlex(Object.assign({steps:await _lineStepsInfo(_fyiWs)},_fyiO));
+    }catch(fe){}
+    await sendLineWithLog(docId,recipientUser.id,em,emailSubj,lineText,'reject_fyi',_fyiFlex);
   }catch(e){console.warn('FYI LINE error:',e)}
 
   if(!emOk) return;
@@ -365,14 +393,14 @@ function showEmailToast(emails, subj){
    → Edge Function line-webhook จับคู่แล้วเขียน line_user_id
    ล้มเหลว = เงียบ (fail-open) — อีเมลเดิมยังเป็นช่องทางหลักเสมอ */
 
-async function sendLinePush(recipientId, text){
+async function sendLinePush(recipientId, text, flex){
   if(!recipientId||!text) return 'skipped';
   try{
     // ⚠️ ห้ามส่ง H ทั้งก้อนไป /functions/v1 — Prefer header ทำ CORS preflight ล้มแบบเงียบ
     var r=await fetch(SU+'/functions/v1/send-line',{
       method:'POST',
       headers:{'Content-Type':'application/json','Authorization':H.Authorization,'apikey':SK},
-      body:JSON.stringify({recipientId:recipientId,text:text})
+      body:JSON.stringify({recipientId:recipientId,text:text,flex:flex||undefined})
     });
     var j=await r.json().catch(function(){return{}});
     if(r.ok&&j.ok) return 'sent';
@@ -382,12 +410,31 @@ async function sendLinePush(recipientId, text){
   }catch(e){console.warn('LINE push error:',e);return 'failed'}
 }
 
+/* ส่งเข้ากลุ่ม LINE เจ้าหน้าที่ — send-line resolve groupId จาก app_settings ฝั่ง server
+   ไม่บันทึกลง notifications (ไม่มี recipient_id รายคน และ dedup ของ overdue อาศัยแถวรายคน
+   ที่เขียนใน loop ผู้รับอยู่แล้ว) */
+async function sendLineGroupPush(text, flex){
+  if(!text) return 'skipped';
+  try{
+    var r=await fetch(SU+'/functions/v1/send-line',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':H.Authorization,'apikey':SK},
+      body:JSON.stringify({group:true,text:text,flex:flex||undefined})
+    });
+    var j=await r.json().catch(function(){return{}});
+    if(r.ok&&j.ok) return 'sent';
+    if(j&&j.skipped) return 'skipped';
+    console.warn('LINE group push failed:',j);
+    return 'failed';
+  }catch(e){console.warn('LINE group push error:',e);return 'failed'}
+}
+
 /* ส่ง LINE + บันทึก audit ลง notifications (เฉพาะเมื่อได้ลองส่งจริง — 'skipped' ไม่บันทึก
    เพื่อไม่ให้เอกสารถูกนับว่า "เตือนแล้ว" โดย overdue_notif_sent_at ทั้งที่ไม่มีช่องทางไหนส่งออก)
    ใช้ notification_type เดียวกับอีเมลของ action นั้น (แยกช่องทางด้วย subject prefix [LINE])
    เพื่อให้ dedup ของ overdue ทำงานถูกต้องแม้ผู้รับไม่มีอีเมลจริง */
-async function sendLineWithLog(docId, recipientId, recipientEmail, subject, text, ntype){
-  var st=await sendLinePush(recipientId, text);
+async function sendLineWithLog(docId, recipientId, recipientEmail, subject, text, ntype, flex){
+  var st=await sendLinePush(recipientId, text, flex);
   if(st==='skipped') return st;
   try{
     await dp('notifications',{
@@ -423,6 +470,90 @@ function buildLineText(o){
   lines.push('');
   lines.push(SETT.app_url?'เข้าสู่ระบบ: '+SETT.app_url:'กรุณาเข้าสู่ระบบ SAEDU Flow เพื่อดำเนินการ');
   return lines.join('\n');
+}
+
+/* ── สรุปขั้นตอน workflow + ชื่อผู้รับผิดชอบ สำหรับส่วน "ความคืบหน้า" บนการ์ด LINE ── */
+async function _lineStepsInfo(wfSteps){
+  try{
+    if(!Array.isArray(wfSteps)||!wfSteps.length) return [];
+    var ids=[]; wfSteps.forEach(function(s){if(s.assigned_to&&ids.indexOf(s.assigned_to)<0)ids.push(s.assigned_to)});
+    var nm={};
+    if(ids.length){
+      var us=await dg('user_directory','?id=in.('+ids.map(function(i){return safeId(i)}).join(',')+')&select=id,full_name');
+      (Array.isArray(us)?us:[]).forEach(function(u){nm[u.id]=u.full_name});
+    }
+    return wfSteps.map(function(s){return {name:s.step_name||('ขั้นที่ '+s.step_number),person:nm[s.assigned_to]||'',st:s.status}});
+  }catch(e){return []}
+}
+
+/* ── LINE Flex Message — การ์ดแจ้งเตือน (คู่กับ buildLineText ซึ่งใช้เป็น altText/fallback) ──
+   รับ o แบบเดียวกับ buildLineText เพิ่ม: steps จาก _lineStepsInfo() (แถบความคืบหน้า —
+   ✓ ผ่านแล้ว / ● รออยู่ / ○ ยังไม่ถึงคิว / ✕ ตีกลับ), rows:[[label,value]] แถวข้อมูลเพิ่มเติม,
+   headText/button/infoText สำหรับ override ข้อความ
+   ⚠️ ต้อง deploy Edge Function send-line เวอร์ชันที่รองรับ {flex} ก่อนการ์ดถึงจะแสดง
+   (เวอร์ชันเก่าไม่รู้จัก field นี้ — จะส่งเป็น text ธรรมดาต่อไป ไม่พัง) */
+function buildLineFlex(o){
+  var head=o.headText;
+  if(!head){
+    if(o.newStatus==='completed')      head='✅ เอกสารเสร็จสิ้นทุกขั้นตอน';
+    else if(o.newStatus==='numbering') head='🔢 ลายเซ็นครบ — รอออกเลขหนังสือ';
+    else if(o.action==='reject')       head='↩️ เอกสารถูกส่งคืนเพื่อแก้ไข';
+    else if(o.action==='reject_fyi')   head='ℹ️ แจ้งเพื่อทราบ: เอกสารถูกส่งคืนแก้ไข';
+    else if(o.action==='overdue')      head='⚠️ เอกสารเลยกำหนด';
+    else                               head='📋 เอกสารรอการดำเนินการของคุณ';
+  }
+  var urgLabel={normal:'ปกติ',urgent:'เร่งด่วน',very_urgent:'ด่วนมาก'};
+  function row(label,value,vColor){
+    return {type:'box',layout:'baseline',spacing:'md',contents:[
+      {type:'text',text:String(label),size:'xs',color:'#9A8F84',flex:3},
+      {type:'text',text:String(value||'—'),size:'xs',color:vColor||'#18120E',flex:7,wrap:true}
+    ]};
+  }
+  var body=[{type:'text',text:String(o.subj||'—'),weight:'bold',size:'sm',wrap:true,color:'#18120E'}];
+  if(o.recipName) body.push(row('เรียน',o.recipName));
+  if(o.urgency&&o.urgency!=='normal') body.push(row('ความเร่งด่วน',urgLabel[o.urgency]||o.urgency,'#DC2626'));
+  if(o.deadlineStr) body.push(row('กำหนดส่ง',o.deadlineStr));
+  (o.rows||[]).forEach(function(r){body.push(row(r[0],r[1]))});
+  if(o.rejectedStepName) body.push(row('ตีกลับจาก',o.rejectedStepName,'#C77A1A'));
+  if((o.action==='reject'||o.action==='reject_fyi')&&o.note) body.push(row('ต้องแก้ไข',o.note,'#C77A1A'));
+  var steps=o.steps||[];
+  if(steps.length){
+    var done=steps.filter(function(s){return s.st==='done'}).length;
+    body.push({type:'separator',margin:'lg',color:'#F0EBE0'});
+    body.push({type:'text',text:'ความคืบหน้า '+done+'/'+steps.length+' ขั้นตอน',size:'xs',weight:'bold',color:'#9A8F84',margin:'lg'});
+    steps.forEach(function(s){
+      var mark='○',mc='#C9C0B8',tc='#9A8F84',bold=false;
+      var txt=(s.name||'—')+(s.person?' — '+s.person:'');
+      if(s.st==='done'){mark='✓';mc='#0F8C46';tc='#6B6157'}
+      else if(s.st==='active'){mark='●';mc='#E83A00';tc='#18120E';bold=true;txt+='  ← รออยู่'}
+      else if(s.st==='rejected'){mark='✕';mc='#DC2626';tc='#DC2626';txt+=' (ตีกลับ)'}
+      var t={type:'text',text:txt,size:'xs',color:tc,flex:11,wrap:true};
+      if(bold) t.weight='bold';
+      body.push({type:'box',layout:'baseline',spacing:'sm',margin:'sm',contents:[
+        {type:'text',text:mark,size:'xs',color:mc,flex:1,align:'center'},t
+      ]});
+    });
+  } else if(o.nextStep&&o.nextStep.step_name&&o.action!=='reject'&&o.newStatus!=='completed'){
+    body.push(row('ขั้นตอนที่รอ',o.nextStep.step_name,'#E83A00'));
+  }
+  if(o.infoText) body.push({type:'text',text:String(o.infoText),size:'xxs',color:'#9A8F84',wrap:true,margin:'lg'});
+  if(o.action==='overdue'&&o.autoApprove) body.push({type:'text',text:'⏳ หากไม่ดำเนินการภายใน '+(o.slaDays||3)+' วันทำการ ระบบจะอนุมัติ/รับเอกสารให้อัตโนมัติ',size:'xxs',color:'#C77A1A',wrap:true,margin:'lg'});
+  var bubble={
+    type:'bubble',size:'mega',
+    header:{type:'box',layout:'vertical',backgroundColor:'#E83A00',paddingAll:'16px',contents:[
+      {type:'text',text:'SAEDU FLOW · ระบบเสนอเอกสาร กนค.',size:'xxs',weight:'bold',color:'#FFD9CC'},
+      {type:'text',text:head,size:'md',weight:'bold',color:'#FFFFFF',wrap:true,margin:'xs'}
+    ]},
+    body:{type:'box',layout:'vertical',spacing:'sm',paddingAll:'16px',contents:body}
+  };
+  var url=String(SETT.app_url||'').trim();
+  if(/^https?:\/\//.test(url)){
+    bubble.footer={type:'box',layout:'vertical',paddingAll:'12px',contents:[
+      {type:'button',style:'primary',color:'#E83A00',height:'sm',
+       action:{type:'uri',label:o.button||'เข้าสู่ระบบเพื่อดำเนินการ',uri:url}}
+    ]};
+  }
+  return bubble;
 }
 
 /* ── MODAL เชื่อมต่อ LINE (เปิดจากแผงกระดิ่งแจ้งเตือน) ── */

@@ -30,6 +30,7 @@ document.addEventListener('click', function(e){
   else if(a==='exportCSV') exportCSV();
   else if(a==='exportDocPDF') exportDocPDF(id);
   else if(a==='addWfPerson') addWfPerson();
+  else if(a==='addAdvisorStep') addAdvisorStep();
   else if(a==='rmWfPerson') rmWfPerson(+id);
   else if(a==='changePw') showChangePw();
   else if(a==='doChangePw') doChangePw();

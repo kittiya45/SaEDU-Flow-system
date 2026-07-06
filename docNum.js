@@ -503,7 +503,9 @@ async function _doSetDocNumberConfirmed(docId,cap){
           // LINE OA push (ส่งได้แม้ผู้รับไม่มีอีเมลจริง)
           try{
             var eLine='[กนค.] 📄 หนังสือขาออกถึงท่าน\nเรียน '+posUser.full_name+'\nเลขที่: '+docNum+'\nเรื่อง: '+(doc.title||'')+'\n\n'+(SETT.app_url?'เข้าสู่ระบบ: '+SETT.app_url:'กรุณาเข้าสู่ระบบ SAEDU Flow เพื่อดูเอกสาร');
-            await sendLineWithLog(docId,posUser.id,posEmail||'',eSubj,eLine,'outgoing');
+            var eFlex=null;
+            try{eFlex=buildLineFlex({headText:'📄 หนังสือขาออกถึงท่าน',recipName:posUser.full_name,subj:doc.title||'',rows:[['เลขที่',docNum]],button:'เข้าสู่ระบบเพื่อดูเอกสาร'})}catch(fe){}
+            await sendLineWithLog(docId,posUser.id,posEmail||'',eSubj,eLine,'outgoing',eFlex);
           }catch(le){console.warn('Outgoing LINE failed:',le)}
         }
       }catch(ne){console.warn('Outgoing notify failed:',ne)}
@@ -528,7 +530,9 @@ async function _doSetDocNumberConfirmed(docId,cap){
         // LINE OA push (ส่งได้แม้ผู้รับไม่มีอีเมลจริง)
         try{
           var fwdLine='[กนค.] 📨 มีหนังสือขาเข้าส่งต่อถึงคุณ\nเรียน '+(fwdUser?fwdUser.full_name:'')+'\nเลขที่: '+docNum+'\nเรื่อง: '+(doc2.title||'')+(note?'\nหมายเหตุ: '+note:'')+'\n\n'+(SETT.app_url?'เข้าสู่ระบบเพื่อรับเอกสาร: '+SETT.app_url:'กรุณาเข้าสู่ระบบ SAEDU Flow เพื่อรับเอกสาร');
-          await sendLineWithLog(docId,fwdId,fwdEmail||'',fwdSubj,fwdLine,'forward');
+          var fwdFlex=null;
+          try{fwdFlex=buildLineFlex({headText:'📨 มีหนังสือขาเข้าส่งต่อถึงคุณ',recipName:(fwdUser?fwdUser.full_name:''),subj:doc2.title||'',rows:[['เลขที่',docNum]].concat(note?[['หมายเหตุ',note]]:[]),infoText:'เอกสารผ่านการลงนามครบถ้วนแล้ว กดรับเอกสารเพื่อดาวน์โหลดไฟล์',button:'เข้าสู่ระบบเพื่อรับเอกสาร'})}catch(fe){}
+          await sendLineWithLog(docId,fwdId,fwdEmail||'',fwdSubj,fwdLine,'forward',fwdFlex);
         }catch(le){console.warn('Forward LINE failed:',le)}
       }
       $e('mwrap').innerHTML='';

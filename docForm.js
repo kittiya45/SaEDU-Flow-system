@@ -21,20 +21,7 @@ async function vForm(editId){
     return '<option value="'+e[0]+'"'+(doc.doc_type===e[0]?' selected':'')+'>'+e[1]+'</option>'
   }).join('');
   var uOpts=Object.entries(URG).map(function(e){return '<option value="'+e[0]+'"'+(doc.urgency===e[0]?' selected':'')+'>'+e[1]+'</option>'}).join('');
-    var _wfFiltered=(FU||[]).filter(function(u){return u.id!==CU.id&&u.role_code!=='ROLE-SYS'});
-  var _wfGroupOrder=POSS.concat(['ROLE-SGN','ROLE-REV','ROLE-ADV','ROLE-STF','ROLE-CRT']);
-  var _wfGroupLabel=function(key){return PTH[key]||RTH[key]||key};
-  var _wfGroupKey=function(u){return u.position_code||u.role_code};
-  var wfPersonOpts='<option value="">— เลือกผู้ดำเนินการ —</option>';
-  _wfGroupOrder.forEach(function(key){
-    var members=_wfFiltered.filter(function(u){return _wfGroupKey(u)===key});
-    if(!members.length) return;
-    wfPersonOpts+='<optgroup label="'+esc(_wfGroupLabel(key))+'">';
-    members.forEach(function(u){
-      wfPersonOpts+='<option value="'+u.id+'">'+esc(u.full_name)+'</option>';
-    });
-    wfPersonOpts+='</optgroup>';
-  });
+  var wfPersonOpts=_wfPersonOptsHtml('','— เลือกผู้ดำเนินการ —'); // จัดกลุ่มตามตำแหน่ง (helper ใน workflow.js — ใช้ร่วมกับ dropdown ของขั้นที่ล็อก)
   var _ico=function(i,bg,cl){return '<div style="width:28px;height:28px;border-radius:9px;background:'+bg+';display:flex;align-items:center;justify-content:center;color:'+cl+'">'+svg(i,14)+'</div>'};
 
   var html=[
@@ -117,8 +104,8 @@ html.push('<div id="fprog"></div></div></div>');
     if(!editId){
     html.push('<div class="card" id="wf-card"><div class="card-head">'+_ico('user','#FFF1E8','#E83A00')+'<span class="card-head-title">ผู้ดำเนินการตามลำดับ</span></div>');
     html.push('<div class="card-body">');
-    html.push('<div class="al al-in"><span class="al-icon">'+svg('info',14)+'</span><span>เลือกผู้ที่ต้องอนุมัติ / ตรวจสอบเอกสารตามลำดับ</span></div>');
-    html.push('<div style="display:flex;gap:8px;margin:14px 0 20px">');
+    html.push('<div class="al al-in"><span class="al-icon">'+svg('info',14)+'</span><span id="wf-info">เลือกผู้ที่ต้องอนุมัติ / ตรวจสอบเอกสารตามลำดับ</span></div>');
+    html.push('<div id="wfadd-row" style="display:flex;gap:8px;margin:14px 0 20px">');
     html.push('<select class="fi" style="flex:1" id="wfadd">'+wfPersonOpts+'</select>');
     html.push('<button class="btn btn-primary sm" data-action="addWfPerson">'+svg('plus',12)+' เพิ่ม</button>');
     html.push('</div>');
@@ -344,17 +331,18 @@ function selectDocType(type){
       var curDoc={from_department:gv('ffromdept'),addressed_to:gv('fto'),subject_line:gv('fsubject'),doc_date:gv('fdate'),due_date:gv('feventdate'),description:gv('fdsc')};
       tf.innerHTML=renderTypeFields(type,curDoc);
     }
-    // GNK-PRE (หัวหน้านิสิต) — เพิ่มให้อัตโนมัติเป็นค่าเริ่มต้นเฉพาะขาเข้า (ขาออกไม่ต้องผ่าน workflow)
-    // ไม่ล็อก: ลบออกได้ และเพิ่มคนต่อท้ายได้ (ไม่บังคับเป็นคนสุดท้าย)
-    // ยกเว้น: ROLE-STF และ ROLE-SYS ออกเลขเองได้โดยไม่ต้องรอ GNK-PRE
-    var _pre=(FU||[]).find(function(u){return u.position_code==='GNK-PRE'&&u.id!==CU.id});
-    var _preStepName=PTH['GNK-PRE']||'หัวหน้านิสิต';
-    // เอา step ที่ระบบเคยเพิ่มอัตโนมัติออกก่อน กันซ้ำเมื่อสลับประเภทเอกสาร (step ที่ user เพิ่มเองใช้ชื่อจาก RTH จึงไม่โดน)
-    FS=FS.filter(function(s){return !s.locked&&!(_pre&&s.assigned_to===_pre.id&&s.step_name===_preStepName)});
+    // ขั้นตอนบังคับ (Fixed Flow) — หนังสือขาเข้าใช้ชุดขั้นตอนตามมติ กนค. (สายทั่วไป 4 ขั้น / สายงบประมาณ 7 ขั้น)
+    // ล็อกโครงลำดับ (ลบ/เพิ่ม/สลับไม่ได้) แต่เปลี่ยนตัวบุคคลในแต่ละขั้นได้ผ่าน dropdown
+    // ยกเว้น: ROLE-STF และ ROLE-SYS จัดขั้นตอนเองได้อิสระ (ออกเลขเองได้โดยไม่ต้องผ่านใคร)
     var _staffBypass=CU.role_code==='ROLE-STF'||CU.role_code==='ROLE-SYS';
-    if(type==='incoming'&&!_staffBypass&&_pre&&!FS.some(function(s){return s.assigned_to===_pre.id})){
-      FS.push({step_name:_preStepName,role_required:'ROLE-SGN',assigned_to:_pre.id,deadline_days:2});
-    }
+    var _fixedFlow=(type==='incoming'&&!_staffBypass);
+    // เอา step ที่ระบบเคยเติมอัตโนมัติออกก่อน กันซ้ำเมื่อสลับประเภทเอกสาร (step ที่ user เพิ่มเองไม่มี locked จึงไม่โดน)
+    FS=FS.filter(function(s){return !s.locked});
+    var _addRow=$e('wfadd-row');
+    if(_addRow) _addRow.style.display=_fixedFlow?'none':'flex';
+    var _wfInfo=$e('wf-info');
+    if(_wfInfo) _wfInfo.innerHTML=_fixedFlow?'ขั้นตอนถูกกำหนดตามประเภทหนังสือ (ปรับอัตโนมัติเมื่อเลือกเรื่องเกี่ยวกับงบประมาณ) — เปลี่ยนตัวบุคคลในแต่ละขั้นได้':'เลือกผู้ที่ต้องอนุมัติ / ตรวจสอบเอกสารตามลำดับ';
+    if(_fixedFlow) _applyFixedFlow();
     var wfc=$e('wf-card');
     var fsub=$e('fsub');
     var _notifCard=$e('notif-card');
@@ -375,7 +363,7 @@ function selectDocType(type){
     }
     var ww=$e('wfwrap'); if(ww) ww.innerHTML=rWfPeople();
     if(type==='outgoing'){_PROJ_FILTER_CLUB='';_populateProjectList();}
-    else _applyWfTemplate(type);
+    else if(!_fixedFlow) _applyWfTemplate(type); // ขาเข้าแบบล็อกใช้ fixed flow — ไม่โหลด template ทับ
     calcDeadline();
     attachFormEvents();
   }
@@ -400,6 +388,33 @@ async function _applyWfTemplate(docType){
   }catch(e){}
 }
 
+/* ขั้นตอนบังคับสำหรับหนังสือขาเข้า — เลือกชุดตามประเภทหนังสือที่เลือกในฟอร์ม
+   (BUDGET_LTYPES → สายตรวจงบประมาณ 7 ขั้น, อื่น ๆ → สายทั่วไป 4 ขั้น — นิยามใน config.js)
+   เรียกซ้ำได้ทุกครั้งที่เปลี่ยนประเภทหนังสือ: จำตัวบุคคลที่เคยเลือกไว้ต่อชื่อขั้นตอนเดิม */
+function _applyFixedFlow(){
+  if(FDI) return; // โหมดแก้ไขไม่มีการ์ด workflow และ step จริงถูกสร้างใน DB ไปแล้ว
+  var isBudget=BUDGET_LTYPES.indexOf(gv('fdsc')||'')>=0;
+  var flow=isBudget?FLOW_STEPS_BUDGET:FLOW_STEPS_GENERAL;
+  var creatorStep=FS.find(function(s){return s.step_name==='ผู้จัดทำ'&&s.assigned_to===CU.id})||{step_name:'ผู้จัดทำ',role_required:'ROLE-CRT',assigned_to:CU.id,deadline_days:1};
+  // จำคนที่เคยเลือกไว้ เมื่อสลับสาย (เช่น เลือกประธานฝ่ายแล้ว ค่อยเปลี่ยนเป็นเรื่องงบประมาณ)
+  // ขั้น extra (อาจารย์ที่ปรึกษาท่านที่ 2 ที่ผู้ใช้กดเพิ่มเอง) เก็บทั้ง step ไว้ต่อท้ายเหมือนเดิม
+  var prevPick={}, extras=FS.filter(function(s){return s.extra});
+  FS.forEach(function(s){if(s.locked&&!s.extra&&s.assigned_to)prevPick[s.step_name]=s.assigned_to});
+  FS=[creatorStep];
+  flow.forEach(function(f){
+    var uid=prevPick[f.step_name]||null;
+    if(f.self) uid=CU.id;
+    else if(!uid){
+      var u=(FU||[]).find(function(x){return x.id!==CU.id&&(f.pos?x.position_code===f.pos:(f.role?x.role_code===f.role:false))});
+      uid=u?u.id:null;
+    }
+    FS.push({step_name:f.step_name,role_required:f.role_required,assigned_to:uid,deadline_days:2,locked:true,fixSelf:!!f.self});
+  });
+  extras.forEach(function(s){FS.push(s)});
+  var ww=$e('wfwrap'); if(ww) ww.innerHTML=rWfPeople();
+  calcDeadline();
+}
+
 function _onProjSelChange(val){
   var inp=$e('fdsc');
   if(!inp) return;
@@ -422,6 +437,9 @@ function _updateLtHint(){
   hint.innerHTML=msg?alrtH('in',msg):'';
   var wrap=$e('fsubject-wrap');
   if(wrap) wrap.style.display=(val==='เรื่องอื่น ๆ')?'block':'none';
+  // เรื่องเกี่ยวกับงบประมาณสลับเป็นสาย 7 ขั้นอัตโนมัติ (เฉพาะขาเข้าแบบล็อก — staff จัดเอง)
+  var _staffBypass=CU&&(CU.role_code==='ROLE-STF'||CU.role_code==='ROLE-SYS');
+  if(!FDI&&!_staffBypass&&gv('ftype')==='incoming') _applyFixedFlow();
 }
 
 function _getProjValue(){
@@ -596,6 +614,9 @@ async function saveDoc(status){
     if(!(gv('fdsc')||'').trim()){a.innerHTML=alrtH('er','กรุณาเลือกประเภทหนังสือ');return}
     if(gv('fdsc')==='เรื่องอื่น ๆ'&&!(gv('fsubject')||'').trim()){a.innerHTML=alrtH('er','กรุณาระบุว่าเป็นเรื่องอะไร');return}
     if(!(gv('ffromdept')||'').trim()){a.innerHTML=alrtH('er','กรุณาระบุชื่อผู้ส่งเอกสาร');return}
+    // ขั้นตอนที่ล็อกต้องมีผู้รับผิดชอบครบทุกขั้นก่อนบันทึก — step แก้ไม่ได้อีกหลังสร้างเอกสาร (ฟอร์มแก้ไขไม่มีการ์ด workflow)
+    var _missing=FS.filter(function(s){return s.locked&&!s.assigned_to}).map(function(s){return s.step_name});
+    if(!FDI&&_missing.length){a.innerHTML=alrtH('er','กรุณาเลือกผู้ลงนามให้ครบทุกขั้นตอน (ยังไม่ได้เลือก: '+_missing.join(', ')+')');return}
   }
   if(_dtype==='outgoing'&&status!=='draft'){
     if(!_getProjValue()){a.innerHTML=alrtH('er','กรุณาระบุชื่อโครงการ / กิจกรรม');return}
@@ -647,7 +668,7 @@ async function saveDoc(status){
             if(stepSt==='active') extraSt={deadline_datetime:stepDeadline(FS[i].deadline_days)};
           }
           var _stRow=Object.assign({},FS[i],extraSt,{document_id:did,step_number:i+1,status:stepSt});
-          delete _stRow.locked; // flag เฉพาะฝั่ง UI — ตาราง workflow_steps ไม่มีคอลัมน์นี้ (มีแค่ workflow_template_steps)
+          delete _stRow.locked; delete _stRow.fixSelf; delete _stRow.extra; // flag เฉพาะฝั่ง UI — ตาราง workflow_steps ไม่มีคอลัมน์นี้ (มีแค่ workflow_template_steps)
           await dp('workflow_steps',_stRow);
         }
         if(finalStatus==='pending'){
