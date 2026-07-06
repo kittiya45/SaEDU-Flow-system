@@ -23,7 +23,7 @@ async function vAdm(){
      val:cnt.pnd, sub:'กรุณาตรวจสอบและดำเนินการ',
      ico:'bell_f', grad:'linear-gradient(135deg,#7C3AED 0%,#A855F7 100%)', shadow:'rgba(124,58,237,.30)'}
   ];
-  html.push('<div class="grid grid-cols-3 max-[600px]:grid-cols-1 gap-6 mb-6">');
+  html.push('<div class="grid grid-cols-3 max-[600px]:grid-cols-1 gap-6 mb-8">');
   uCards.forEach(function(c){
     html.push(
       '<div class="adm-stat-card" style="border-radius:16px;padding:16px 18px;background:'+c.grad+';position:relative;overflow:hidden;box-shadow:0 4px 16px '+c.shadow+';cursor:default">'+
@@ -59,7 +59,7 @@ async function vAdm(){
   var _canAddAdv=CU.role_code==='ROLE-SYS'||CU.role_code==='ROLE-STF';
   _admTab='all';
   html.push(
-    '<div class="flex items-center gap-2.5 mb-3 flex-wrap">'+
+    '<div class="flex items-center gap-2.5 mb-5 flex-wrap">'+
       '<div class="search-wrap flex-1 min-w-[180px]">'+
         '<div class="search-icon">'+svg('srch',15)+'</div>'+
         '<input class="fi" id="asrch" placeholder="ค้นหาชื่อ, รหัสนิสิต, อีเมล, ตำแหน่ง..." oninput="setAS()" style="padding-left:38px;height:38px;font-size:13px">'+
@@ -74,10 +74,12 @@ async function vAdm(){
       '</button>'
       :'')+
     '</div>'+
-    '<div id="atabs" class="flex flex-wrap gap-1 mb-4">'+
+    '<div id="atabs" class="flex flex-wrap gap-1 mb-6">'+
     [['all','ทั้งหมด'],['pending','รอการอนุมัติ'],['gnk','กนค.'],['advisor','อาจารย์'],['staff','เจ้าหน้าที่']].map(function(x){
+      var cnt=tc[x[0]]||0;
+      var chipMod=(x[0]==='pending'&&cnt>0)?' tab-count-action':(cnt===0?' tab-count-zero':'');
       return '<button class="ptab'+(x[0]==='all'?' on':'')+'" data-action="setAT" data-tab="'+x[0]+'">'+x[1]+
-        ' <span class="ml-1 inline-block bg-[#EBEBEB] rounded-[10px] px-[7px] py-px text-[10px] text-[#a89e99] font-semibold">'+tc[x[0]]+'</span></button>';
+        '<span class="tab-count'+chipMod+'">'+cnt+'</span></button>';
     }).join('')+
     '</div>'
   );
@@ -95,9 +97,10 @@ function setAT(t){
 
 function rAdmTbl(users){
   if(!users.length){
-    return '<div class="py-14 text-center">'+
-      '<div class="w-16 h-16 rounded-[20px] bg-[#F5F3F0] flex items-center justify-center mx-auto mb-4 text-[#a89e99]">'+svg('users',40)+'</div>'+
-      '<div class="text-[14px] font-semibold text-[#6b6560]">ไม่มีผู้ใช้งานในหมวดนี้</div>'+
+    return '<div class="flex flex-col items-center justify-center text-center py-20 px-4">'+
+      '<div class="w-16 h-16 rounded-[18px] bg-[#F5F3F0] flex items-center justify-center mb-4 text-[#bcb4ad]">'+svg('users',36)+'</div>'+
+      '<div class="text-[15px] font-semibold text-[#6b6560]">ไม่มีผู้ใช้งานในหมวดนี้</div>'+
+      '<div class="text-[13px] text-[#a89e99] mt-1.5">ลองสลับแท็บอื่น หรือปรับคำค้นหา</div>'+
     '</div>';
   }
 

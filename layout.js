@@ -26,6 +26,14 @@ function _buildNotifBell(activeSteps, pendingCount){
         '</div>':'') +
         (total===0?'<div style="padding:32px 16px;text-align:center;color:#a89e99;font-size:12px">ทุกอย่างเรียบร้อยดี ✓</div>':'') +
       '</div>' +
+      // ── เชื่อมต่อ LINE OA (ช่องทางแจ้งเตือนเสริมสำหรับคนไม่ค่อยเปิดอีเมล) ──
+      '<div style="border-top:1px solid #F0F0F0;padding:10px 16px;display:flex;align-items:center;gap:10px;cursor:pointer;transition:background .12s" onmouseover="this.style.background=\'#FAFAFA\'" onmouseout="this.style.background=\'\'" onclick="_closeNotifPanel();showLineLink()">' +
+        '<div style="width:32px;height:32px;border-radius:9px;background:#06C755;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#fff;font-size:8px;font-weight:800;letter-spacing:.3px">LINE</div>' +
+        (CU&&CU.line_user_id
+          ?'<div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:600;color:#18120E">รับแจ้งเตือนทาง LINE อยู่ <span style="color:#06C755">✓</span></div><div style="font-size:10px;color:#a89e99;margin-top:2px">กดเพื่อจัดการการเชื่อมต่อ</div></div>'
+          :'<div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:600;color:#18120E">รับแจ้งเตือนทาง LINE</div><div style="font-size:10px;color:#a89e99;margin-top:2px">เชื่อมต่อบัญชี LINE เพื่อรับแจ้งเตือนเอกสาร</div></div>') +
+        '<span style="color:#a89e99;font-size:14px">›</span>' +
+      '</div>' +
     '</div>' +
   '</div>';
 }

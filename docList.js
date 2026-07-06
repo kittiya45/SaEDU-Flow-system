@@ -96,8 +96,8 @@ async function vDocs(){
   [['all','ทั้งหมด'],['action','ต้องดำเนินการ'],['pending','กำลังดำเนินการ'],
    ['completed','เสร็จสิ้น'],['draft','ร่าง']].forEach(function(x){
     var cnt=tc[x[0]]||0;
-    var badgeCls=(x[0]==='action'&&cnt>0)?'bg-[#E83A00] text-white':'bg-[#EBEBEB] text-[#a89e99]';
-    html.push('<div class="ptab'+(x[0]==='all'?' on':'')+'" data-action="setDT" data-tab="'+x[0]+'">'+x[1]+' <span class="'+badgeCls+' rounded-[10px] px-[7px] py-px text-[11px]">'+cnt+'</span></div>')
+    var chipMod=(x[0]==='action'&&cnt>0)?' tab-count-action':(cnt===0?' tab-count-zero':'');
+    html.push('<div class="ptab'+(x[0]==='all'?' on':'')+'" data-action="setDT" data-tab="'+x[0]+'">'+x[1]+'<span class="tab-count'+chipMod+'">'+cnt+'</span></div>')
   });
   html.push('</div>');
   // แสดง banner แจ้งเตือนถ้ามีงานรอออกเลข

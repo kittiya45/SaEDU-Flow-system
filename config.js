@@ -204,7 +204,9 @@ var SETT={
   max_file_size_mb:10,
   email_prefix:'[กนค.]',
   system_announcement:'',
-  system_announcement_type:'info'
+  system_announcement_type:'info',
+  line_oa_id:'',   // Basic ID ของ LINE OA (เช่น @123abcd) — ใช้สร้างลิงก์แอดเพื่อนใน modal เชื่อมต่อ LINE
+  app_url:''       // URL ระบบ — แนบท้ายข้อความแจ้งเตือน LINE
 };
 async function loadAppSettings(){
   try{

@@ -33,6 +33,10 @@ document.addEventListener('click', function(e){
   else if(a==='rmWfPerson') rmWfPerson(+id);
   else if(a==='changePw') showChangePw();
   else if(a==='doChangePw') doChangePw();
+  else if(a==='showLineLink') showLineLink();
+  else if(a==='doLineLinkCode') doLineLinkCode();
+  else if(a==='lineLinkRefresh') lineLinkRefresh();
+  else if(a==='doLineUnlink') doLineUnlink();
   else if(a==='doChangePwLogin') doChangePwLogin();
   else if(a==='showChangePwPopup') showChangePwPopup();
   else if(a==='closeChangePwPopup') closeChangePwPopup();
@@ -66,6 +70,7 @@ document.addEventListener('click', function(e){
   else if(a==='admRenew') admRenew(id);
   else if(a==='doAdmResetPw') doAdmResetPw(el.dataset.uid);
   else if(a==='doReSubmit') doReSubmit(id).catch(function(e){_resubBusy=false;console.error('doReSubmit error:',e)});
+  else if(a==='doRecall') doRecall(id);
   else if(a==='admDelDoc') admDelDoc(id);
   else if(a==='admChgStatus') admChgStatus(id);
   else if(a==='doAdmChgStatus') doAdmChgStatus(id, el.dataset.status);

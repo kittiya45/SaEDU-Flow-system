@@ -51,13 +51,13 @@ async function vDet(docId){
   var hasRejectedHistory=wf.some(function(s){return s.status==='rejected'});
 
   var html=['<div class="flex items-center gap-2.5 mb-3 flex-wrap">'];
-  html.push('<button class="btn btn-soft sm" data-action="nav" data-view="docs">'+svg('back',13)+' กลับรายการ</button>');
+  html.push('<button class="btn-back" data-action="nav" data-view="docs">'+svg('back',15)+' กลับรายการ</button>');
   html.push(sBadge(doc.status));
   // Status banners — เก็บแยกไว้ก่อน แสดงเป็นแถบเต็มความกว้างใต้ toolbar (ไม่ปนกับปุ่ม action)
   var banners=[];
-  if(doc.status==='completed') banners.push('<div class="al al-ok"><span class="al-icon">'+svg('ok',13)+'</span><span>เอกสารผ่านการอนุมัติทุกขั้นตอนเรียบร้อยแล้ว</span></div>');
+  if(doc.status==='completed') banners.push('<div class="al al-ok"><span class="al-icon">'+svg('ok',13)+'</span><span><strong>อนุมัติครบทุกขั้นตอนแล้ว</strong> เอกสารเสร็จสมบูรณ์</span></div>');
   var _canNum=doc.status==='numbering'&&(doc.created_by===CU.id||['ROLE-SYS','ROLE-STF'].includes(CU.role_code));
-  if(doc.status==='numbering') banners.push('<div class="al al-wa"><span class="al-icon">'+svg('pen',13)+'</span><span>'+(_canNum?'ลายเซ็นครบแล้ว — กรุณาออกเลขที่หนังสือและวันที่':'รอผู้จัดทำออกเลขที่หนังสือ')+'</span></div>');
+  if(doc.status==='numbering') banners.push('<div class="al al-wa"><span class="al-icon">'+svg('pen',13)+'</span><span>'+(_canNum?'<strong>ลายเซ็นครบทุกขั้นตอนแล้ว</strong> กดปุ่ม “ออกเลขหนังสือ” ด้านบนเพื่อกำหนดเลขที่และวันที่':'<strong>รอผู้จัดทำออกเลขที่หนังสือ</strong> เอกสารผ่านการลงนามครบแล้ว')+'</span></div>');
   // Banner: cascade — แสดงเมื่อ step ที่ active ถูก re-activate เพราะ step ถัดไปตีกลับ
   var _curActWf=wf.filter(function(s){return s.status==='active'})[0];
   var _nextRejWf=_curActWf?wf.find(function(s){return s.step_number>_curActWf.step_number&&s.status==='rejected'}):null;
@@ -100,6 +100,11 @@ async function vDet(docId){
   }
   if(doc.status==='rejected'&&doc.created_by===CU.id){
     html.push('<button class="btn btn-primary sm" data-action="doReSubmit" data-id="'+docId+'">'+svg('up',13)+' ส่งใหม่อีกครั้ง</button>');
+  }
+  // [Recall] ผู้จัดทำดึงเอกสารกลับเป็นฉบับร่างได้ เฉพาะตอนที่ยังไม่มีผู้อนุมัติขั้นตอนใดเลย
+  // (step 1 คือ step ผู้จัดทำเอง auto-done ตอน submit — นับเฉพาะ step 2 ขึ้นไป)
+  if(doc.status==='pending'&&doc.created_by===CU.id&&!wf.some(function(s){return s.step_number>1&&s.status==='done'})){
+    html.push('<button class="btn btn-soft sm" data-action="doRecall" data-id="'+docId+'">'+svg('undo',13)+' ดึงกลับ</button>');
   }
   // Secondary
   if(CAN.up(CU.role_code)){
@@ -460,6 +465,11 @@ async function doForward(docId){
       }
       await dp('notifications',{document_id:docId,recipient_id:toId,recipient_email:recipEmail||'',subject:emailSubj,body:emailBody,notification_type:'forward',status:fwdStatus,sent_at:new Date().toISOString()});
     }catch(fe){console.warn('Forward notify failed:',fe)}
+    // LINE OA push (ช่องทางเสริม — ข้ามเงียบ ๆ ถ้าผู้รับไม่ได้ผูก LINE)
+    try{
+      var fwdLine=(SETT.email_prefix||'[กนค.]')+' 📨 มีเอกสารส่งต่อถึงคุณ\nเรียน '+(toUser?toUser.full_name:'')+'\nเรื่อง: '+(doc2.title||'')+(note?'\nหมายเหตุ: '+note:'')+'\n\n'+(SETT.app_url?'เข้าสู่ระบบเพื่อรับเอกสาร: '+SETT.app_url:'กรุณาเข้าสู่ระบบ SAEDU Flow เพื่อรับเอกสาร');
+      await sendLineWithLog(docId,toId,recipEmail,emailSubj,fwdLine,'forward');
+    }catch(le){console.warn('Forward LINE failed:',le)}
     $e('mwrap').innerHTML='';
     var a=$e('dal');if(a)a.innerHTML=alrtH('ok','ส่งต่อเอกสารเรียบร้อยแล้ว และแจ้งเตือนทางอีเมลแล้ว');
     setTimeout(function(){nav('det',docId)},900)
@@ -786,6 +796,72 @@ async function _doReSubmitConfirmed(docId){
     showAlert('เกิดข้อผิดพลาด: '+e.message,'er');
   }finally{
     _resubBusy=false;
+  }
+}
+
+var _recallBusy=false;
+/* ── RECALL — ผู้จัดทำดึงเอกสารกลับเป็นฉบับร่าง (ได้เฉพาะตอนยังไม่มีผู้อนุมัติขั้นตอนใด) ── */
+function doRecall(docId){
+  if(_recallBusy)return;
+  showConfirm(
+    'ดึงเอกสารกลับ?',
+    'เอกสารจะกลับเป็นฉบับร่างและออกจากขั้นตอนอนุมัติ ผู้รับผิดชอบขั้นตอนปัจจุบันจะไม่เห็นงานนี้จนกว่าจะส่งใหม่อีกครั้ง',
+    function(){_doRecallConfirmed(docId);},
+    {confirmLabel:'ดึงกลับ',confirmClass:'btn-danger',icon:'undo',iconBg:'#FFFBEB',iconColor:'#D97706'}
+  );
+}
+async function _doRecallConfirmed(docId){
+  if(_recallBusy)return;
+  _recallBusy=true;
+  try{
+    // เช็คสถานะสดจาก DB ก่อนเสมอ — กันเคสมีคนอนุมัติ/ตีกลับไประหว่างที่เปิดหน้าค้างไว้
+    var doc=(await dg('documents','?id=eq.'+safeId(docId)))[0];
+    if(!doc||doc.status!=='pending'||doc.created_by!==CU.id){
+      showAlert('ดึงกลับไม่ได้: สถานะเอกสารเปลี่ยนไปแล้ว','wa');_recallBusy=false;nav('det',docId);return
+    }
+    var wf=await dg('workflow_steps','?document_id=eq.'+safeId(docId)+'&order=step_number');
+    if(!Array.isArray(wf)||!wf.length){showAlert('ไม่พบขั้นตอนของเอกสาร','er');_recallBusy=false;return}
+    if(wf.some(function(s){return s.step_number>1&&s.status==='done'})){
+      showAlert('ดึงกลับไม่ได้: มีผู้อนุมัติบางขั้นตอนไปแล้ว ต้องให้ผู้ที่ถือเอกสารกด "ส่งคืนแก้ไข" แทน','wa');_recallBusy=false;nav('det',docId);return
+    }
+    // จำผู้ถือ step active ไว้ก่อนรีเซ็ต เพื่อส่งอีเมลแจ้งว่างานนี้ถูกดึงกลับแล้ว
+    var _activeStep=wf.filter(function(s){return s.status==='active'&&s.assigned_to&&s.assigned_to!==CU.id})[0];
+    // รีเซ็ต step กลับรูปเดียวกับฉบับร่างที่เพิ่งสร้าง (step 1 active, ที่เหลือ pending)
+    // — ต้องเป็นรูปนี้ เพราะตอนกดส่งใหม่ docForm.js (FDI branch) ไม่สร้าง/แก้ step ใด ๆ เลย
+    for(var i=0;i<wf.length;i++){
+      var step=wf[i];
+      var _upd={action_taken:null,note:null,revision_section:null,action_at:null,completed_at:null,rejected_by:null};
+      if(step.step_number===1){_upd.status='active';_upd.deadline_datetime=stepDeadline(step.deadline_days);}
+      else{_upd.status='pending';_upd.deadline_datetime=null;}
+      await dpa('workflow_steps',step.id,_upd);
+    }
+    await dpa('documents',docId,{status:'draft',current_step:1,updated_at:new Date().toISOString()});
+    await dp('document_history',{document_id:docId,action:'ดึงเอกสารกลับ',performed_by:CU.id,note:'ผู้จัดทำดึงเอกสารกลับเป็นฉบับร่าง — ออกจากขั้นตอนอนุมัติ'});
+    // แจ้งผู้ที่ถือ step active อยู่ (ถ้าเปิด notify_step) ว่าไม่ต้องดำเนินการต่อ
+    if(_activeStep&&doc.notify_step!==false){
+      try{
+        var _ru=await dg('user_directory','?id=eq.'+safeId(_activeStep.assigned_to)+'&select=id,full_name,contact_email,email');
+        var _u=Array.isArray(_ru)?_ru[0]:null;
+        var _em=_u?(_u.contact_email||_u.email):'';
+        var _subj=(SETT.email_prefix||'[กนค.]')+' ↩ ผู้จัดทำดึงเอกสารกลับ: '+(doc.title||'');
+        if(_u&&_em&&_em.includes('@')&&!_em.includes('@gnk.student')){
+          var _body='เรียน '+esc(_u.full_name)+',<br><br>เอกสารเรื่อง "'+esc(doc.title||'')+'" ถูกผู้จัดทำดึงกลับไปแก้ไขแล้ว ไม่ต้องดำเนินการใด ๆ หากส่งเข้าระบบใหม่จะมีอีเมลแจ้งอีกครั้ง';
+          var _er=await fetch(SU+'/functions/v1/send-email',{method:'POST',headers:{'Content-Type':'application/json','Authorization':H.Authorization,'apikey':SK},body:JSON.stringify({to:_em,subject:_subj,html:_body})});
+          if(_er.ok&&typeof showEmailToast==='function') showEmailToast(_em,_subj);
+          await dp('notifications',{document_id:docId,recipient_id:_u.id,recipient_email:_em,subject:_subj,body:_body,notification_type:'recall',status:_er.ok?'sent':'failed',sent_at:new Date().toISOString()});
+        }
+        // LINE OA push (ส่งได้แม้ผู้รับไม่มีอีเมลจริง)
+        if(_u){
+          var _lineTxt=(SETT.email_prefix||'[กนค.]')+' ↩️ ผู้จัดทำดึงเอกสารกลับ\nเรียน '+_u.full_name+'\nเรื่อง: '+(doc.title||'')+'\nเอกสารถูกดึงกลับไปแก้ไขแล้ว ไม่ต้องดำเนินการใด ๆ หากส่งเข้าระบบใหม่จะมีการแจ้งอีกครั้ง';
+          try{await sendLineWithLog(docId,_u.id,_em||'',_subj,_lineTxt,'recall')}catch(le){console.warn('Recall LINE failed:',le)}
+        }
+      }catch(ne){console.warn('Recall notify failed:',ne)}
+    }
+    nav('det',docId).then(function(){showAlert('ดึงเอกสารกลับเรียบร้อยแล้ว เอกสารกลับเป็นฉบับร่าง แก้ไขแล้วกดส่งใหม่ได้เลย','ok')}).catch(function(){});
+  }catch(e){
+    showAlert('เกิดข้อผิดพลาด: '+e.message,'er');
+  }finally{
+    _recallBusy=false;
   }
 }
 

@@ -9,16 +9,14 @@ function rWfPeople(){
     var posLabel=u&&u.position_code?(PTH[u.position_code]||u.position_code):'';
     var roleLabel=posLabel||RTH[s.role_required]||s.role_required||'—';
     var roleColor={'ROLE-SGN':'#0F8C46','ROLE-REV':'#C77A1A','ROLE-ADV':'#7C3AED','ROLE-CRT':'#2563EB','ROLE-STF':'#6B6157'}[s.role_required]||'#6B6157';
-    var cardBg=s.locked?'#FFF8F2':'#FEFCF9';
-    var cardBd=s.locked?'#FFE3CF':'#F0EBE0';
-    var lockBadge=s.locked?'<span style="font-size:10.5px;font-weight:600;color:#8C2400;background:#FFF1E8;border:1px solid #FFE3CF;padding:2px 8px;border-radius:999px;margin-left:8px;letter-spacing:-.005em">บังคับ</span>':'';
+    var cardBg='#FEFCF9';
+    var cardBd='#F0EBE0';
     var actionBtn=i===0?'':
-      s.locked?'<span style="width:32px;height:32px;border-radius:10px;background:#FFF1E8;display:flex;align-items:center;justify-content:center;color:#E83A00;flex-shrink:0" title="ขั้นตอนบังคับ">'+svg('lock',14)+'</span>':
       '<button style="width:32px;height:32px;border-radius:10px;border:1px solid #EAE4D8;background:#FFFDFA;display:flex;align-items:center;justify-content:center;color:#9A8F84;cursor:pointer;flex-shrink:0;transition:color .15s ease,border-color .15s ease,background-color .15s ease" onmouseover="this.style.color=\'#D04444\';this.style.borderColor=\'#F2C3C3\';this.style.background=\'#FCEAEA\'" onmouseout="this.style.color=\'#9A8F84\';this.style.borderColor=\'#EAE4D8\';this.style.background=\'#FFFDFA\'" data-action="rmWfPerson" data-id="'+i+'" title="ลบ">'+svg('x',14)+'</button>';
     return '<div style="display:flex;align-items:center;gap:12px;padding:14px 16px;border:1px solid '+cardBd+';background:'+cardBg+';border-radius:12px;margin-bottom:8px;box-shadow:0 1px 2px rgba(26,22,18,.03)">'+
       '<span style="width:32px;height:32px;border-radius:10px;background:#E83A00;color:#FFFCF8;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;flex-shrink:0;font-variant-numeric:tabular-nums">'+(i+1)+'</span>'+
       '<div style="flex:1;min-width:0">'+
-        '<div style="display:flex;align-items:center;flex-wrap:wrap"><span style="font-size:13.5px;font-weight:600;color:#1A1612;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;letter-spacing:-.005em">'+nm+'</span>'+lockBadge+'</div>'+
+        '<div style="display:flex;align-items:center;flex-wrap:wrap"><span style="font-size:13.5px;font-weight:600;color:#1A1612;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;letter-spacing:-.005em">'+nm+'</span></div>'+
         '<span style="font-size:11.5px;font-weight:500;color:'+roleColor+';margin-top:3px;display:inline-block">'+esc(roleLabel)+'</span>'+
       '</div>'+
       actionBtn+
@@ -27,7 +25,7 @@ function rWfPeople(){
 }
 
 function rmWfPerson(i){
-  if(i===0||(FS[i]&&FS[i].locked)) return;
+  if(i===0) return;
   FS.splice(i,1);
   var w=$e('wfwrap'); if(w) w.innerHTML=rWfPeople();
   calcDeadline()
@@ -45,10 +43,7 @@ function addWfPerson(){
   }
   var role=u.role_code||'ROLE-CRT';
   var stepName=RTH[role]||u.full_name;
-  var _lockIdx=-1;
-  for(var _k=0;_k<FS.length;_k++){if(FS[_k].locked){_lockIdx=_k;break;}}
-  if(_lockIdx>=0) FS.splice(_lockIdx,0,{step_name:stepName,role_required:role,assigned_to:uid,deadline_days:2});
-  else FS.push({step_name:stepName,role_required:role,assigned_to:uid,deadline_days:2});
+  FS.push({step_name:stepName,role_required:role,assigned_to:uid,deadline_days:2});
   sel.value='';
   var w=$e('wfwrap'); if(w) w.innerHTML=rWfPeople();
   calcDeadline()

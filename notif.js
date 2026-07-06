@@ -12,44 +12,43 @@ async function sendNotifEmail(docId, action, newStatus, note){
   var deadlineStr=doc.due_date?new Date(doc.due_date).toLocaleDateString('th-TH',{day:'numeric',month:'long',year:'2-digit'}):'';
 
   // ── สร้าง recipient list ──
+  // ผู้รับเข้า list เสมอแม้ไม่มีอีเมลจริง (@gnk.student) — เผื่อผูก LINE ไว้:
+  // อีเมลส่งเฉพาะคน emailOk, LINE ลองส่งทุกคน (send-line ข้ามเงียบ ๆ ถ้าไม่ได้ผูก)
   var recipients=[];
   function _okEmail(em){return em&&em.includes('@')&&!em.includes('@gnk.student')}
+  function _push(u){if(!u)return;var em=u.contact_email||u.email||'';recipients.push({user:u,email:em,emailOk:!!_okEmail(em)})}
   if(newStatus==='completed'||newStatus==='numbering'){
     // แจ้งเตือนผู้จัดทำเมื่อเอกสารเสร็จสิ้น หรือพร้อมออกเลขหนังสือ
     if(doc.created_by){
       var creatorUser=await dg('user_directory','?id=eq.'+safeId(doc.created_by));
-      if(creatorUser[0]){
-        var em=creatorUser[0].contact_email||creatorUser[0].email;
-        if(_okEmail(em)) recipients.push({user:creatorUser[0],email:em});
-      }
+      _push(creatorUser[0]);
     }
   } else if(action==='approve'&&nextStep&&nextStep.assigned_to){
     var ru=await dg('user_directory','?id=eq.'+nextStep.assigned_to);
-    if(ru[0]){var em=ru[0].contact_email||ru[0].email;if(_okEmail(em))recipients.push({user:ru[0],email:em})}
+    _push(ru[0]);
   } else if(action==='reject'){
     // cascade: nextStep คือ step ก่อนหน้าที่ถูก re-activate → แจ้งเขา
     // final reject: ไม่มี active step → แจ้งผู้จัดทำ
     if(nextStep&&nextStep.assigned_to){
       var _ruc=await dg('user_directory','?id=eq.'+nextStep.assigned_to);
-      if(_ruc[0]){var _emc=_ruc[0].contact_email||_ruc[0].email;if(_okEmail(_emc))recipients.push({user:_ruc[0],email:_emc})}
+      _push(_ruc[0]);
     } else if(doc.created_by){
       var cu2=await dg('user_directory','?id=eq.'+doc.created_by);
-      if(cu2[0]){var em2=cu2[0].contact_email||cu2[0].email;if(_okEmail(em2))recipients.push({user:cu2[0],email:em2})}
+      _push(cu2[0]);
     }
   } else if((action==='create'||action==='resubmit')&&nextStep&&nextStep.assigned_to){
     var ru3=await dg('user_directory','?id=eq.'+nextStep.assigned_to);
-    if(ru3[0]){var em3=ru3[0].contact_email||ru3[0].email;if(_okEmail(em3))recipients.push({user:ru3[0],email:em3})}
+    _push(ru3[0]);
   } else if(action==='overdue'){
     var overdueIds=[];
     if(nextStep&&nextStep.assigned_to) overdueIds.push(nextStep.assigned_to);
+    // เอกสาร completed ที่รอผู้รับปลายทางกดรับ — เตือนผู้รับปลายทางด้วย
+    if(doc.status==='completed'&&doc.forwarded_to_id) overdueIds.push(doc.forwarded_to_id);
     if(doc.created_by) overdueIds.push(doc.created_by);
     var uniqueOIds=[...new Set(overdueIds)];
     if(uniqueOIds.length){
       var overdueUsers=await dg('user_directory','?id=in.('+uniqueOIds.join(',')+')'+'&select=id,full_name,email,contact_email');
-      overdueUsers.forEach(function(u){
-        var em=u.contact_email||u.email;
-        if(_okEmail(em)) recipients.push({user:u,email:em})
-      })
+      overdueUsers.forEach(function(u){_push(u)})
     }
   }
 
@@ -75,6 +74,14 @@ async function sendNotifEmail(docId, action, newStatus, note){
   var emailSubj=_baseSubj+(_etmpl.subject_suffix?' '+_etmpl.subject_suffix:'');
   var sentEmails=[];
 
+  // เอกสารนี้เข้าเกณฑ์ "ระบบจัดการอัตโนมัติเมื่อเลยกำหนด" ไหม — เพื่อบอกในอีเมลเตือน
+  // (ค้างขั้นตอนสุดท้ายของ workflow หรือรอผู้รับปลายทางกดรับ — ตรงกับเงื่อนไขใน auto_approve_overdue RPC)
+  var _autoQ=false;
+  if(action==='overdue'){
+    if(doc.status==='pending'&&nextStep&&!wfSteps.some(function(s){return s.step_number>nextStep.step_number&&s.status!=='done'})) _autoQ=true;
+    else if(doc.status==='completed'&&doc.forwarded_to_id) _autoQ=true;
+  }
+
   for(var ri=0;ri<recipients.length;ri++){
     var recip=recipients[ri];
     var html=buildEmailHtml({
@@ -89,38 +96,52 @@ async function sendNotifEmail(docId, action, newStatus, note){
       nextStep: nextStep,
       urgency: doc.urgency,
       signedFileUrl: signedFileUrl,
-      extraNote: _etmpl.extra_note||''
+      extraNote: _etmpl.extra_note||'',
+      autoApprove: _autoQ,
+      slaDays: SETT.sla_cascade_days||3
     });
 
-    // ── ส่งอีเมลจริงผ่าน Edge Function ──
-    var status='failed';
-    try{
-      var resp=await fetch(SU+'/functions/v1/send-email',{
-        method:'POST',
-        headers:{'Content-Type':'application/json','Authorization':H.Authorization,'apikey':SK},
-        body:JSON.stringify({to:recip.email,subject:emailSubj,html:html})
-      });
-      var result=await resp.json();
-      status=resp.ok?'sent':'failed';
-      if(!resp.ok) console.warn('Email send failed for '+recip.email+':',result);
-      else sentEmails.push(recip.email);
-    }catch(e){
-      console.warn('Email fetch error:',e);
+    // ── ส่งอีเมลจริงผ่าน Edge Function (เฉพาะผู้รับที่มีอีเมลจริง) ──
+    if(recip.emailOk){
+      var status='failed';
+      try{
+        var resp=await fetch(SU+'/functions/v1/send-email',{
+          method:'POST',
+          headers:{'Content-Type':'application/json','Authorization':H.Authorization,'apikey':SK},
+          body:JSON.stringify({to:recip.email,subject:emailSubj,html:html})
+        });
+        var result=await resp.json();
+        status=resp.ok?'sent':'failed';
+        if(!resp.ok) console.warn('Email send failed for '+recip.email+':',result);
+        else sentEmails.push(recip.email);
+      }catch(e){
+        console.warn('Email fetch error:',e);
+      }
+
+      // ── บันทึก audit log ──
+      try{
+        await dp('notifications',{
+          document_id:docId,
+          recipient_id:recip.user.id,
+          recipient_email:recip.email,
+          subject:emailSubj,
+          body:html,
+          notification_type:action||'email',
+          status:status,
+          sent_at:new Date().toISOString()
+        });
+      }catch(e){}
     }
 
-    // ── บันทึก audit log ──
+    // ── LINE OA push (ช่องทางเสริม — ข้ามเงียบ ๆ ถ้าผู้รับไม่ได้ผูก LINE) ──
     try{
-      await dp('notifications',{
-        document_id:docId,
-        recipient_id:recip.user.id,
-        recipient_email:recip.email,
-        subject:emailSubj,
-        body:html,
-        notification_type:action||'email',
-        status:status,
-        sent_at:new Date().toISOString()
+      var lineText=buildLineText({
+        recipName:recip.user.full_name, action:action, newStatus:newStatus,
+        subj:subj, deadlineStr:deadlineStr, nextStep:nextStep, urgency:doc.urgency,
+        note:note, autoApprove:_autoQ, slaDays:SETT.sla_cascade_days||3
       });
-    }catch(e){}
+      await sendLineWithLog(docId,recip.user.id,recip.email,emailSubj,lineText,action||'email');
+    }catch(e){console.warn('LINE notify error:',e)}
   }
 
   if(sentEmails.length) showEmailToast(sentEmails,emailSubj);
@@ -128,11 +149,22 @@ async function sendNotifEmail(docId, action, newStatus, note){
 
 /* ── อีเมลแจ้งเพื่อทราบ (ไม่ต้อง action) ไปยังผู้ที่อนุมัติ/ลงนามไปแล้วก่อนหน้า step ที่ตีกลับ ── */
 async function sendRejectFyiEmail(docId, recipientUser, rejectedStepName, note){
-  var em=recipientUser.contact_email||recipientUser.email;
-  if(!em||!em.includes('@')||em.includes('@gnk.student')) return;
+  var em=recipientUser.contact_email||recipientUser.email||'';
+  var emOk=!!(em&&em.includes('@')&&!em.includes('@gnk.student'));
   var doc=(await dg('documents','?id=eq.'+docId))[0]; if(!doc) return;
   var subj=(doc.subject_line&&doc.subject_line.length<3&&/^[1-9]$/.test(doc.subject_line.trim()))?doc.title:(doc.subject_line||doc.title);
   var emailSubj=(SETT.email_prefix||'[กนค.]')+' ℹ️ แจ้งเพื่อทราบ: '+subj;
+
+  // ── LINE OA push (ส่งได้แม้ผู้รับไม่มีอีเมลจริง) ──
+  try{
+    var lineText=buildLineText({
+      recipName:recipientUser.full_name, action:'reject_fyi', newStatus:'rejected',
+      subj:subj, note:note, rejectedStepName:rejectedStepName, urgency:doc.urgency
+    });
+    await sendLineWithLog(docId,recipientUser.id,em,emailSubj,lineText,'reject_fyi');
+  }catch(e){console.warn('FYI LINE error:',e)}
+
+  if(!emOk) return;
   var html=buildEmailHtml({
     recipName: recipientUser.full_name,
     action: 'reject_fyi',
@@ -213,6 +245,7 @@ function buildEmailHtml(o){
     footerMsg='<p style="font-size:13px;color:#E65100;margin:16px 0 0">เพื่อทราบเท่านั้น ไม่ต้องดำเนินการเพิ่มเติม — เอกสารอยู่ระหว่างผู้จัดทำแก้ไข</p>';
   } else if(o.action==='overdue'){
     footerMsg='<p style="font-size:13px;color:#C62828;margin:16px 0 0;font-weight:700">⚠️ กรุณาเข้าสู่ระบบเพื่อดำเนินการโดยด่วน</p>';
+    if(o.autoApprove) footerMsg+='<p style="font-size:12.5px;color:#92400E;margin:10px 0 0;background:#FFFBEB;border-left:3px solid #F59E0B;border-radius:0 6px 6px 0;padding:10px 14px;line-height:1.6">อีเมลนี้ส่งเพียงครั้งเดียว — หากไม่มีการดำเนินการภายใน <strong>'+(o.slaDays||3)+' วันทำการ</strong> ระบบจะอนุมัติ/รับเอกสารให้อัตโนมัติ และบันทึกไว้ในประวัติเอกสาร</p>';
   } else {
     footerMsg='<p style="font-size:13px;color:#1565C0;margin:16px 0 0">กรุณาเข้าสู่ระบบเพื่อดำเนินการในขั้นตอนที่ได้รับมอบหมาย</p>';
   }
@@ -252,25 +285,67 @@ function buildEmailHtml(o){
     '</body></html>'
 }
 
-/* ── ตรวจและส่ง Overdue notification (เรียก 1 ครั้งต่อวัน) ── */
+/* ── ตรวจเอกสารเลยกำหนด (เรียกหลัง login, เครื่องละ 1 ครั้งต่อวัน) ──
+   นโยบาย: เตือนครั้งเดียวต่อเอกสาร → ถ้ายังเงียบเกิน sla_cascade_days วันทำการ
+   ระบบจัดการอัตโนมัติผ่าน auto_approve_overdue RPC เฉพาะเอกสารที่
+   (a) ค้างขั้นตอนสุดท้ายของ workflow หรือ (b) รอผู้รับปลายทางกดรับ
+   — เงื่อนไขจริงถูกตรวจซ้ำฝั่งเซิร์ฟเวอร์ใน RPC (supabase/overdue_once_auto_approve.sql) */
 async function sendOverdueNotifs(){
   var today=new Date().toISOString().substring(0,10);
   if(localStorage.getItem('_overdueCk')===today) return;
   localStorage.setItem('_overdueCk',today);
-  var overdueDocs=await dg('documents','?status=eq.pending&due_date=lt.'+today+'&notify_overdue=eq.true&select=id');
+  // เอกสารค้าง workflow + เอกสารเสร็จสิ้นที่ส่งต่อแล้วแต่ผู้รับยังไม่กดรับ
+  var rs=await Promise.all([
+    dg('documents','?status=eq.pending&due_date=lt.'+today+'&notify_overdue=eq.true&select=id'),
+    dg('documents','?status=eq.completed&forwarded_to_id=not.is.null&due_date=lt.'+today+'&notify_overdue=eq.true&select=id')
+  ]);
+  var pendDocs=Array.isArray(rs[0])?rs[0]:[];
+  var fwdDocs=Array.isArray(rs[1])?rs[1]:[];
+  // ตัดเอกสาร completed ที่ผู้รับกดรับไปแล้ว (forwarded_to_id ไม่ถูกล้างหลังรับ)
+  if(fwdDocs.length){
+    try{
+      var _accHist=await dg('document_history','?document_id=in.('+fwdDocs.map(function(d){return safeId(d.id)}).join(',')+')&action=eq.เจ้าหน้าที่รับเอกสาร&select=document_id');
+      var _accIds=new Set((Array.isArray(_accHist)?_accHist:[]).map(function(h){return h.document_id}));
+      fwdDocs=fwdDocs.filter(function(d){return !_accIds.has(d.id)});
+    }catch(e){fwdDocs=[]}
+  }
+  var overdueDocs=pendDocs.concat(fwdDocs);
   if(!overdueDocs.length) return;
-  var since=new Date(Date.now()-24*60*60*1000).toISOString();
+  var slaDays=SETT.sla_cascade_days||3;
   for(var i=0;i<overdueDocs.length;i++){
     var did=overdueDocs[i].id;
-    // dedup ผ่าน RPC (security definer) แทน SELECT ตรง — เพราะ RLS ใหม่ปิด notifications ให้เห็นเฉพาะของตัวเอง
-    // (ดู supabase/restrict_notifications_select.sql) ถ้า RPC ยังไม่ถูก deploy ให้ถือว่า "ยังไม่เคยส่ง" แล้วส่งต่อ
-    var _already=false;
+    // เวลาที่เตือนครั้งแรก: null = ยังไม่เคยเตือน, undefined = RPC ใหม่ยังไม่ deploy
+    var sentAt;
     try{
-      var _rr=await fetch(SU+'/rest/v1/rpc/overdue_notif_exists',{method:'POST',headers:H,body:JSON.stringify({p_doc:did})});
-      if(_rr.ok) _already=(await _rr.json())===true;
+      var _sr=await fetch(SU+'/rest/v1/rpc/overdue_notif_sent_at',{method:'POST',headers:H,body:JSON.stringify({p_doc:did})});
+      if(_sr.ok){var _sv=await _sr.json();sentAt=_sv?_sv:null;}
     }catch(e){}
-    if(_already) continue;
-    try{await sendNotifEmail(did,'overdue','overdue','')}catch(e){console.warn('Overdue notif failed:',e)}
+    if(sentAt===undefined){
+      // fallback: RPC เดิม (boolean) — เตือนเฉพาะที่ยังไม่เคยส่ง, ไม่ทำ auto-approve
+      var _already=false;
+      try{
+        var _rr=await fetch(SU+'/rest/v1/rpc/overdue_notif_exists',{method:'POST',headers:H,body:JSON.stringify({p_doc:did})});
+        if(_rr.ok) _already=(await _rr.json())===true;
+      }catch(e){}
+      if(_already) continue;
+      try{await sendNotifEmail(did,'overdue','overdue','')}catch(e){console.warn('Overdue notif failed:',e)}
+      continue;
+    }
+    if(sentAt===null){
+      // ยังไม่เคยเตือน → เตือนครั้งเดียว (ครั้งต่อไป sentAt จะไม่ null อีก)
+      try{await sendNotifEmail(did,'overdue','overdue','')}catch(e){console.warn('Overdue notif failed:',e)}
+      continue;
+    }
+    // เตือนไปแล้ว → ครบ grace period หรือยัง (RPC ตรวจซ้ำฝั่งเซิร์ฟเวอร์อีกชั้น)
+    if(new Date()<addWorkingDays(new Date(sentAt),slaDays)) continue;
+    try{
+      var _ar=await fetch(SU+'/rest/v1/rpc/auto_approve_overdue',{method:'POST',headers:H,body:JSON.stringify({p_doc:did})});
+      if(!_ar.ok) continue;
+      var _res=await _ar.json();
+      // แจ้งผู้จัดทำตาม flow ปกติของสถานะใหม่ (numbering/completed แจ้งผู้จัดทำ)
+      if(_res==='approved_numbering'){try{await sendNotifEmail(did,'approve','numbering','')}catch(e){}}
+      else if(_res==='approved_completed'){try{await sendNotifEmail(did,'approve','completed','')}catch(e){}}
+    }catch(e){console.warn('Auto-approve overdue failed:',e)}
   }
 }
 
@@ -281,4 +356,146 @@ function showEmailToast(emails, subj){
   t.innerHTML=svg('bell',16)+'<div><strong>ส่งอีเมลแจ้งเตือนแล้ว</strong><div class="text-[11px] text-[#388E3C] mt-[3px]">'+list.map(function(e){return '• '+e}).join('<br>')+'</div></div>';
   document.body.appendChild(t);
   setTimeout(function(){t.remove()},5000)
+}
+
+/* ═══ LINE OA NOTIFICATIONS ═══
+   ช่องทางแจ้งเตือนเสริมสำหรับผู้ที่ไม่ค่อยเปิดอีเมล — push ผ่าน Edge Function send-line
+   (resolve line_user_id ฝั่ง server ด้วย service role — user_directory ไม่ expose คอลัมน์นี้)
+   ผูกบัญชีด้วยรหัส 6 หลัก: แอปเขียน users.line_link_code → ผู้ใช้พิมพ์รหัสส่งในแชท OA
+   → Edge Function line-webhook จับคู่แล้วเขียน line_user_id
+   ล้มเหลว = เงียบ (fail-open) — อีเมลเดิมยังเป็นช่องทางหลักเสมอ */
+
+async function sendLinePush(recipientId, text){
+  if(!recipientId||!text) return 'skipped';
+  try{
+    // ⚠️ ห้ามส่ง H ทั้งก้อนไป /functions/v1 — Prefer header ทำ CORS preflight ล้มแบบเงียบ
+    var r=await fetch(SU+'/functions/v1/send-line',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':H.Authorization,'apikey':SK},
+      body:JSON.stringify({recipientId:recipientId,text:text})
+    });
+    var j=await r.json().catch(function(){return{}});
+    if(r.ok&&j.ok) return 'sent';
+    if(j&&j.skipped) return 'skipped';
+    console.warn('LINE push failed:',j);
+    return 'failed';
+  }catch(e){console.warn('LINE push error:',e);return 'failed'}
+}
+
+/* ส่ง LINE + บันทึก audit ลง notifications (เฉพาะเมื่อได้ลองส่งจริง — 'skipped' ไม่บันทึก
+   เพื่อไม่ให้เอกสารถูกนับว่า "เตือนแล้ว" โดย overdue_notif_sent_at ทั้งที่ไม่มีช่องทางไหนส่งออก)
+   ใช้ notification_type เดียวกับอีเมลของ action นั้น (แยกช่องทางด้วย subject prefix [LINE])
+   เพื่อให้ dedup ของ overdue ทำงานถูกต้องแม้ผู้รับไม่มีอีเมลจริง */
+async function sendLineWithLog(docId, recipientId, recipientEmail, subject, text, ntype){
+  var st=await sendLinePush(recipientId, text);
+  if(st==='skipped') return st;
+  try{
+    await dp('notifications',{
+      document_id:docId, recipient_id:recipientId, recipient_email:recipientEmail||'',
+      subject:'[LINE] '+subject, body:text, notification_type:ntype,
+      status:st, sent_at:new Date().toISOString()
+    });
+  }catch(e){}
+  return st;
+}
+
+/* ── ข้อความ LINE แบบย่อ (plain text — คู่ขนานกับ buildEmailHtml) ── */
+function buildLineText(o){
+  var pfx=SETT.email_prefix||'[กนค.]';
+  var head;
+  if(o.newStatus==='completed')      head='✅ เอกสารเสร็จสิ้นทุกขั้นตอน';
+  else if(o.newStatus==='numbering') head='🔢 ลายเซ็นครบแล้ว — รอออกเลขหนังสือ';
+  else if(o.action==='reject')       head='↩️ เอกสารถูกส่งคืนเพื่อแก้ไข';
+  else if(o.action==='reject_fyi')   head='ℹ️ แจ้งเพื่อทราบ: เอกสารที่ท่านเคยอนุมัติถูกส่งคืนแก้ไข';
+  else if(o.action==='overdue')      head='⚠️ เอกสารเลยกำหนด — กรุณาดำเนินการด่วน';
+  else                               head='📋 มีเอกสารรอการดำเนินการของคุณ';
+
+  var urgLabel={normal:'ปกติ',urgent:'เร่งด่วน',very_urgent:'ด่วนมาก'};
+  var lines=[pfx+' '+head];
+  if(o.recipName)   lines.push('เรียน '+o.recipName);
+  lines.push('เรื่อง: '+(o.subj||''));
+  if(o.urgency&&o.urgency!=='normal') lines.push('ความเร่งด่วน: '+(urgLabel[o.urgency]||o.urgency));
+  if(o.deadlineStr) lines.push('กำหนดส่ง: '+o.deadlineStr);
+  if(o.nextStep&&o.action!=='reject'&&o.newStatus!=='completed'&&o.nextStep.step_name) lines.push('ขั้นตอนที่รอ: '+o.nextStep.step_name);
+  if(o.rejectedStepName) lines.push('ตีกลับจากขั้นตอน: '+o.rejectedStepName);
+  if((o.action==='reject'||o.action==='reject_fyi')&&o.note) lines.push('ส่วนที่ต้องแก้ไข: '+o.note);
+  if(o.action==='overdue'&&o.autoApprove) lines.push('⏳ หากไม่ดำเนินการภายใน '+(o.slaDays||3)+' วันทำการ ระบบจะอนุมัติ/รับเอกสารให้อัตโนมัติ');
+  lines.push('');
+  lines.push(SETT.app_url?'เข้าสู่ระบบ: '+SETT.app_url:'กรุณาเข้าสู่ระบบ SAEDU Flow เพื่อดำเนินการ');
+  return lines.join('\n');
+}
+
+/* ── MODAL เชื่อมต่อ LINE (เปิดจากแผงกระดิ่งแจ้งเตือน) ── */
+function showLineLink(){
+  var mw=$e('mwrap'); if(!mw) return;
+  var linked=!!(CU&&CU.line_user_id);
+  var oaId=String(SETT.line_oa_id||'').trim();
+  var addUrl=oaId?('https://line.me/R/ti/p/'+encodeURIComponent(oaId.charAt(0)==='@'?oaId:'@'+oaId)):'';
+  var body;
+  if(linked){
+    body='<div class="al al-ok" style="margin-bottom:14px"><span class="al-icon">'+svg('ok',13)+'</span>'+
+      '<span>เชื่อมต่อ LINE แล้ว — คุณจะได้รับการแจ้งเตือนเอกสารทาง LINE OA</span></div>'+
+      '<p style="font-size:12px;color:#a89e99;line-height:1.7;margin:0 0 4px">หากต้องการเปลี่ยนบัญชี LINE ให้ยกเลิกการเชื่อมต่อก่อน แล้วเชื่อมต่อใหม่ด้วยบัญชีที่ต้องการ</p>';
+  }else{
+    body='<p style="font-size:13px;color:#18120E;line-height:1.8;margin:0 0 12px">รับการแจ้งเตือนเอกสาร (งานใหม่ ตีกลับ เลยกำหนด ฯลฯ) ผ่าน LINE — เหมาะสำหรับผู้ที่ไม่ค่อยได้เปิดอีเมล</p>'+
+      '<ol style="font-size:12.5px;color:#18120E;line-height:2;margin:0 0 14px;padding-left:20px;list-style:decimal">'+
+      '<li>เพิ่ม LINE OA ของระบบเป็นเพื่อน'+(addUrl?' — <a href="'+addUrl+'" target="_blank" rel="noopener" style="color:#06C755;font-weight:700">แอดเพื่อน '+esc(oaId)+'</a>':' (สแกน QR ของ OA หรือค้นหา LINE ID ที่เจ้าหน้าที่แจ้ง)')+'</li>'+
+      '<li>กดปุ่มด้านล่างเพื่อสร้างรหัสเชื่อมต่อ</li>'+
+      '<li>พิมพ์รหัส 6 หลักส่งในแชท LINE OA ภายใน 10 นาที</li>'+
+      '</ol>'+
+      '<div id="line-code-box"></div>';
+  }
+  mw.innerHTML='<div class="mo"><div class="modal">'+
+    '<div class="modal-head"><span class="modal-title" style="display:flex;align-items:center;gap:8px">'+
+      '<span style="width:22px;height:22px;border-radius:6px;background:#06C755;display:inline-flex;align-items:center;justify-content:center;color:#fff;font-size:7px;font-weight:800">LINE</span>'+
+      'รับแจ้งเตือนทาง LINE</span>'+
+    '<button class="btn btn-soft xs btn-icon" data-action="closeModal">'+svg('x',14)+'</button></div>'+
+    '<div class="modal-body">'+body+'</div>'+
+    '<div class="modal-foot">'+
+    '<button class="btn btn-soft" data-action="closeModal">ปิด</button>'+
+    (linked
+      ?'<button class="btn btn-danger" data-action="doLineUnlink">ยกเลิกการเชื่อมต่อ</button>'
+      :'<button class="btn btn-primary" data-action="doLineLinkCode" id="line-gen-btn">สร้างรหัสเชื่อมต่อ</button>')+
+    '</div></div></div>';
+}
+
+async function doLineLinkCode(){
+  var btn=$e('line-gen-btn');
+  if(btn){btn.disabled=true;btn.innerHTML='<span class="sp"></span>'}
+  var code=String(Math.floor(100000+Math.random()*900000));
+  var exp=new Date(Date.now()+10*60000).toISOString();
+  try{
+    await dpa('users',CU.id,{line_link_code:code,line_link_code_expires_at:exp});
+    var box=$e('line-code-box');
+    if(box) box.innerHTML=
+      '<div style="background:#F0FDF4;border:1.5px dashed #06C755;border-radius:14px;padding:18px;text-align:center;margin-bottom:10px">'+
+        '<div style="font-size:11px;color:#a89e99;margin-bottom:6px">รหัสเชื่อมต่อของคุณ (หมดอายุใน 10 นาที)</div>'+
+        '<div class="mono" style="font-size:30px;font-weight:800;letter-spacing:8px;color:#18120E">'+code+'</div>'+
+        '<div style="font-size:12px;color:#18120E;margin-top:8px;line-height:1.7">พิมพ์รหัสนี้ส่งในแชท LINE OA ได้เลย<br>เมื่อได้รับข้อความยืนยันแล้ว กดปุ่มด้านล่าง</div>'+
+      '</div>'+
+      '<button class="btn btn-soft" style="width:100%" data-action="lineLinkRefresh">'+svg('refresh',13)+' เชื่อมต่อแล้ว — ตรวจสอบสถานะ</button>';
+    if(btn){btn.disabled=false;btn.innerHTML='สร้างรหัสใหม่'}
+  }catch(e){
+    showAlert('เกิดข้อผิดพลาด: '+(e.message||e),'er');
+    if(btn){btn.disabled=false;btn.innerHTML='สร้างรหัสเชื่อมต่อ'}
+  }
+}
+
+async function lineLinkRefresh(){
+  try{
+    var rows=await dg('users','?id=eq.'+safeId(CU.id)+'&select=line_user_id');
+    if(Array.isArray(rows)&&rows[0]) CU.line_user_id=rows[0].line_user_id;
+  }catch(e){}
+  if(CU.line_user_id){showLineLink()}
+  else showAlert('ยังไม่พบการเชื่อมต่อ — กรุณาส่งรหัส 6 หลักในแชท LINE OA ก่อน แล้วลองตรวจสอบอีกครั้ง','wa');
+}
+
+function doLineUnlink(){
+  showConfirm('ยกเลิกการเชื่อมต่อ LINE','คุณจะไม่ได้รับการแจ้งเตือนเอกสารทาง LINE อีก (อีเมลยังส่งตามปกติ) ต้องการยกเลิกหรือไม่?',async function(){
+    try{
+      await dpa('users',CU.id,{line_user_id:null,line_link_code:null,line_link_code_expires_at:null});
+      CU.line_user_id=null;
+      showAlert('ยกเลิกการเชื่อมต่อ LINE เรียบร้อยแล้ว','ok');
+    }catch(e){showAlert('เกิดข้อผิดพลาด: '+(e.message||e),'er')}
+  });
 }

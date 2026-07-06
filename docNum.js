@@ -493,13 +493,18 @@ async function _doSetDocNumberConfirmed(docId,cap){
         var posUser=posUsers[0];
         if(posUser){
           var posEmail=posUser.contact_email||posUser.email;
+          var eSubj='[กนค.] หนังสือขาออก เลขที่ '+docNum+': '+(doc.title||'');
           if(posEmail&&!posEmail.includes('@gnk.student')){
-            var eSubj='[กนค.] หนังสือขาออก เลขที่ '+docNum+': '+(doc.title||'');
             var eBody='เรียน '+posUser.full_name+', มีหนังสือขาออกถึงท่าน เลขที่ '+docNum+' เรื่อง "'+esc(doc.title||'')+'"';
             var er=await fetch(SU+'/functions/v1/send-email',{method:'POST',headers:{'Content-Type':'application/json','Authorization':H.Authorization,'apikey':SK},body:JSON.stringify({to:posEmail,subject:eSubj,html:eBody})});
             if(er.ok&&typeof showEmailToast==='function') showEmailToast(posEmail,eSubj);
             await dp('notifications',{document_id:docId,recipient_id:posUser.id,recipient_email:posEmail,subject:eSubj,body:eBody,notification_type:'outgoing',status:er.ok?'sent':'failed',sent_at:new Date().toISOString()});
           }
+          // LINE OA push (ส่งได้แม้ผู้รับไม่มีอีเมลจริง)
+          try{
+            var eLine='[กนค.] 📄 หนังสือขาออกถึงท่าน\nเรียน '+posUser.full_name+'\nเลขที่: '+docNum+'\nเรื่อง: '+(doc.title||'')+'\n\n'+(SETT.app_url?'เข้าสู่ระบบ: '+SETT.app_url:'กรุณาเข้าสู่ระบบ SAEDU Flow เพื่อดูเอกสาร');
+            await sendLineWithLog(docId,posUser.id,posEmail||'',eSubj,eLine,'outgoing');
+          }catch(le){console.warn('Outgoing LINE failed:',le)}
         }
       }catch(ne){console.warn('Outgoing notify failed:',ne)}
       $e('mwrap').innerHTML='';
@@ -520,6 +525,11 @@ async function _doSetDocNumberConfirmed(docId,cap){
           }
           await dp('notifications',{document_id:docId,recipient_id:fwdId,recipient_email:fwdEmail||'',subject:fwdSubj,body:fwdBody,notification_type:'forward',status:fwdEmailStatus,sent_at:new Date().toISOString()});
         }catch(fe){console.warn('Forward notify failed:',fe)}
+        // LINE OA push (ส่งได้แม้ผู้รับไม่มีอีเมลจริง)
+        try{
+          var fwdLine='[กนค.] 📨 มีหนังสือขาเข้าส่งต่อถึงคุณ\nเรียน '+(fwdUser?fwdUser.full_name:'')+'\nเลขที่: '+docNum+'\nเรื่อง: '+(doc2.title||'')+(note?'\nหมายเหตุ: '+note:'')+'\n\n'+(SETT.app_url?'เข้าสู่ระบบเพื่อรับเอกสาร: '+SETT.app_url:'กรุณาเข้าสู่ระบบ SAEDU Flow เพื่อรับเอกสาร');
+          await sendLineWithLog(docId,fwdId,fwdEmail||'',fwdSubj,fwdLine,'forward');
+        }catch(le){console.warn('Forward LINE failed:',le)}
       }
       $e('mwrap').innerHTML='';
       var a=$e('dal');if(a)a.innerHTML=alrtH('ok','ออกเลขเอกสารเรียบร้อยแล้ว เลขที่: <strong class="mono">'+esc(docNum)+'</strong>'+(fwdId?' และส่งต่อแล้ว':''));

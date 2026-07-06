@@ -344,13 +344,16 @@ function selectDocType(type){
       var curDoc={from_department:gv('ffromdept'),addressed_to:gv('fto'),subject_line:gv('fsubject'),doc_date:gv('fdate'),due_date:gv('feventdate'),description:gv('fdsc')};
       tf.innerHTML=renderTypeFields(type,curDoc);
     }
-    // GNK-PRE (หัวหน้านิสิต) ลงนามทุกเอกสาร — เพิ่ม locked step เฉพาะขาเข้า (ขาออกไม่ต้องผ่าน workflow)
+    // GNK-PRE (หัวหน้านิสิต) — เพิ่มให้อัตโนมัติเป็นค่าเริ่มต้นเฉพาะขาเข้า (ขาออกไม่ต้องผ่าน workflow)
+    // ไม่ล็อก: ลบออกได้ และเพิ่มคนต่อท้ายได้ (ไม่บังคับเป็นคนสุดท้าย)
     // ยกเว้น: ROLE-STF และ ROLE-SYS ออกเลขเองได้โดยไม่ต้องรอ GNK-PRE
-    FS=FS.filter(function(s){return !s.locked});
+    var _pre=(FU||[]).find(function(u){return u.position_code==='GNK-PRE'&&u.id!==CU.id});
+    var _preStepName=PTH['GNK-PRE']||'หัวหน้านิสิต';
+    // เอา step ที่ระบบเคยเพิ่มอัตโนมัติออกก่อน กันซ้ำเมื่อสลับประเภทเอกสาร (step ที่ user เพิ่มเองใช้ชื่อจาก RTH จึงไม่โดน)
+    FS=FS.filter(function(s){return !s.locked&&!(_pre&&s.assigned_to===_pre.id&&s.step_name===_preStepName)});
     var _staffBypass=CU.role_code==='ROLE-STF'||CU.role_code==='ROLE-SYS';
-    if(type==='incoming'&&!_staffBypass){
-      var _pre=(FU||[]).find(function(u){return u.position_code==='GNK-PRE'&&u.id!==CU.id});
-      if(_pre) FS.push({step_name:PTH['GNK-PRE']||'หัวหน้านิสิต',role_required:'ROLE-SGN',assigned_to:_pre.id,deadline_days:2,locked:true});
+    if(type==='incoming'&&!_staffBypass&&_pre&&!FS.some(function(s){return s.assigned_to===_pre.id})){
+      FS.push({step_name:_preStepName,role_required:'ROLE-SGN',assigned_to:_pre.id,deadline_days:2});
     }
     var wfc=$e('wf-card');
     var fsub=$e('fsub');
@@ -643,7 +646,9 @@ async function saveDoc(status){
             stepSt=i===0?'active':'pending';
             if(stepSt==='active') extraSt={deadline_datetime:stepDeadline(FS[i].deadline_days)};
           }
-          await dp('workflow_steps',Object.assign({},FS[i],extraSt,{document_id:did,step_number:i+1,status:stepSt}));
+          var _stRow=Object.assign({},FS[i],extraSt,{document_id:did,step_number:i+1,status:stepSt});
+          delete _stRow.locked; // flag เฉพาะฝั่ง UI — ตาราง workflow_steps ไม่มีคอลัมน์นี้ (มีแค่ workflow_template_steps)
+          await dp('workflow_steps',_stRow);
         }
         if(finalStatus==='pending'){
           await dp('document_history',{document_id:did,action:'ผู้จัดทำยืนยันเอกสาร (อัตโนมัติ)',performed_by:CU.id});

@@ -430,8 +430,8 @@ function rAppSettingsCard(settings){
     '<div style="display:grid;grid-template-columns:1fr 2fr;gap:10px;margin-bottom:12px">'+
       '<div style="background:#FAFAF8;border-radius:12px;padding:14px 16px;border:1px solid #EBEBEB">'+
         '<div style="font-size:11px;font-weight:700;color:#18120E;margin-bottom:2px">ชื่อย่อองค์กร</div>'+
-        '<div style="font-size:10px;color:#a89e99;margin-bottom:8px">แสดงใน sidebar เช่น กนค.</div>'+
-        '<input id="sett-org-0" data-key="org_name" type="text" class="fi text-[13px]" style="font-weight:700" value="'+esc(_val('org_name','กนค.'))+'" placeholder="กนค.">'+
+        '<div style="font-size:10px;color:#a89e99;margin-bottom:8px">แสดงใน sidebar เช่น Saedu Flow</div>'+
+        '<input id="sett-org-0" data-key="org_name" type="text" class="fi text-[13px]" style="font-weight:700" value="'+esc(_val('org_name','Saedu Flow'))+'" placeholder="Saedu Flow">'+
       '</div>'+
       '<div style="background:#FAFAF8;border-radius:12px;padding:14px 16px;border:1px solid #EBEBEB">'+
         '<div style="font-size:11px;font-weight:700;color:#18120E;margin-bottom:2px">ชื่อระบบ (ย่อ)</div>'+
@@ -487,6 +487,21 @@ function rAppSettingsCard(settings){
     '<input id="sett-3" data-key="email_prefix" type="text" class="fi text-[13px]" value="'+esc(_val('email_prefix',''))+'">'+
   '</div>';
 
+  // ── กลุ่ม 2.5: LINE OA (แจ้งเตือนผ่าน LINE) ──
+  var lineRow=
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px">'+
+      '<div style="background:#FAFAF8;border-radius:12px;padding:14px 16px;border:1px solid #EBEBEB">'+
+        '<div style="font-size:11px;font-weight:700;color:#18120E;margin-bottom:2px">LINE OA ID</div>'+
+        '<div style="font-size:10px;color:#a89e99;margin-bottom:8px">Basic ID ของ LINE OA เช่น @123abcd — แสดงเป็นลิงก์แอดเพื่อนใน modal เชื่อมต่อ LINE</div>'+
+        '<input id="sett-line-0" data-key="line_oa_id" type="text" class="fi text-[13px]" style="font-family:monospace" value="'+esc(_val('line_oa_id',''))+'" placeholder="@123abcd">'+
+      '</div>'+
+      '<div style="background:#FAFAF8;border-radius:12px;padding:14px 16px;border:1px solid #EBEBEB">'+
+        '<div style="font-size:11px;font-weight:700;color:#18120E;margin-bottom:2px">ลิงก์เข้าระบบ (URL)</div>'+
+        '<div style="font-size:10px;color:#a89e99;margin-bottom:8px">แนบท้ายข้อความแจ้งเตือน LINE เช่น https://saedu-flow.vercel.app</div>'+
+        '<input id="sett-line-1" data-key="app_url" type="text" class="fi text-[13px]" style="font-family:monospace" value="'+esc(_val('app_url',''))+'" placeholder="https://...">'+
+      '</div>'+
+    '</div>';
+
   // ── กลุ่ม 3: ประกาศระบบ ──
   var annTypeOpts=['info','warning','error'].map(function(o){
     var labels={info:'ℹ️ ข้อมูล',warning:'⚠️ คำเตือน',error:'🔴 ข้อผิดพลาด'};
@@ -523,6 +538,8 @@ function rAppSettingsCard(settings){
       '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:#a89e99;margin:14px 0 10px">ค่าตัวเลขระบบ</div>'+
       '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">'+numRow+'</div>'+
       emailRow+
+      '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:#a89e99;margin:18px 0 8px">แจ้งเตือนผ่าน LINE OA</div>'+
+      lineRow+
       '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:#a89e99;margin:18px 0 8px">ประกาศระบบ</div>'+
       annRow+
     '</div>'+
