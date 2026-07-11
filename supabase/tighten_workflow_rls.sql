@@ -43,6 +43,9 @@ create policy documents_update on public.documents for update
 
 -- workflow_steps -----------------------------------------------------------
 drop policy if exists workflow_steps_all on public.workflow_steps;
+drop policy if exists workflow_steps_select on public.workflow_steps;
+drop policy if exists workflow_steps_insert on public.workflow_steps;
+drop policy if exists workflow_steps_update on public.workflow_steps;
 
 create policy workflow_steps_select on public.workflow_steps for select
   using (auth.uid() is not null);
@@ -86,6 +89,9 @@ create policy workflow_steps_update on public.workflow_steps for update
 
 -- document_files -----------------------------------------------------------
 drop policy if exists document_files_all on public.document_files;
+drop policy if exists document_files_select on public.document_files;
+drop policy if exists document_files_insert on public.document_files;
+drop policy if exists document_files_delete on public.document_files;
 
 create policy document_files_select on public.document_files for select
   using (auth.uid() is not null);

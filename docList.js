@@ -4,6 +4,20 @@ var _DTYPE_FILTER=''; // ประเภทเอกสารที่เลื�
 var _FWD_ACT={};      // {docId: 'accepted'|'declined'} — populated in vDocs
 var _ACTIVE_STEPS={}; // {docId: full_name} — ผู้รับผิดชอบขั้นตอน active ปัจจุบัน
 var _curFilteredDocs=null; // รายการที่กำลังแสดงในตารางจริง (หลัง filter tab/ประเภท/โครงการ/คำค้น) — ใช้โดย exportCSV() ใน report.js จะได้ export ตรงกับที่เห็นบนจอ
+var _DOC_PAGE=0;
+var DOC_LIST_LIMIT=200;
+var _DOC_TOTAL=null;
+
+function _docPageSuffix(){
+  return '&limit='+DOC_LIST_LIMIT+'&offset='+(_DOC_PAGE*DOC_LIST_LIMIT);
+}
+function docPageNav(dir){
+  var next=_DOC_PAGE+(dir>0?1:-1);
+  if(next<0) return;
+  if(_DOC_TOTAL!=null&&next*DOC_LIST_LIMIT>=_DOC_TOTAL) return;
+  _DOC_PAGE=next;
+  nav('docs');
+}
 
 async function vDocs(){
   // ดึง workflow steps ของ user ก่อน เพื่อใช้ filter documents ฝั่ง server
@@ -11,16 +25,19 @@ async function vDocs(){
   var _myStepDocIds=_mySteps.map(function(s){return s.document_id});
   MSTEPS=_mySteps.filter(function(s){return s.status==='active'}).map(function(s){return s.document_id});
   var _allDocs;
+  var _paginated=false;
   if(CU.role_code==='ROLE-SYS'||CU.position_code==='GNK-SEC'){
-    _allDocs=await dg('documents','?order=created_at.desc');
+    _paginated=true;
+    _allDocs=await dg('documents','?order=created_at.desc'+_docPageSuffix());
+    try{_DOC_TOTAL=await dgCount('documents','?order=created_at.desc')}catch(e){_DOC_TOTAL=null}
   } else if(['ROLE-STF','ROLE-ADV'].includes(CU.role_code)){
     var _stfOr='created_by.eq.'+safeId(CU.id)+',forwarded_to_id.eq.'+safeId(CU.id)+',status.eq.numbering';
     if(_myStepDocIds.length) _stfOr+=',id.in.('+_myStepDocIds.map(safeId).join(',')+')'
-    _allDocs=await dg('documents','?or=('+_stfOr+')&order=created_at.desc');
+    _allDocs=await dg('documents','?or=('+_stfOr+')&order=created_at.desc&limit=500');
   } else if(_myStepDocIds.length){
-    _allDocs=await dg('documents','?or=(created_by.eq.'+safeId(CU.id)+',id.in.('+_myStepDocIds.map(safeId).join(',')+'),forwarded_to_id.eq.'+safeId(CU.id)+')&order=created_at.desc');
+    _allDocs=await dg('documents','?or=(created_by.eq.'+safeId(CU.id)+',id.in.('+_myStepDocIds.map(safeId).join(',')+'),forwarded_to_id.eq.'+safeId(CU.id)+')&order=created_at.desc&limit=500');
   } else {
-    _allDocs=await dg('documents','?or=(created_by.eq.'+safeId(CU.id)+',forwarded_to_id.eq.'+safeId(CU.id)+')&order=created_at.desc');
+    _allDocs=await dg('documents','?or=(created_by.eq.'+safeId(CU.id)+',forwarded_to_id.eq.'+safeId(CU.id)+')&order=created_at.desc&limit=500');
   }
   ADOCS=_allDocs||[];
 
@@ -78,7 +95,7 @@ async function vDocs(){
 
   var _dtypeOpts='<option value="">ทุกประเภท</option>'+Object.entries(DTYPES).map(function(e){return '<option value="'+e[0]+'">'+e[1]+'</option>'}).join('');
 
-  var html=['<div class="flex gap-2.5 mb-4 flex-wrap items-center">'];
+  var html=['<div class="page-toolbar">'];
   html.push('<div class="search-wrap"><span class="search-icon">'+svg('srch',14)+'</span><input class="fi min-w-[220px]" id="dsrch" placeholder="ค้นหาชื่อเรื่อง เลขที่ หรือ จาก/ถึง..." oninput="fDocsDebounced()"></div>');
   html.push('<select class="fi text-[13px]" id="ddtype" style="max-width:160px" onchange="_DTYPE_FILTER=this.value;fDocs()">'+_dtypeOpts+'</select>');
   html.push('<select class="fi text-[13px]" id="dproj" style="max-width:180px'+(_projSet.length?'':';display:none')+'" onchange="_PROJ_FILTER=this.value;fDocs()">'+_projOpts+'</select>');
@@ -106,6 +123,18 @@ async function vDocs(){
       '<span class="al-icon">'+svg('pen',14)+'</span><span><strong>'+_canNumCount+'</strong> เอกสารรอให้คุณออกเลขที่หนังสือ — <u>คลิกเพื่อดู</u></span></div>');
   }
   html.push('<div class="card mb-0" id="dtbl">'+rDocTbl(_docsForMain)+'</div>');
+  if(_paginated&&_DOC_TOTAL!=null&&_DOC_TOTAL>DOC_LIST_LIMIT){
+    var _from=_DOC_PAGE*DOC_LIST_LIMIT+1;
+    var _to=Math.min((_DOC_PAGE+1)*DOC_LIST_LIMIT,_DOC_TOTAL);
+    html.push('<div class="flex items-center justify-between gap-3 mt-3 px-1 text-[13px] text-[#a89e99]">');
+    html.push('<span>แสดง '+_from+'–'+_to+' จาก '+_DOC_TOTAL+' รายการ</span>');
+    html.push('<div class="flex gap-2">');
+    if(_DOC_PAGE>0) html.push('<button class="btn btn-soft sm" data-action="docPagePrev">'+svg('back',12)+' ก่อนหน้า</button>');
+    if(_to<_DOC_TOTAL) html.push('<button class="btn btn-soft sm" data-action="docPageNext">ถัดไป '+svg('tri',12)+'</button>');
+    html.push('</div></div>');
+  } else if(!_paginated&&(_allDocs||[]).length>=500){
+    html.push('<div class="al al-wa mt-3"><span class="al-icon">'+svg('info',13)+'</span><span>แสดง 500 รายการล่าสุด — ใช้ช่องค้นหาหรือตัวกรองเพื่อแคบผลลัพธ์</span></div>');
+  }
   return html.join('')
 }
 
@@ -348,38 +377,4 @@ function _fwdToggle(btn){
   btn.textContent=opening?'▾ ซ่อนรายการก่อนหน้า':'▸ ดูรายการก่อนหน้า ('+btn.dataset.fwdCount+' รายการ)';
 }
 
-/* ── รับเอกสารที่ส่งมา ── */
-function doAcceptFwd(docId){
-  showConfirm(
-    'รับเอกสาร?',
-    'ยืนยันการรับเอกสารที่ส่งต่อมา',
-    function(){_doAcceptFwdConfirmedList(docId)},
-    {confirmLabel:'รับเอกสาร',confirmClass:'btn-success',icon:'ok',iconBg:'#D1FAE5',iconColor:'#16A34A'}
-  );
-}
-async function _doAcceptFwdConfirmedList(docId){
-  try{
-    await dp('document_history',{document_id:docId,action:'เจ้าหน้าที่รับเอกสาร',performed_by:CU.id,note:'รับเอกสารที่ส่งต่อมา'});
-    _FWD_ACT[docId]='accepted';
-    var fwdTab=document.querySelector('[data-tab="fwd"] span');
-    if(fwdTab){var n=parseInt(fwdTab.textContent||'0')-1;fwdTab.textContent=Math.max(0,n);}
-    fDocs();
-  }catch(e){showAlert('เกิดข้อผิดพลาด กรุณาลองใหม่','er')}
-}
-
-/* ── ไม่รับเอกสารที่ส่งมา — ใช้ showConfirm แทน confirm() ดิบ ── */
-function doDeclineFwd(docId){
-  showConfirm(
-    'ไม่รับเอกสาร?',
-    'เอกสารจะหายออกจากรายการของคุณ',
-    function(){_doDeclineFwdConfirmed(docId);},
-    {confirmLabel:'ไม่รับ',confirmClass:'btn-danger',icon:'x',iconBg:'#FEF2F2',iconColor:'#DC2626'}
-  );
-}
-async function _doDeclineFwdConfirmed(docId){
-  try{
-    await dp('document_history',{document_id:docId,action:'ปฏิเสธเอกสาร',performed_by:CU.id,note:'ปฏิเสธเอกสารที่ส่งต่อมา'});
-    _FWD_ACT[docId]='declined';
-    fDocs();
-  }catch(e){showAlert('เกิดข้อผิดพลาด กรุณาลองใหม่','er')}
-}
+/* ── รับเอกสารที่ส่งมา — ใช้ acceptForwardedDoc จาก utils.js (docDetail.js override หลังโหลด) ── */

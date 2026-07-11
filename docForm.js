@@ -57,7 +57,7 @@ async function vForm(editId){
   html.push('<div class="card" style="margin-bottom:16px"><div class="card-head">'+_ico('doc','#FFF3EE','#E83A00')+'<span class="card-head-title">ประเภทเอกสาร <span class="req">*</span></span></div><div class="card-body">');
   html.push('<div class="dtype-grid">'+dtCards+'</div>');
   html.push('<input type="hidden" id="ftype" value="'+(editId?doc.doc_type||'':'')+'" >');
-  if(!editId) html.push('<div id="ftype-hint" class="text-[#a89e99] text-xs mt-3">เลือกประเภทเอกสารเพื่อเริ่มกรอกแบบฟอร์ม</div>');
+  if(!editId) html.push('<div id="ftype-hint" class="dtype-hint">เลือกประเภทเอกสารเพื่อเริ่มกรอกแบบฟอร์ม</div>');
   html.push('</div></div>');
 
   // ── Step 2: ฟอร์มทั้งหมด (ซ่อนไว้จนกว่าจะเลือกประเภท) ──
@@ -517,8 +517,8 @@ function buildFileList(files, docId){
       fChip(f,18) +
       '<div class="file-info"><div class="file-name">'+esc(f.file_name)+'</div><div class="file-meta"><strong style="color:'+ft.cl+'">'+ft.label+'</strong> · '+fsz(f.file_size)+' · v'+f.version+'</div></div>' +
       '<div class="file-actions">' +
-      '<button style="display:inline-flex;align-items:center;gap:4px;height:28px;padding:0 10px;border-radius:8px;border:2px solid #3b82f6;background:#eff6ff;color:#3b82f6;font-size:11px;font-weight:600;cursor:pointer" data-action="openViewer" data-url="'+furl(f.file_path)+'" data-name="'+esc(f.file_name)+'">'+svg('eye',12)+' ดู</button>' +
-      (docId?'<button class="btn btn-soft xs" data-action="openEditor" data-url="'+furl(f.file_path)+'" data-name="'+esc(f.file_name)+'" data-fid="'+f.id+'" data-did="'+docId+'">'+svg('edit',12)+' แก้ไข</button>':'')+
+      '<button style="display:inline-flex;align-items:center;gap:4px;height:28px;padding:0 10px;border-radius:8px;border:2px solid #3b82f6;background:#eff6ff;color:#3b82f6;font-size:11px;font-weight:600;cursor:pointer" data-action="openViewer" data-path="'+esc(f.file_path)+'" data-name="'+esc(f.file_name)+'">'+svg('eye',12)+' ดู</button>' +
+      (docId?'<button class="btn btn-soft xs" data-action="openEditor" data-path="'+esc(f.file_path)+'" data-name="'+esc(f.file_name)+'" data-fid="'+f.id+'" data-did="'+docId+'">'+svg('edit',12)+' แก้ไข</button>':'')+
       '<button class="btn btn-danger xs btn-icon" data-action="delFF" data-id="'+(f.id||'')+'" data-idx="'+i+'">'+svg('trash',12)+'</button>' +
       '</div></div>'
   }).join('')
@@ -639,11 +639,18 @@ async function saveDoc(status){
     if(FDI){
   await dpa('documents',FDI,Object.assign({},body,{updated_at:new Date().toISOString()}));
   if(status==='pending'){
-    var _wfRej=await dg('workflow_steps','?document_id=eq.'+FDI+'&status=eq.rejected&order=step_number&limit=1');
-    if(_wfRej.length) await dpa('workflow_steps',_wfRej[0].id,{status:'active',action_taken:null,note:null,revision_section:null,action_at:null,completed_at:null,deadline_datetime:stepDeadline(_wfRej[0].deadline_days)});
+    var _rs=await restartDocWorkflow(FDI);
+    if(_rs.ok){
+      await dp('document_history',{document_id:FDI,action:'ส่งใหม่อีกครั้ง',performed_by:CU.id,note:'ส่งจากฟอร์มแก้ไข — เริ่มขั้นตอนอนุมัติใหม่ทั้งหมด'});
+      try{
+        if(_rs.singleStep) await sendNotifEmail(FDI,'create',_rs.status,'');
+        else await sendNotifEmail(FDI,'resubmit','pending','');
+      }catch(e2){}
+    }
+  } else {
+    await dp('document_history',{document_id:FDI,action:'แก้ไขเอกสาร',performed_by:CU.id});
   }
-  await dp('document_history',{document_id:FDI,action:'แก้ไขเอกสาร',performed_by:CU.id});
-  a.innerHTML=alrtH('ok','บันทึกเรียบร้อยแล้ว');
+  a.innerHTML=alrtH('ok',status==='pending'?'ส่งเข้าระบบเรียบร้อยแล้ว':'บันทึกเรียบร้อยแล้ว');
   setTimeout(function(){nav('det',FDI)},900)
 
     } else {
@@ -700,9 +707,9 @@ async function saveDoc(status){
             if(_posEmail&&!_posEmail.includes('@gnk.student')){
               var _eSubj=(SETT.email_prefix||'[กนค.]')+' หนังสือขาออก: '+title;
               var _eBody='เรียน '+_posUser.full_name+', มีเอกสารขาออกสำหรับท่าน เรื่อง "'+title+'" โครงการ '+body.description;
-              var _er=await fetch(SU+'/functions/v1/send-email',{method:'POST',headers:{'Content-Type':'application/json','Authorization':H.Authorization,'apikey':SK},body:JSON.stringify({to:_posEmail,subject:_eSubj,html:_eBody})});
+              var _er=await sendEmailEdge({to:_posEmail,subject:_eSubj,html:_eBody,documentId:did,recipientUserId:_posUser.id});
               if(_er.ok&&typeof showEmailToast==='function') showEmailToast(_posEmail,_eSubj);
-              await dp('notifications',{document_id:did,recipient_id:_posUser.id,recipient_email:_posEmail,subject:_eSubj,body:_eBody,notification_type:'outgoing',status:_er.ok?'sent':'failed',sent_at:new Date().toISOString()});
+              await logNotifRow({document_id:did,recipient_id:_posUser.id,recipient_email:_posEmail,subject:_eSubj,body:_eBody,notification_type:'outgoing',status:_er.ok?'sent':'failed',sent_at:new Date().toISOString()});
             }
           }
         }catch(ne){console.warn('Outgoing notify failed:',ne)}

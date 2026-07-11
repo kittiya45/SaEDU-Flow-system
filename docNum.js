@@ -87,9 +87,13 @@ async function showNumModal(docId){
       '<input type="hidden" id="num-docdate" value="'+today+'"></div>',
       '<div class="fg"><label class="fl">ขนาดตัวอักษร</label>',
       '<div style="display:flex;align-items:center;gap:8px">',
-      '<input type="range" id="num-fontsize" min="8" max="24" value="12" style="flex:1" oninput="_updateStampFontSize()">',
-      '<span id="num-fontsize-val" style="font-size:12px;color:#6b6560;min-width:32px;text-align:right">12px</span>',
+      '<input type="range" id="num-fontsize" min="8" max="24" value="10" style="flex:1" oninput="_updateStampFontSize()">',
+      '<span id="num-fontsize-val" style="font-size:12px;color:#6b6560;min-width:36px;text-align:right">10 pt</span>',
       '</div></div>',
+      '<div class="fg"><label class="fl" style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:500">',
+      '<input type="checkbox" id="num-stamp-lock" onchange="_toggleStampLock()">',
+      '<span>ล็อคตำแหน่งเลขที่/วันที่</span></label>',
+      '<div style="font-size:11px;color:#a89e99;margin-top:4px;line-height:1.6">เมื่อล็อคแล้วตำแหน่งจะไม่เลื่อน — เลื่อนดูเอกสารแต่ละหน้าได้ตามปกติ</div></div>',
       '<div class="fg"><label class="fl">ตัวอย่างเลขที่</label>',
       '<div class="fi" id="num-preview" style="background:#f9f7f5;color:#1261AB;font-size:12px;font-family:\TH Sarabun PSK\', Sarabun, sans-serif;font-weight:700;cursor:default;letter-spacing:.5px">—</div></div>',
       '<div style="font-size:11px;color:#a89e99;margin-top:6px;line-height:1.7;display:flex;gap:6px;align-items:flex-start">',
@@ -97,8 +101,8 @@ async function showNumModal(docId){
       '</div>',
 
       // ─── ขวา: PDF preview พร้อม draggable stamps ───
-      '<div id="num-pdf-outer" style="background:#525659;border-radius:8px;overflow:auto;max-height:72vh;min-height:320px;display:flex;align-items:flex-start;justify-content:center;padding:12px">',
-      '<div id="num-pdf-wrap" style="display:flex;align-items:center;justify-content:center;width:100%;min-height:296px">',
+      '<div id="num-pdf-outer" style="background:#525659;border-radius:8px;overflow-y:auto;overflow-x:hidden;max-height:72vh;min-height:320px;padding:8px">',
+      '<div id="num-pdf-wrap" style="display:block;width:100%">',
       '<div id="num-pdf-loading" style="color:rgba(255,255,255,.7);font-size:13px;display:flex;flex-direction:column;align-items:center;gap:10px">',
       '<span class="sp" style="border-color:rgba(255,255,255,.25);border-top-color:#fff;width:28px;height:28px;border-width:3px"></span>',
       '<span>กำลังโหลดเอกสาร...</span></div>',
@@ -154,9 +158,13 @@ async function showNumModal(docId){
     '<input type="hidden" id="num-docdate" value="'+today+'"></div>',
     '<div class="fg"><label class="fl">ขนาดตัวอักษร</label>',
     '<div style="display:flex;align-items:center;gap:8px">',
-    '<input type="range" id="num-fontsize" min="8" max="24" value="12" style="flex:1" oninput="_updateStampFontSize()">',
-    '<span id="num-fontsize-val" style="font-size:12px;color:#6b6560;min-width:32px;text-align:right">12px</span>',
+    '<input type="range" id="num-fontsize" min="8" max="24" value="10" style="flex:1" oninput="_updateStampFontSize()">',
+    '<span id="num-fontsize-val" style="font-size:12px;color:#6b6560;min-width:36px;text-align:right">10 pt</span>',
     '</div></div>',
+    '<div class="fg"><label class="fl" style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:500">',
+    '<input type="checkbox" id="num-stamp-lock" onchange="_toggleStampLock()">',
+    '<span>ล็อคตำแหน่งเลขที่/วันที่</span></label>',
+    '<div style="font-size:11px;color:#a89e99;margin-top:4px;line-height:1.6">เมื่อล็อคแล้วตำแหน่งจะไม่เลื่อน — เลื่อนดูเอกสารแต่ละหน้าได้ตามปกติ</div></div>',
     '<div class="fg"><label class="fl">ตัวอย่างเลขที่</label>',
       '<div class="fi" id="num-preview" style="background:#f9f7f5;color:#1261AB;font-size:12px;font-family:\TH Sarabun PSK\', Sarabun, sans-serif;font-weight:700;cursor:default;letter-spacing:.5px">—</div></div>',
     '<div class="fg"><label class="fl">ส่งต่อให้ จนท.กิจนิสิต (ไม่บังคับ)</label>',
@@ -166,8 +174,8 @@ async function showNumModal(docId){
     '<div style="font-size:11px;color:#a89e99;margin-top:6px;line-height:1.7;display:flex;gap:6px;align-items:flex-start">',
     svg('info',12)+'<span>ลากกล่องเลขที่และวันที่บนตัวอย่างด้านขวาเพื่อปรับตำแหน่งก่อนบันทึก</span></div>',
     '</div>',
-    '<div id="num-pdf-outer" style="background:#525659;border-radius:8px;overflow:auto;max-height:72vh;min-height:320px;display:flex;align-items:flex-start;justify-content:center;padding:12px">',
-    '<div id="num-pdf-wrap" style="display:flex;align-items:center;justify-content:center;width:100%;min-height:296px">',
+    '<div id="num-pdf-outer" style="background:#525659;border-radius:8px;overflow-y:auto;overflow-x:hidden;max-height:72vh;min-height:320px;padding:8px">',
+    '<div id="num-pdf-wrap" style="display:block;width:100%">',
     '<div id="num-pdf-loading" style="color:rgba(255,255,255,.7);font-size:13px;display:flex;flex-direction:column;align-items:center;gap:10px">',
     '<span class="sp" style="border-color:rgba(255,255,255,.25);border-top-color:#fff;width:28px;height:28px;border-width:3px"></span>',
     '<span>กำลังโหลดเอกสาร...</span></div>',
@@ -228,14 +236,21 @@ function _updateDateStamp(){
 }
 
 function _updateStampFontSize(){
-  var sz=parseInt(($e('num-fontsize')||{}).value)||12; // ขนาดจริงในเอกสาร (pt)
+  var sz=parseInt(($e('num-fontsize')||{}).value)||10; // pt จริงใน PDF (1 pt = 1/72 นิ้ว)
   var lbl=$e('num-fontsize-val'); if(lbl) lbl.textContent=sz+' pt';
-  // บนจอต้องคูณ scale ของ preview — ไม่งั้นผลจริง (pt เต็ม) จะใหญ่กว่าที่เห็นราว 1/scale เท่า
-  var cont=$e('num-stamp-container');
-  var sc=cont?parseFloat(cont.dataset.scale)||1:1;
-  var px=(sz*sc).toFixed(2)+'px';
-  var ns=$e('num-stamp-num'); if(ns) ns.style.fontSize=px;
-  var ds=$e('num-stamp-date'); if(ds) ds.style.fontSize=px;
+  var pt=sz+'pt';
+  var ns=$e('num-stamp-num'); if(ns) ns.style.fontSize=pt;
+  var ds=$e('num-stamp-date'); if(ds) ds.style.fontSize=pt;
+}
+
+function _toggleStampLock(){
+  var locked=!!(($e('num-stamp-lock')||{}).checked);
+  ['num-stamp-num','num-stamp-date'].forEach(function(id){
+    var el=$e(id); if(!el) return;
+    el.dataset.locked=locked?'1':'';
+    el.style.cursor=locked?'default':'grab';
+    el.style.outline=locked?'1px solid rgba(18,97,171,.75)':'1px dashed rgba(18,97,171,.45)';
+  });
 }
 
 /* โหลดฟอนต์ THSarabunNew ตัวเดียวกับที่ใช้ฝังลง PDF มาใช้ใน preview ด้วย —
@@ -248,46 +263,45 @@ function _ensureSarabunPrevFont(){
   document.head.appendChild(st);
 }
 
-/* ตำแหน่งมุมซ้ายบนของ "บรรทัดตัวอักษรจริง" ใน stamp เทียบกับ container (px บนจอ)
-   — วัดจาก Range ของ text node โดยตรง จึงไม่เพี้ยนจาก border/padding ของกล่อง */
-function _stampTextOrigin(el,cont){
-  try{
-    var r=document.createRange(); r.selectNodeContents(el);
-    var tr=r.getBoundingClientRect(), cr=cont.getBoundingClientRect();
-    if(tr&&tr.width) return {x:tr.left-cr.left, y:tr.top-cr.top};
-  }catch(_e){}
-  // fallback: ขอบกล่อง + border 1.5 + padding (6 ซ้าย / 2 บน)
-  return {x:(parseInt(el.style.left)||0)+7.5, y:(parseInt(el.style.top)||0)+3.5};
+/* ตำแหน่ง stamp ใน PDF point (container ใช้ 1 CSS px = 1 pt) */
+function _stampPdfPos(el){
+  return {x:parseFloat(el.style.left)||0, y:parseFloat(el.style.top)||0};
 }
 
 /* ─── Drag handler สำหรับ stamp overlays ─── */
 function _makeStampDraggable(el,container){
   var drag=false,ox=0,oy=0,sx=0,sy=0,ew=0,eh=0;
+  function _sc(){return parseFloat(container.dataset.scale)||1;}
   el.addEventListener('pointerdown',function(e){
+    if(el.dataset.locked==='1') return;
     drag=true; sx=e.clientX; sy=e.clientY;
-    ox=parseInt(el.style.left)||0; oy=parseInt(el.style.top)||0;
+    ox=parseFloat(el.style.left)||0; oy=parseFloat(el.style.top)||0;
     ew=el.offsetWidth; eh=el.offsetHeight;
     el.style.willChange='transform';
     el.setPointerCapture(e.pointerId); el.style.cursor='grabbing'; e.preventDefault();
   });
   el.addEventListener('pointermove',function(e){
     if(!drag) return;
-    // [PERF] ลากด้วย transform (GPU compositing) แทนการเซ็ต left/top ตรงๆ ซึ่งบังคับ layout reflow ทุก pointermove — เหมือนแก้ไขเอกสาร (editor.js)
-    var nl=Math.max(0,Math.min(container.offsetWidth-ew-2,ox+(e.clientX-sx)));
-    var nt=Math.max(0,Math.min(container.offsetHeight-eh-2,oy+(e.clientY-sy)));
+    var s=_sc();
+    // เคลื่อนเมาส์เป็นพิกเซลจอ แต่ left/top เป็น PDF pt — หาร scale ของ container
+    var dx=(e.clientX-sx)/s, dy=(e.clientY-sy)/s;
+    var nl=Math.max(0,Math.min(container.offsetWidth-ew,ox+dx));
+    var nt=Math.max(0,Math.min(container.offsetHeight-eh,oy+dy));
     el.style.transform='translate3d('+(nl-ox)+'px,'+(nt-oy)+'px,0)';
   });
   el.addEventListener('pointerup',function(e){
     if(!drag) return;
     drag=false; el.releasePointerCapture(e.pointerId); el.style.cursor='grab';
-    var nl=Math.max(0,Math.min(container.offsetWidth-ew-2,ox+(e.clientX-sx)));
-    var nt=Math.max(0,Math.min(container.offsetHeight-eh-2,oy+(e.clientY-sy)));
+    var s=_sc();
+    var dx=(e.clientX-sx)/s, dy=(e.clientY-sy)/s;
+    var nl=Math.max(0,Math.min(container.offsetWidth-ew,ox+dx));
+    var nt=Math.max(0,Math.min(container.offsetHeight-eh,oy+dy));
     el.style.transform=''; el.style.willChange='';
     el.style.left=nl+'px'; el.style.top=nt+'px';
   });
 }
 
-/* ─── โหลด PDF และสร้าง canvas preview พร้อม draggable stamps ─── */
+/* ─── โหลด PDF ทุกหน้า + stamp บนหน้า 1 (เลื่อนดูแต่ละหน้าได้) ─── */
 async function _loadNumPDFPreview(docId){
   var wrap=$e('num-pdf-wrap'); if(!wrap) return;
   try{
@@ -296,7 +310,7 @@ async function _loadNumPDFPreview(docId){
       wrap.innerHTML='<div style="color:rgba(255,255,255,.6);font-size:12px;padding:20px;text-align:center">ไม่พบไฟล์ PDF<br>ระบบจะประทับที่ตำแหน่งเริ่มต้น</div>';
       return;
     }
-    var pdfUrl=furl(files[0].file_path);
+    var pdfUrl=await resolveFilePath(files[0].file_path);
     if(!window.pdfjsLib){
       await loadSc('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js');
       pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -304,50 +318,92 @@ async function _loadNumPDFPreview(docId){
       pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
     }
     var pdf=await pdfjsLib.getDocument(pdfUrl).promise;
-    var page=await pdf.getPage(1);
     var outer=$e('num-pdf-outer');
-    var availW=Math.max((outer?outer.offsetWidth:420)-24, 200);
-    var vp0=page.getViewport({scale:1});
-    var sc=Math.min(availW/vp0.width,(window.innerHeight*0.64)/vp0.height);
-    var vp=page.getViewport({scale:sc});
-
-    var canvas=document.createElement('canvas');
-    canvas.width=vp.width; canvas.height=vp.height;
-    canvas.style.cssText='display:block;border-radius:4px;box-shadow:0 6px 24px rgba(0,0,0,.5)';
-    await page.render({canvasContext:canvas.getContext('2d'),viewport:vp}).promise;
-
-    var cont=document.createElement('div');
-    cont.id='num-stamp-container';
-    cont.style.cssText='position:relative;flex-shrink:0';
-    cont.dataset.scale=String(sc);
-    cont.dataset.pdfH=String(vp0.height);
-    cont.appendChild(canvas);
+    var availW=Math.max((outer?outer.clientWidth:420)-16, 200);
+    var page1=await pdf.getPage(1);
+    var vp0=page1.getViewport({scale:1});
+    var sc=availW/vp0.width; // zoom เต็มความกว้างพื้นที่ preview
+    var dpr=window.devicePixelRatio||1;
 
     _ensureSarabunPrevFont();
-    // ฟอนต์เดียวกับที่ฝังจริง + weight 400 (ตัวที่ฝังคือ regular ไม่ใช่ bold) + line-height:1
-    // เพื่อให้ตำแหน่ง/ขนาดบนจอ = ผลจริงบนไฟล์
+    if(document.fonts&&document.fonts.load){
+      try{
+        var _fs=parseInt(($e('num-fontsize')||{}).value)||10;
+        await document.fonts.load(_fs+'pt THSarabunPrev');
+      }catch(_fl){}
+    }
+
+    var col=document.createElement('div');
+    col.id='num-pdf-pages';
+    col.style.cssText='display:flex;flex-direction:column;align-items:center;gap:12px;width:100%';
+
     var SCSS='position:absolute;color:#1261AB;font-family:"THSarabunPrev","TH Sarabun PSK",Sarabun,sans-serif;font-weight:400;white-space:nowrap;cursor:grab;'+
-             'user-select:none;padding:2px 6px;border:1.5px dashed rgba(18,97,171,.55);border-radius:3px;'+
-             'background:rgba(255,255,255,.88);line-height:1;touch-action:none';
-    var defTop=Math.round(vp.height*0.32);
+             'user-select:none;padding:0;margin:0;line-height:1;touch-action:none;'+
+             'outline:1px dashed rgba(18,97,171,.45);outline-offset:1px';
+    var defTop=Math.round(vp0.height*0.32);
+    var cont=null, ns=null, ds=null;
 
-    var ns=document.createElement('div');
-    ns.id='num-stamp-num'; ns.style.cssText=SCSS;
-    ns.style.left='42px'; ns.style.top=defTop+'px';
-    ns.textContent=($e('num-preview')||{}).textContent||'กนค. XXXX/XXXX';
-    cont.appendChild(ns);
+    for(var pi=1; pi<=pdf.numPages; pi++){
+      var page=await pdf.getPage(pi);
+      var pvp0=page.getViewport({scale:1});
+      var vpHi=page.getViewport({scale:sc*dpr});
+      var canvas=document.createElement('canvas');
+      canvas.width=vpHi.width; canvas.height=vpHi.height;
+      canvas.style.cssText='display:block;width:'+pvp0.width+'px;height:'+pvp0.height+'px;border-radius:4px';
+      await page.render({canvasContext:canvas.getContext('2d'),viewport:vpHi}).promise;
 
-    var ds=document.createElement('div');
-    ds.id='num-stamp-date'; ds.style.cssText=SCSS;
-    ds.style.left='42px'; ds.style.top=(defTop+Math.round(vp.height*0.065))+'px';
-    ds.textContent=_fmtDateThai(gv('num-docdate')||'');
-    cont.appendChild(ds);
+      var slot=document.createElement('div');
+      slot.className='num-pdf-page-slot';
+      slot.dataset.page=String(pi);
+      slot.style.cssText='width:'+(pvp0.width*sc)+'px;height:'+(pvp0.height*sc)+'px;position:relative;flex-shrink:0;'+
+        'box-shadow:0 4px 16px rgba(0,0,0,.45);border-radius:4px;overflow:hidden;background:#fff';
 
-    wrap.innerHTML=''; wrap.style.cssText='display:block';
-    wrap.appendChild(cont);
-    _makeStampDraggable(ns,cont);
-    _makeStampDraggable(ds,cont);
-    _updateStampFontSize(); // ใส่ขนาดตามสเกล preview (pt × scale)
+      var inner=document.createElement('div');
+      inner.style.cssText='position:absolute;left:0;top:0;width:'+pvp0.width+'px;height:'+pvp0.height+'px;transform:scale('+sc+');transform-origin:top left';
+      inner.appendChild(canvas);
+
+      if(pi===1){
+        cont=document.createElement('div');
+        cont.id='num-stamp-container';
+        cont.style.cssText='position:absolute;left:0;top:0;width:'+pvp0.width+'px;height:'+pvp0.height+'px';
+        cont.dataset.scale=String(sc);
+        cont.dataset.pdfW=String(pvp0.width);
+        cont.dataset.pdfH=String(pvp0.height);
+
+        ns=document.createElement('div');
+        ns.id='num-stamp-num'; ns.style.cssText=SCSS;
+        ns.style.left='42px'; ns.style.top=defTop+'px';
+        ns.textContent=($e('num-preview')||{}).textContent||'กนค. XXXX/XXXX';
+        cont.appendChild(ns);
+
+        ds=document.createElement('div');
+        ds.id='num-stamp-date'; ds.style.cssText=SCSS;
+        ds.style.left='42px'; ds.style.top=(defTop+Math.round(pvp0.height*0.065))+'px';
+        ds.textContent=_fmtDateThai(gv('num-docdate')||'');
+        cont.appendChild(ds);
+
+        inner.appendChild(cont);
+      }
+
+      if(pdf.numPages>1){
+        var badge=document.createElement('div');
+        badge.style.cssText='position:absolute;right:8px;top:8px;z-index:2;background:rgba(0,0,0,.55);color:#fff;font-size:11px;padding:2px 8px;border-radius:10px;pointer-events:none';
+        badge.textContent='หน้า '+pi+'/'+pdf.numPages;
+        slot.appendChild(badge);
+      }
+
+      slot.appendChild(inner);
+      col.appendChild(slot);
+    }
+
+    wrap.innerHTML=''; wrap.style.cssText='display:block;width:100%';
+    wrap.appendChild(col);
+    if(cont&&ns&&ds){
+      _makeStampDraggable(ns,cont);
+      _makeStampDraggable(ds,cont);
+      _updateStampFontSize();
+      _toggleStampLock();
+    }
   }catch(e){
     console.warn('PDF preview failed:',e);
     wrap.innerHTML='<div style="color:rgba(255,255,255,.6);font-size:12px;padding:20px;text-align:center">โหลดตัวอย่างไม่ได้<br>ระบบจะประทับที่ตำแหน่งเริ่มต้น</div>';
@@ -359,16 +415,12 @@ function doSetDocNumber(docId){
   var docDate=gv('num-docdate');
   if(!docDate){showAlert('กรุณาเลือกวันที่หนังสือ','wa');return}
   // จับค่าฟอร์มทั้งหมดก่อน showConfirm เพราะ showConfirm จะ replace mwrap แล้วทำให้ elements หาย
-  var _sc=$e('num-stamp-container');
-  var _scSc=_sc?parseFloat(_sc.dataset.scale)||1:1;
-  var _scPdfH=_sc?parseFloat(_sc.dataset.pdfH)||842:842;
   var _ns=$e('num-stamp-num'), _ds=$e('num-stamp-date');
-  // เก็บ "มุมซ้ายบนของบรรทัดตัวอักษร" เป็น pt จากขอบบนหน้า — แปลงเป็น baseline ตอนฝัง
-  // (ต้องใช้ metrics ของฟอนต์จริง ซึ่งมีหลังโหลดฟอนต์ใน _doSetDocNumberConfirmed แล้วเท่านั้น)
+  // left/top ของ stamp = PDF point โดยตรง (container 1px = 1pt)
   var _numPdfX,_numTopPdf,_datPdfX,_datTopPdf;
-  if(_ns){var _no=_stampTextOrigin(_ns,_sc); _numPdfX=_no.x/_scSc; _numTopPdf=_no.y/_scSc;}
+  if(_ns){var _no=_stampPdfPos(_ns); _numPdfX=_no.x; _numTopPdf=_no.y;}
   else    {_numPdfX=42; _numTopPdf=256;}
-  if(_ds){var _do2=_stampTextOrigin(_ds,_sc); _datPdfX=_do2.x/_scSc; _datTopPdf=_do2.y/_scSc;}
+  if(_ds){var _do2=_stampPdfPos(_ds); _datPdfX=_do2.x; _datTopPdf=_do2.y;}
   else    {_datPdfX=42; _datTopPdf=276;}
   var _cap={
     docDate:docDate,
@@ -381,7 +433,7 @@ function doSetDocNumber(docId){
     note:(gv('num-note')||'').trim(),
     fwdId:gv('num-fwd')||null,
     docnum:(gv('num-docnum')||'').trim(),
-    fontsize:parseInt(($e('num-fontsize')||{}).value)||12,
+    fontsize:parseInt(($e('num-fontsize')||{}).value)||10,
     numPdfX:_numPdfX, numTopPdf:_numTopPdf,
     datPdfX:_datPdfX, datTopPdf:_datTopPdf
   };
@@ -477,12 +529,12 @@ async function _doSetDocNumberConfirmed(docId,cap){
           var _pf=_pdfFiles[0];
           if(!window.PDFLib) await loadSc('https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js');
           if(!window.fontkit) await loadSc('https://unpkg.com/@pdf-lib/fontkit/dist/fontkit.umd.min.js');
-          var _pdfResp=await fetch(furl(_pf.file_path));
+          var _pdfResp=await fetch(await resolveFileUrl(_pf.file_path));
           if(_pdfResp.ok){
             var _pdfBuf=await _pdfResp.arrayBuffer();
             var _pdfDoc=await PDFLib.PDFDocument.load(new Uint8Array(_pdfBuf),{ignoreEncryption:true});
             var _pg=_pdfDoc.getPage(0);
-            var _ph=_pg.getHeight(), _pw2=_pg.getWidth();
+            var _ph=_pg.getHeight();
             var _stampFont=null;
             try{
               _pdfDoc.registerFontkit(window.fontkit);
@@ -501,20 +553,16 @@ async function _doSetDocNumberConfirmed(docId,cap){
             }
             if(_stampFont){
               var _clr=PDFLib.rgb(0.07,0.38,0.67);
-              var clamp=function(v,lo,hi){return Math.max(lo,Math.min(hi,v));};
-              var _stampSz=cap.fontsize||12;
-              // แปลง "top ของบรรทัด" (ที่จับจาก preview) → baseline สำหรับ drawText
-              // ใช้ ascent/descent ของฟอนต์จริงตามโมเดล line box ของ CSS (line-height:1):
-              // baseline = top + (fontSize + ascent − |descent|)/2 — ให้ตำแหน่งบนจอ = บนไฟล์
-              var _baseOff=(function(sz){
+              var _stampSz=cap.fontsize||10;
+              // top ของ stamp (PDF pt จากขอบบน) → baseline: ใช้ ascent ของฟอนต์เดียวกับ preview
+              var _ascentAt=(function(sz,fnt){
                 try{
-                  var fk=_stampFont.embedder.font;
-                  var A=fk.ascent/fk.unitsPerEm*sz, D=Math.abs(fk.descent)/fk.unitsPerEm*sz;
-                  return (sz+A-D)/2;
-                }catch(_me){return sz*0.8}
-              })(_stampSz);
-              if(docNum) _pg.drawText(docNum,{x:clamp(_numPdfX,0,_pw2-10),y:clamp(_ph-_numTopPdf-_baseOff,10,_ph-10),size:_stampSz,font:_stampFont,color:_clr});
-              if(_dateText) _pg.drawText(_dateText,{x:clamp(_datPdfX,0,_pw2-10),y:clamp(_ph-_datTopPdf-_baseOff,10,_ph-10),size:_stampSz,font:_stampFont,color:_clr});
+                  var fk=fnt.embedder.font;
+                  return fk.ascent/fk.unitsPerEm*sz;
+                }catch(_me){return sz*0.88;}
+              })(_stampSz,_stampFont);
+              if(docNum) _pg.drawText(docNum,{x:_numPdfX,y:_ph-_numTopPdf-_ascentAt,size:_stampSz,font:_stampFont,color:_clr});
+              if(_dateText) _pg.drawText(_dateText,{x:_datPdfX,y:_ph-_datTopPdf-_ascentAt,size:_stampSz,font:_stampFont,color:_clr});
               var _stampBytes=await _pdfDoc.save();
               var _stampPath='stamped_'+Date.now()+'_'+_pf.file_name.replace(/[^a-zA-Z0-9._-]/g,'_');
               var _stampBlob=new Blob([_stampBytes],{type:'application/pdf'});
@@ -538,9 +586,9 @@ async function _doSetDocNumberConfirmed(docId,cap){
           var eSubj='[กนค.] หนังสือขาออก เลขที่ '+docNum+': '+(doc.title||'');
           if(posEmail&&!posEmail.includes('@gnk.student')){
             var eBody='เรียน '+posUser.full_name+', มีหนังสือขาออกถึงท่าน เลขที่ '+docNum+' เรื่อง "'+esc(doc.title||'')+'"';
-            var er=await fetch(SU+'/functions/v1/send-email',{method:'POST',headers:{'Content-Type':'application/json','Authorization':H.Authorization,'apikey':SK},body:JSON.stringify({to:posEmail,subject:eSubj,html:eBody})});
+            var er=await sendEmailEdge({to:posEmail,subject:eSubj,html:eBody,documentId:docId,recipientUserId:posUser.id});
             if(er.ok&&typeof showEmailToast==='function') showEmailToast(posEmail,eSubj);
-            await dp('notifications',{document_id:docId,recipient_id:posUser.id,recipient_email:posEmail,subject:eSubj,body:eBody,notification_type:'outgoing',status:er.ok?'sent':'failed',sent_at:new Date().toISOString()});
+            await logNotifRow({document_id:docId,recipient_id:posUser.id,recipient_email:posEmail,subject:eSubj,body:eBody,notification_type:'outgoing',status:er.ok?'sent':'failed',sent_at:new Date().toISOString()});
           }
           // LINE OA push (ส่งได้แม้ผู้รับไม่มีอีเมลจริง)
           try{
@@ -563,11 +611,11 @@ async function _doSetDocNumberConfirmed(docId,cap){
         var fwdEmailStatus='skipped';
         try{
           if(fwdEmail&&!fwdEmail.includes('@gnk.student')){
-            var r=await fetch(SU+'/functions/v1/send-email',{method:'POST',headers:{'Content-Type':'application/json','Authorization':H.Authorization,'apikey':SK},body:JSON.stringify({to:fwdEmail,subject:fwdSubj,html:fwdBody})});
+            var r=await sendEmailEdge({to:fwdEmail,subject:fwdSubj,html:fwdBody,documentId:docId,recipientUserId:fwdId});
             fwdEmailStatus=r.ok?'sent':'failed';
             if(r.ok) showEmailToast(fwdEmail,fwdSubj);
           }
-          await dp('notifications',{document_id:docId,recipient_id:fwdId,recipient_email:fwdEmail||'',subject:fwdSubj,body:fwdBody,notification_type:'forward',status:fwdEmailStatus,sent_at:new Date().toISOString()});
+          await logNotifRow({document_id:docId,recipient_id:fwdId,recipient_email:fwdEmail||'',subject:fwdSubj,body:fwdBody,notification_type:'forward',status:fwdEmailStatus,sent_at:new Date().toISOString()});
         }catch(fe){console.warn('Forward notify failed:',fe)}
         // LINE OA push (ส่งได้แม้ผู้รับไม่มีอีเมลจริง)
         try{

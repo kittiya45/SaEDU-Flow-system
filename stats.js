@@ -3,7 +3,10 @@
 if(typeof window._statYear==='undefined') window._statYear=null;
 
 async function vStat(){
-  var docs=await dg('documents','?select=id,status,doc_type,urgency,created_at,updated_at,due_date,title,doc_number,description,from_department&order=updated_at.desc,created_at.desc');
+  var _since=new Date();
+  _since.setMonth(_since.getMonth()-24);
+  var _sinceStr=_since.toISOString().substring(0,10);
+  var docs=await dg('documents','?created_at=gte.'+_sinceStr+'&select=id,status,doc_type,urgency,created_at,updated_at,due_date,title,doc_number,description,from_department&order=updated_at.desc,created_at.desc&limit=5000');
   var today=new Date().toISOString().substring(0,10);
   var total=docs.length;
   var byStatus={draft:0,pending:0,completed:0,rejected:0,signed:0};
@@ -49,45 +52,31 @@ async function vStat(){
 
   var CS='background:#fff;border-radius:16px;border:1px solid rgba(0,0,0,.06);box-shadow:0 1px 8px rgba(0,0,0,.05);display:flex;flex-direction:column';
   function cardHead(title,sub,right){
-    return '<div style="padding:15px 18px 11px;border-bottom:1px solid #F5F3F0;display:flex;align-items:center;justify-content:space-between;flex-shrink:0">'+
-      '<div><div style="font-size:13px;font-weight:700;color:#18120E">'+title+'</div>'+
-      (sub?'<div style="font-size:10px;color:#a89e99;margin-top:2px">'+sub+'</div>':'')+
+    return '<div style="padding:15px 18px 11px;border-bottom:1px solid #F5F3F0;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:#FAFAF8">'+
+      '<div><div style="font-size:13px;font-weight:700;color:#18120E;line-height:1.5">'+title+'</div>'+
+      (sub?'<div style="font-size:11px;color:#a89e99;margin-top:3px;line-height:1.65">'+sub+'</div>':'')+
       '</div>'+(right||'')+'</div>';
   }
 
   var html=[];
 
+  if(docs.length>=5000){
+    html.push('<div class="al al-wa mb-4"><span class="al-icon">'+svg('info',13)+'</span><span>สถิติคำนวณจากเอกสาร 24 เดือนล่าสุด (สูงสุด 5,000 รายการ) — ข้อมูลเก่ากว่านั้นไม่รวมในสรุป</span></div>');
+  } else {
+    html.push('<div class="al al-in mb-4" style="opacity:.85"><span class="al-icon">'+svg('info',13)+'</span><span>สถิติคำนวณจากเอกสารที่สร้างใน 24 เดือนล่าสุด ('+total+' รายการ)</span></div>');
+  }
+
   /* ══ ROW 1 — 4 stat tiles ══ */
-  var statCards=[
-    {label:'เอกสารทั้งหมด', val:total,              sub:'ร่าง '+byStatus.draft+' รายการ',
-     ico:'doc_f',   grad:'linear-gradient(135deg,#1D4ED8 0%,#3B82F6 100%)', sh:'rgba(29,78,216,.30)'},
-    {label:'รอลงนาม',       val:byStatus.pending,   sub:'รอการอนุมัติ',
-     ico:'pen_f',   grad:'linear-gradient(135deg,#D97706 0%,#F59E0B 100%)', sh:'rgba(217,119,6,.30)'},
-    {label:'เสร็จสิ้น',     val:byStatus.completed, sub:'ผ่านทุกขั้นตอน',
-     ico:'check_f', grad:'linear-gradient(135deg,#15803D 0%,#22C55E 100%)', sh:'rgba(21,128,61,.30)'},
-    {label:'เลยกำหนด',      val:overdueCnt,         sub:'ต้องเร่งดำเนินการ',
-     ico:'warn_f',  grad:'linear-gradient(135deg,#7C3AED 0%,#A855F7 100%)', sh:'rgba(124,58,237,.30)'}
-  ];
-  html.push('<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:16px">');
-  statCards.forEach(function(c){
-    html.push(
-      '<div style="border-radius:16px;padding:16px 18px;background:'+c.grad+
-        ';position:relative;overflow:hidden;box-shadow:0 4px 16px '+c.sh+
-        ';cursor:default">'+
-        '<div style="position:absolute;right:-16px;bottom:-16px;width:80px;height:80px;border-radius:50%;background:rgba(255,255,255,.1);pointer-events:none"></div>'+
-        '<div style="position:absolute;right:20px;top:-20px;width:56px;height:56px;border-radius:50%;background:rgba(255,255,255,.07);pointer-events:none"></div>'+
-        '<div style="position:relative;z-index:1">'+
-          '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">'+
-            '<div style="font-size:10px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:rgba(255,255,255,.7)">'+c.label+'</div>'+
-            '<div style="width:32px;height:32px;border-radius:10px;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;color:#fff">'+svgf(c.ico,16)+'</div>'+
-          '</div>'+
-          '<div style="font-size:32px;font-weight:900;color:#fff;line-height:1;letter-spacing:-1.5px;margin-bottom:5px">'+c.val+'</div>'+
-          '<div style="font-size:10px;color:rgba(255,255,255,.6)">'+c.sub+'</div>'+
-        '</div>'+
-      '</div>'
-    );
-  });
-  html.push('</div>');
+  html.push(rStatCards([
+    {label:'เอกสารทั้งหมด', val:total, sub:'ร่าง '+byStatus.draft+' รายการ',
+     ico:'doc_f', grad:'linear-gradient(135deg,#1D4ED8 0%,#3B82F6 100%)', shadow:'rgba(29,78,216,.30)'},
+    {label:'รอลงนาม', val:byStatus.pending, sub:'รอการอนุมัติ',
+     ico:'pen_f', grad:'linear-gradient(135deg,#D97706 0%,#F59E0B 100%)', shadow:'rgba(217,119,6,.30)'},
+    {label:'เสร็จสิ้น', val:byStatus.completed, sub:'ผ่านทุกขั้นตอน',
+     ico:'check_f', grad:'linear-gradient(135deg,#15803D 0%,#22C55E 100%)', shadow:'rgba(21,128,61,.30)'},
+    {label:'เลยกำหนด', val:overdueCnt, sub:'ต้องเร่งดำเนินการ',
+     ico:'warn_f', grad:'linear-gradient(135deg,#DC2626 0%,#EF4444 100%)', shadow:'rgba(220,38,38,.30)'}
+  ], {mb:'16px'}));
 
   /* ══ ROW 2 — 3 cols equal height: chart | type | urgency ══ */
   html.push('<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:14px">');
@@ -180,18 +169,26 @@ async function vStat(){
   var fmForScript={};
   Object.keys(fileMap).forEach(function(docId){
     fmForScript[docId]=fileMap[docId].map(function(f){
-      return {url:furl(f.file_path),name:f.file_name};
+      return {path:f.file_path,name:f.file_name};
     });
   });
-  /* set directly on window — script tags injected via innerHTML do not execute */
   window._sfm=fmForScript;
-  window._sdl=function(docId){
+  window._sdl=async function(docId){
     var fs=window._sfm[docId]||[];
     if(!fs.length){showAlert('ไม่มีไฟล์แนบในเอกสารนี้','wa');return;}
     var f=fs[0];
-    var a=document.createElement('a');
-    a.href=f.url;a.download=f.name||'file';a.target='_blank';
-    document.body.appendChild(a);a.click();document.body.removeChild(a);
+    try{
+      var url=await resolveFilePath(f.path);
+      if(!url){showAlert('ไม่สามารถสร้างลิงก์ดาวน์โหลดได้','er');return;}
+      var r=await fetch(url);
+      if(!r.ok) throw new Error('HTTP '+r.status);
+      var blob=await r.blob();
+      var a=document.createElement('a');
+      a.href=URL.createObjectURL(blob);
+      a.download=f.name||'file';
+      document.body.appendChild(a);a.click();
+      setTimeout(function(){URL.revokeObjectURL(a.href);document.body.removeChild(a);},200);
+    }catch(e){showAlert('ดาวน์โหลดไม่สำเร็จ: '+(e.message||e),'er')}
   };
 
 /* แสดงแค่ 5 รายการล่าสุด */
@@ -251,7 +248,7 @@ if(!recentLimited.length){
         /* preview */
         (
           hasFls
-          ? '<button data-action="openViewer" data-url="'+firstFile.url+'" data-name="'+esc(firstFile.name)+'" title="พรีวิวเอกสาร" '+
+          ? '<button data-action="openViewer" data-path="'+esc(firstFile.path)+'" data-name="'+esc(firstFile.name)+'" title="พรีวิวเอกสาร" '+
               'style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:8px;border:1px solid #EBEBEB;background:#F5F3F0;color:#6b6560;cursor:pointer">'+
                 svg('eye',12)+
             '</button>'
@@ -451,7 +448,7 @@ async function _downloadStatProjZip(selYear){
         if(seen[rawName]) continue;
         seen[rawName]=true;
         try{
-          var resp=await fetch(furl(f.file_path));
+          var resp=await fetch(await resolveFileUrl(f.file_path));
           if(!resp.ok) continue;
           var blob=await resp.blob();
           zip.file(proj+'/'+num+'_'+rawName,blob);

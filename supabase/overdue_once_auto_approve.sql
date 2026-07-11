@@ -149,6 +149,13 @@ BEGIN
       VALUES (p_doc, 'เจ้าหน้าที่รับเอกสาร', doc.forwarded_to_id,
               'รับเอกสารอัตโนมัติโดยระบบ เนื่องจากเลยกำหนดและไม่มีการดำเนินการหลังแจ้งเตือนภายใน '||grace||' วันทำการ');
 
+    -- ล้าง forwarded state — ให้สอดคล้องกับ forward_accept() และไม่ให้ overdue scan เจอซ้ำ
+    UPDATE public.documents SET
+      forwarded_to_id = NULL,
+      forwarded_at = NULL,
+      updated_at = now()
+    WHERE id = p_doc;
+
     RETURN 'accepted_forward';
   END IF;
 

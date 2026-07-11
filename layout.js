@@ -185,6 +185,9 @@ async function nav(view, id) {
     var _annIco=SETT.system_announcement_type==='error'?'warn':SETT.system_announcement_type==='warning'?'warn':'info';
     _annHtml='<div class="al '+_annCls+' mb-4" style="margin-bottom:16px"><span class="al-icon">'+svg(_annIco,14)+'</span><span>'+esc(SETT.system_announcement)+'</span></div>';
   }
+  if(window._schemaWarning){
+    _annHtml+='<div class="al al-wa mb-4" style="margin-bottom:16px"><span class="al-icon">'+svg('warn',14)+'</span><span>ระบบยังไม่ได้รัน SQL ล่าสุด (schema v'+REQUIRED_SCHEMA_VERSION+') — รัน <code>scale_hardening.sql</code>, <code>workflow_ops_rpc.sql</code>, <code>cron_overdue.sql</code>, <code>private_storage_bucket.sql</code> ใน Supabase Dashboard</span></div>';
+  }
 
   // แสดง loading state ทันทีก่อนดึงข้อมูล
   var _appEl = document.getElementById('app');
@@ -245,8 +248,8 @@ async function nav(view, id) {
           '<img src="img/logo.png" alt="Logo">' +
         '</div>' +
         '<div class="app-side-brand">' +
-          '<div style="font-size:16px;font-weight:900;letter-spacing:-.2px;color:#18120E">'+(SETT&&SETT.org_name||'Saedu Flow')+'</div>' +
-          '<div style="font-size:11px;margin-top:2px;color:#a89e99">'+(SETT&&SETT.system_name||'ระบบเสนอเอกสาร')+'</div>' +
+          '<div style="font-size:16px;font-weight:800;letter-spacing:-.2px;color:#18120E;line-height:1.4">'+(SETT&&SETT.org_name||'Saedu Flow')+'</div>' +
+          '<div style="font-size:11px;margin-top:3px;color:#a89e99;line-height:1.65">'+(SETT&&SETT.system_name||'ระบบเสนอเอกสาร')+'</div>' +
         '</div>' +
       '</div>' +
       '<div class="app-side-label">เมนูหลัก</div>' +
@@ -258,8 +261,8 @@ async function nav(view, id) {
     '<div class="app-main">' +
       '<header class="app-hdr">' +
         '<div>' +
-          '<div style="font-size:18px;font-weight:900;letter-spacing:-.4px;color:#E83A00">'+(titles[view]||view)+'</div>' +
-          '<div style="font-size:11px;color:#a89e99;margin-top:2px">'+(SETT&&SETT.system_full_name||'ระบบเสนอเอกสารอิเล็กทรอนิกส์ กนค.')+'</div>' +
+          '<div class="page-hdr-title">'+(titles[view]||view)+'</div>' +
+          '<div class="page-hdr-sub">'+(SETT&&SETT.system_full_name||'ระบบเสนอเอกสารอิเล็กทรอนิกส์ กนค.')+'</div>' +
         '</div>' +
         '<div style="display:flex;align-items:center;gap:8px">' +
           _buildNotifBell(activeSteps, PC) +

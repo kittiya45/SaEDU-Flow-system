@@ -57,7 +57,7 @@ async function vTmpl(){
   var html=['<div id="tal"></div>'];
 
   // ── Toolbar (search + admin button) — same pattern as docList ──
-  html.push('<div class="flex gap-2.5 mb-4 flex-wrap items-center">');
+  html.push('<div class="page-toolbar">');
   html.push('<div class="search-wrap"><span class="search-icon">'+svg('srch',14)+'</span>'+
     '<input class="fi" id="tmpl-search" placeholder="ค้นหาชื่อแบบฟอร์ม..." oninput="tmplFilter(this.value)"></div>');
   if(isAdm){
@@ -122,8 +122,8 @@ async function vTmpl(){
       }
       html.push('</div>');
       html.push('<div style="display:flex;gap:8px;align-items:center;flex-shrink:0">');
-      html.push('<button style="width:36px;height:36px;border-radius:10px;border:2px solid #3b82f6;background:#eff6ff;color:#3b82f6;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0" data-action="tmplPreview" data-url="'+esc(furl(t.file_path))+'" data-name="'+esc(t.name)+'" data-ext="'+esc(ext)+'" title="ดูตัวอย่าง">'+svg('eye',15)+'</button>');
-      html.push('<button style="height:36px;padding:0 14px;border-radius:10px;border:2px solid #ea580c;background:#fff7ed;color:#ea580c;font-size:12.5px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;flex-shrink:0" data-action="dlFile" data-url="'+furl(t.file_path)+'" data-name="'+esc(t.file_name)+'">'+svg('dn',13)+'<span>ดาวน์โหลด</span></button>');
+      html.push('<button style="width:36px;height:36px;border-radius:10px;border:2px solid #3b82f6;background:#eff6ff;color:#3b82f6;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0" data-action="tmplPreview" data-path="'+esc(t.file_path)+'" data-name="'+esc(t.name)+'" data-ext="'+esc(ext)+'" title="ดูตัวอย่าง">'+svg('eye',15)+'</button>');
+      html.push('<button style="height:36px;padding:0 14px;border-radius:10px;border:2px solid #ea580c;background:#fff7ed;color:#ea580c;font-size:12.5px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;flex-shrink:0" data-action="dlFile" data-path="'+esc(t.file_path)+'" data-name="'+esc(t.file_name)+'">'+svg('dn',13)+'<span>ดาวน์โหลด</span></button>');
       if(isAdm){
         html.push('<button class="btn btn-soft sm btn-icon" data-action="showTmplEdit" data-id="'+t.id+'" data-name="'+esc(t.name||'')+'" data-cat="'+esc(t.category||'general')+'" data-desc="'+esc(t.description||'')+'" title="แก้ไข">'+svg('edit',13)+'</button>');
         html.push('<button class="btn btn-soft sm btn-icon" data-action="doTmplDelete" data-id="'+t.id+'" data-path="'+esc(t.file_path)+'" title="ลบ">'+svg('trash',13)+'</button>');
@@ -375,9 +375,9 @@ function tmplFileClear(){
   var zone=$e('tmpl-dropzone'); if(zone) zone.style.display='flex';
 }
 
-function tmplPreview(url, name, ext){
+function tmplPreview(urlOrPath, name, ext){
   var displayName=name+(ext&&!name.toLowerCase().endsWith('.'+ext.toLowerCase())?'.'+ext:'');
-  openViewer(url, displayName);
+  resolveFileUrl(urlOrPath).then(function(u){openViewer(u,displayName)}).catch(function(){openViewer(urlOrPath,displayName)});
 }
 
 async function doTmplUpload(){

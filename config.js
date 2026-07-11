@@ -6,7 +6,31 @@ var SK = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6I
 var sb = supabase.createClient(SU, SK);
 var H = {apikey:SK,'Authorization':'Bearer '+SK,'Content-Type':'application/json','Prefer':'return=representation'};
 
-async function dg(t,q){var r=await fetch(SU+'/rest/v1/'+t+(q||''),{headers:H});return r.json()}
+async function dg(t,q){
+  var r=await fetch(SU+'/rest/v1/'+t+(q||''),{headers:H});
+  var data=await r.json().catch(function(){return null});
+  if(!r.ok){
+    var msg=(data&&data.message)||String(r.status);
+    throw new Error(msg);
+  }
+  // PostgREST คืน error object (มี code) แม้ r.ok ในบาง edge case
+  if(data&&data.code&&data.message&&!Array.isArray(data)) throw new Error(data.message);
+  return data;
+}
+async function drpc(fn,body){
+  var r=await fetch(SU+'/rest/v1/rpc/'+fn,{method:'POST',headers:H,body:JSON.stringify(body||{})});
+  var data=await r.json().catch(function(){return null});
+  if(!r.ok){
+    var msg=(data&&data.message)||(data&&data.hint)||String(r.status);
+    throw new Error(msg);
+  }
+  return data;
+}
+function rpcFnMissing(err){
+  var m=String(err&&err.message||err||'');
+  return /PGRST202|Could not find the function|does not exist/i.test(m);
+}
+var REQUIRED_SCHEMA_VERSION='3';
 async function dp(t,b){
   var r=await fetch(SU+'/rest/v1/'+t,{method:'POST',headers:H,body:JSON.stringify(b)});
   if(!r.ok){var e=await r.json().catch(function(){return{}});throw new Error(e.message||String(r.status))}
@@ -58,9 +82,71 @@ window.addEventListener('unhandledrejection',function(ev){
 });
 async function upFile(path,file){
   var r=await fetch(SU+'/storage/v1/object/documents/'+encodeURIComponent(path),{method:'POST',headers:{apikey:SK,'Authorization':H.Authorization,'x-upsert':'true'},body:file});
-  return r.json()
+  if(!r.ok){
+    var e=await r.json().catch(function(){return{}});
+    throw new Error((e&&e.message)||('อัปโหลดไฟล์ล้มเหลว ('+r.status+')'));
+  }
+  return r.json().catch(function(){return{ok:true}});
 }
-function furl(p){return SU+'/storage/v1/object/public/documents/'+encodeURIComponent(p)}
+function furl(p){
+  var path=String(p||'');
+  return SU+'/storage/v1/object/public/documents/'+path.split('/').map(encodeURIComponent).join('/');
+}
+function _storagePathFromUrl(url){
+  if(!url) return null;
+  var m=String(url).match(/\/storage\/v1\/object\/(?:public|sign)\/documents\/(.+?)(?:\?|$)/);
+  if(!m) return null;
+  try{return decodeURIComponent(m[1].replace(/%2F/gi,'/'))}catch(e){return m[1]}
+}
+var _furlCache={};
+async function resolveFilePath(path,expiresSec){
+  if(!path||!sb||!sb.storage) return null;
+  var exp=expiresSec||3600;
+  var cacheKey=path+'|'+exp;
+  var hit=_furlCache[cacheKey];
+  if(hit&&hit.exp>Date.now()) return hit.url;
+  try{
+    var r=await sb.storage.from('documents').createSignedUrl(path,exp);
+    if(r.data&&r.data.signedUrl){
+      _furlCache[cacheKey]={url:r.data.signedUrl,exp:Date.now()+(exp-300)*1000};
+      return r.data.signedUrl;
+    }
+  }catch(e){console.warn('resolveFilePath failed',path,e)}
+  return null;
+}
+async function resolveFileUrl(urlOrPath,expiresSec){
+  if(!urlOrPath) return urlOrPath;
+  var path=_storagePathFromUrl(urlOrPath);
+  if(!path&&urlOrPath.indexOf('http')!==0) path=String(urlOrPath);
+  if(path){
+    var signed=await resolveFilePath(path,expiresSec);
+    if(signed) return signed;
+  }
+  return urlOrPath;
+}
+async function fetchStorageBlob(pathOrUrl){
+  var url=await resolveFileUrl(pathOrUrl);
+  var r=await fetch(url);
+  if(!r.ok) throw new Error('HTTP '+r.status);
+  return r.blob();
+}
+async function deleteStorage(path){
+  if(!path) return;
+  try{
+    var enc=String(path).split('/').map(encodeURIComponent).join('/');
+    await fetch(SU+'/storage/v1/object/documents/'+enc,{method:'DELETE',headers:{apikey:SK,Authorization:H.Authorization}});
+  }catch(e){console.warn('deleteStorage failed',path,e)}
+}
+async function dgCount(t,q){
+  var qs=q||'';
+  if(qs.indexOf('select=')<0) qs+=(qs.indexOf('?')>=0?'&':'?')+'select=id';
+  if(qs.indexOf('limit=')<0) qs+=(qs.indexOf('?')>=0?'&':'?')+'limit=1';
+  var r=await fetch(SU+'/rest/v1/'+t+qs,{headers:{apikey:SK,Authorization:H.Authorization,'Prefer':'count=exact'}});
+  if(!r.ok) return null;
+  var cr=r.headers.get('content-range')||'';
+  var m=cr.match(/\/(\d+)/);
+  return m?parseInt(m[1],10):null;
+}
 
 /* ─── CONSTANTS ─── */
 var DTYPES={incoming:'หนังสือขาเข้า',outgoing:'หนังสือขาออก',certificate:'หนังสือรับรอง',memo:'บันทึกข้อความ'};
@@ -308,6 +394,12 @@ async function loadAppSettings(){
       CAN.rv=function(r){return _rv.includes(r);};
     }
   }catch(e){}
+  checkSchemaHealth();
+}
+function checkSchemaHealth(){
+  if(!CU||['ROLE-SYS','ROLE-STF','ROLE-DEV'].indexOf(CU.role_code)<0) return;
+  var got=String(SETT.schema_version||'');
+  window._schemaWarning=got!==REQUIRED_SCHEMA_VERSION;
 }
 
 /* ─── PROJECTS (รายชื่อโครงการสำหรับหนังสือขาออก) ─── */

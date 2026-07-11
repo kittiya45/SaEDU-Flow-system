@@ -255,7 +255,7 @@ async function _loadSigPosPreview(docId){
       if(hint)hint.textContent='ไม่พบไฟล์ PDF — ลายเซ็นจะวางที่มุมขวาล่างอัตโนมัติ';
       return;
     }
-    var fileUrl=furl(files[0].file_path);
+    var fileUrl=await resolveFilePath(files[0].file_path);
     if(!window.pdfjsLib){
       await loadSc('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js');
       pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';

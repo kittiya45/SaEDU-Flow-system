@@ -12,35 +12,14 @@ async function vAdm(){
   var html=[];
 
   /* ── User stat cards ── */
-  var uCards=[
-    {label:'ผู้ใช้ทั้งหมด',
-     val:cnt.total, sub:'กนค. '+tc.gnk+' · อาจารย์ '+tc.advisor+' · เจ้าหน้าที่ '+tc.staff,
+  html.push(rStatCards([
+    {label:'ผู้ใช้ทั้งหมด', val:cnt.total, sub:'กนค. '+tc.gnk+' · อาจารย์ '+tc.advisor+' · เจ้าหน้าที่ '+tc.staff,
      ico:'users_f', grad:'linear-gradient(135deg,#1D4ED8 0%,#3B82F6 100%)', shadow:'rgba(29,78,216,.30)'},
-    {label:'อนุมัติแล้ว',
-     val:cnt.apv, sub:'บัญชีที่ใช้งานได้แล้ว',
+    {label:'อนุมัติแล้ว', val:cnt.apv, sub:'บัญชีที่ใช้งานได้แล้ว',
      ico:'check_f', grad:'linear-gradient(135deg,#15803D 0%,#22C55E 100%)', shadow:'rgba(21,128,61,.30)'},
-    {label:'รอการอนุมัติ',
-     val:cnt.pnd, sub:'กรุณาตรวจสอบและดำเนินการ',
-     ico:'bell_f', grad:'linear-gradient(135deg,#7C3AED 0%,#A855F7 100%)', shadow:'rgba(124,58,237,.30)'}
-  ];
-  html.push('<div class="grid grid-cols-3 max-[600px]:grid-cols-1 gap-6 mb-8">');
-  uCards.forEach(function(c){
-    html.push(
-      '<div class="adm-stat-card" style="border-radius:16px;padding:16px 18px;background:'+c.grad+';position:relative;overflow:hidden;box-shadow:0 4px 16px '+c.shadow+';cursor:default">'+
-        '<div style="position:absolute;right:-16px;bottom:-16px;width:80px;height:80px;border-radius:50%;background:rgba(255,255,255,.1);pointer-events:none"></div>'+
-        '<div style="position:absolute;right:20px;top:-20px;width:56px;height:56px;border-radius:50%;background:rgba(255,255,255,.07);pointer-events:none"></div>'+
-        '<div style="position:relative;z-index:1">'+
-          '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">'+
-            '<div style="font-size:10px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:rgba(255,255,255,.7)">'+c.label+'</div>'+
-            '<div style="width:32px;height:32px;border-radius:10px;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;color:#fff">'+svgf(c.ico,16)+'</div>'+
-          '</div>'+
-          '<div style="font-size:32px;font-weight:900;color:#fff;line-height:1;letter-spacing:-1.5px;margin-bottom:5px">'+c.val+'</div>'+
-          '<div style="font-size:10px;color:rgba(255,255,255,.65)">'+c.sub+'</div>'+
-        '</div>'+
-      '</div>'
-    );
-  });
-  html.push('</div>');
+    {label:'รอการอนุมัติ', val:cnt.pnd, sub:'กรุณาตรวจสอบและดำเนินการ',
+     ico:'bell_f', grad:'linear-gradient(135deg,#D97706 0%,#F59E0B 100%)', shadow:'rgba(217,119,6,.30)'}
+  ], {cols:3}));
 
   /* ── Doc number settings card (SYS only) ── */
 
@@ -59,7 +38,7 @@ async function vAdm(){
   var _canAddAdv=CU.role_code==='ROLE-SYS'||CU.role_code==='ROLE-STF';
   _admTab='all';
   html.push(
-    '<div class="flex items-center gap-2.5 mb-5 flex-wrap">'+
+    '<div class="page-toolbar">'+
       '<div class="search-wrap flex-1 min-w-[180px]">'+
         '<div class="search-icon">'+svg('srch',15)+'</div>'+
         '<input class="fi" id="asrch" placeholder="ค้นหาชื่อ, รหัสนิสิต, อีเมล, ตำแหน่ง..." oninput="setAS()" style="padding-left:38px;height:38px;font-size:13px">'+
@@ -74,7 +53,7 @@ async function vAdm(){
       '</button>'
       :'')+
     '</div>'+
-    '<div id="atabs" class="flex flex-wrap gap-1 mb-6">'+
+    '<div id="atabs" class="page-tabs">'+
     [['all','ทั้งหมด'],['pending','รอการอนุมัติ'],['gnk','กนค.'],['advisor','อาจารย์'],['staff','เจ้าหน้าที่']].map(function(x){
       var cnt=tc[x[0]]||0;
       var chipMod=(x[0]==='pending'&&cnt>0)?' tab-count-action':(cnt===0?' tab-count-zero':'');

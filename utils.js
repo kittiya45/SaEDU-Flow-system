@@ -1,7 +1,9 @@
 /* ─── UTILS ─── */
-async function dlFile(url,name){
+async function dlFile(urlOrPath,name){
+  var resolved=urlOrPath;
+  try{resolved=await resolveFileUrl(urlOrPath)}catch(e){}
   try{
-    var r=await fetch(url);
+    var r=await fetch(resolved);
     if(!r.ok) throw new Error('HTTP '+r.status);
     var blob=await r.blob();
     var a=document.createElement('a');
@@ -10,7 +12,7 @@ async function dlFile(url,name){
     document.body.appendChild(a);
     a.click();
     setTimeout(function(){URL.revokeObjectURL(a.href);document.body.removeChild(a);},200);
-  }catch(e){window.open(url,'_blank');}
+  }catch(e){window.open(resolved,'_blank');}
 }
 function fd(d){
   if(!d)return'—';
@@ -83,6 +85,36 @@ function uBadge(u){
   var cls={normal:'u-normal',urgent:'u-urgent',very_urgent:'u-vurgent'};
   var txt={normal:'ปกติ',urgent:'เร่งด่วน',very_urgent:'ด่วนมาก'};
   return '<span class="ubadge '+(cls[u]||'u-normal')+'"><span class="bdot"></span>'+esc(txt[u]||u)+'</span>'
+}
+
+/* การ์ดสถิติแบบ gradient สีสัน — cards: [{label,val,sub?,ico,grad,shadow,navTarget?}] */
+function rStatCards(cards, opts){
+  opts=opts||{};
+  var cols=opts.cols||4;
+  var mb=opts.mb||'28px';
+  var html=['<div class="stat-cards'+(cols===3?' cols-3':'')+'" style="margin-bottom:'+mb+'">'];
+  cards.forEach(function(c){
+    var click=c.navTarget?' onclick="nav(\''+c.navTarget+'\')"':'';
+    var grad=c.grad||'linear-gradient(135deg,#1D4ED8 0%,#3B82F6 100%)';
+    var shadow=c.shadow||'rgba(29,78,216,.30)';
+    html.push(
+      '<div class="stat-card stat-card-grad'+(c.navTarget?' clickable':'')+'"'+click+
+      ' style="background:'+grad+';box-shadow:0 4px 16px '+shadow+';--stat-shadow:'+shadow+'">'+
+        '<div class="stat-card-bubble stat-card-bubble-a"></div>'+
+        '<div class="stat-card-bubble stat-card-bubble-b"></div>'+
+        '<div class="stat-card-inner">'+
+          '<div class="stat-card-head">'+
+            '<div class="stat-card-label">'+esc(c.label)+'</div>'+
+            '<div class="stat-card-ico">'+svgf(c.ico,16)+'</div>'+
+          '</div>'+
+          '<div class="stat-card-val">'+c.val+'</div>'+
+          (c.sub?'<div class="stat-card-sub">'+esc(c.sub)+'</div>':'')+
+        '</div>'+
+      '</div>'
+    );
+  });
+  html.push('</div>');
+  return html.join('');
 }
 
 function svg(n,s){
@@ -185,6 +217,124 @@ function stepDeadline(deadlineDays){
   var d=addWorkingDays(new Date(),deadlineDays||2);
   d.setHours(23,59,0,0);
   return d.toISOString();
+}
+
+/* รับเอกสารที่ส่งต่อ — atomic RPC (ล้าง forwarded_to_id) พร้อม fallback */
+async function acceptForwardedDoc(docId, note){
+  try{
+    await drpc('forward_accept',{p_doc:docId,p_note:note||null});
+    return;
+  }catch(e){
+    if(!rpcFnMissing(e)) throw e;
+  }
+  await dpa('documents',docId,{forwarded_to_id:null,forwarded_at:null,updated_at:new Date().toISOString()});
+  await dp('document_history',{document_id:docId,action:'เจ้าหน้าที่รับเอกสาร',performed_by:CU.id,note:note||'รับและอนุมัติเอกสารเรียบร้อยแล้ว'});
+}
+
+/* ไม่อนุมัติเอกสารที่ส่งต่อ — atomic RPC + fallback */
+async function declineForwardedDoc(docId, note){
+  try{
+    await drpc('forward_decline',{p_doc:docId,p_note:note});
+    return;
+  }catch(e){
+    if(!rpcFnMissing(e)) throw e;
+  }
+  await dpa('documents',docId,{status:'rejected',forwarded_to_id:null,forwarded_at:null,updated_at:new Date().toISOString()});
+  var _wfR=await dg('workflow_steps','?document_id=eq.'+safeId(docId)+'&order=step_number');
+  var _firstRev=_wfR.find(function(s){return s.step_number>1})||(_wfR.length?_wfR[0]:null);
+  for(var _ri=0;_ri<_wfR.length;_ri++){
+    var _ru={action_taken:null,note:null,revision_section:null,action_at:null,completed_at:null,rejected_by:null,deadline_datetime:null};
+    if(_firstRev&&_wfR[_ri].id===_firstRev.id){_ru.status='rejected';_ru.rejected_by=CU.id;}
+    else{_ru.status='pending';}
+    await dpa('workflow_steps',_wfR[_ri].id,_ru);
+  }
+  await dp('document_history',{document_id:docId,action:'ไม่อนุมัติ — ส่งคืนให้ดำเนินการใหม่',performed_by:CU.id,note:note});
+}
+
+/* ดึงเอกสารกลับเป็นฉบับร่าง — atomic RPC + fallback; คืน {notify_ids:[]} */
+async function recallDocumentRpc(docId){
+  try{
+    var res=await drpc('recall_document',{p_doc:docId});
+    return res&&res.notify_ids?res:{notify_ids:[]};
+  }catch(e){
+    if(!rpcFnMissing(e)) throw e;
+  }
+  var wf=await dg('workflow_steps','?document_id=eq.'+safeId(docId)+'&order=step_number');
+  var notifyIds=[];
+  for(var i=0;i<wf.length;i++){
+    var step=wf[i];
+    if(step.step_number>1&&(step.status==='active'||step.status==='done')&&step.assigned_to&&step.assigned_to!==CU.id)
+      notifyIds.push(step.assigned_to);
+    var _upd={action_taken:null,note:null,revision_section:null,action_at:null,completed_at:null,rejected_by:null};
+    if(step.step_number===1){_upd.status='active';_upd.deadline_datetime=stepDeadline(step.deadline_days);}
+    else{_upd.status='pending';_upd.deadline_datetime=null;}
+    await dpa('workflow_steps',step.id,_upd);
+  }
+  await dpa('documents',docId,{status:'draft',current_step:1,updated_at:new Date().toISOString()});
+  await dp('document_history',{document_id:docId,action:'ดึงเอกสารกลับ',performed_by:CU.id,note:'ผู้จัดทำดึงเอกสารกลับเป็นฉบับร่าง — รีเซ็ตขั้นตอนอนุมัติทั้งหมด'});
+  return {notify_ids:notifyIds};
+}
+
+/* บันทึก notifications ผ่าน RPC (ตรวจสิทธิ์ฝั่งเซิร์ฟเวอร์) */
+async function logNotifRow(row){
+  try{
+    await drpc('log_notification',{
+      p_document_id:row.document_id||null,
+      p_recipient_id:row.recipient_id,
+      p_recipient_email:row.recipient_email||'',
+      p_subject:row.subject||'',
+      p_body:row.body||'',
+      p_notification_type:row.notification_type||'email',
+      p_status:row.status||'sent',
+      p_sent_at:row.sent_at||new Date().toISOString()
+    });
+  }catch(e){
+    if(rpcFnMissing(e)) await dp('notifications',row);
+    else throw e;
+  }
+}
+
+/* เรียก Edge Function send-email (ส่ง documentId/recipientUserId เพื่อตรวจสิทธิ์ฝั่ง server) */
+async function sendEmailEdge(opts){
+  return fetch(SU+'/functions/v1/send-email',{
+    method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':H.Authorization,'apikey':SK},
+    body:JSON.stringify({
+      to:opts.to,subject:opts.subject,html:opts.html,
+      documentId:opts.documentId||null,
+      recipientUserId:opts.recipientUserId||null,
+      testSelf:!!opts.testSelf
+    })
+  });
+}
+
+/* รีสตาร์ท workflow ตั้งแต่ต้น (หลังดึงกลับ/ส่งใหม่/ส่งจากฉบับร่าง) — step 1 done, step 2 active, ที่เหลือ pending
+   คืน {ok:true, singleStep:true} สำหรับเอกสาร 1 step (ขาออก → numbering) หรือ {ok:true} สำหรับหลาย step */
+async function restartDocWorkflow(docId){
+  var wf=await dg('workflow_steps','?document_id=eq.'+safeId(docId)+'&order=step_number');
+  if(!Array.isArray(wf)||!wf.length) return {ok:false};
+  var doc=(await dg('documents','?id=eq.'+safeId(docId)+'&select=doc_type'))[0];
+  var _now=new Date().toISOString();
+  var _firstRev=wf.find(function(s){return s.step_number>1});
+  if(!_firstRev){
+    var s1=wf[0];
+    await dpa('workflow_steps',s1.id,{status:'done',action_taken:'approve',action_at:_now,completed_at:_now,rejected_by:null,note:null,revision_section:null,deadline_datetime:stepDeadline(s1.deadline_days)});
+    var _autoSt=doc&&['incoming','outgoing'].indexOf(doc.doc_type)>=0?'numbering':'completed';
+    await dpa('documents',docId,{status:_autoSt,current_step:1,updated_at:_now});
+    return {ok:true,singleStep:true,status:_autoSt};
+  }
+  for(var i=0;i<wf.length;i++){
+    var step=wf[i];
+    if(step.step_number===1){
+      await dpa('workflow_steps',step.id,{status:'done',action_taken:'approve',action_at:_now,completed_at:_now,rejected_by:null,note:null,revision_section:null,deadline_datetime:stepDeadline(step.deadline_days)});
+      continue;
+    }
+    var _upd={action_taken:null,note:null,revision_section:null,action_at:null,completed_at:null,rejected_by:null,status:'pending',deadline_datetime:null};
+    if(step.id===_firstRev.id){_upd.status='active';_upd.deadline_datetime=stepDeadline(step.deadline_days);}
+    await dpa('workflow_steps',step.id,_upd);
+  }
+  await dpa('documents',docId,{status:'pending',current_step:2,updated_at:_now});
+  return {ok:true};
 }
 
 /* ─── fdTime: แสดงวันที่ + เวลา HH:MM (ใช้ใน history log) ─── */

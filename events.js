@@ -1,4 +1,7 @@
-/* ─── EVENT DELEGATION ─── */
+function _resolveFileFromEl(el){
+  if(el.dataset.path) return resolveFilePath(el.dataset.path);
+  return resolveFileUrl(el.dataset.url||'');
+}
 /* All dynamic clicks handled via data-action */
 document.addEventListener('click', function(e){
   var el = e.target.closest('[data-action]');
@@ -26,6 +29,8 @@ document.addEventListener('click', function(e){
   else if(a==='regS') doRegS();
   else if(a==='logout') doLogout();
   else if(a==='setDT') setDT(tab);
+  else if(a==='docPagePrev') docPageNav(-1);
+  else if(a==='docPageNext') docPageNav(1);
   else if(a==='setAT') setAT(tab);
   else if(a==='exportCSV') exportCSV();
   else if(a==='exportDocPDF') exportDocPDF(id);
@@ -48,8 +53,8 @@ document.addEventListener('click', function(e){
   else if(a==='saveSend') saveDoc('pending');
   else if(a==='delFF') delFF(id, +el.dataset.idx);
   else if(a==='detUp') $e('dup').click();
-  else if(a==='openViewer') openViewer(el.dataset.url, el.dataset.name);
-  else if(a==='openEditor') openEditor(el.dataset.url, el.dataset.name, el.dataset.fid, el.dataset.did);
+  else if(a==='openViewer') _resolveFileFromEl(el).then(function(u){openViewer(u,el.dataset.name)}).catch(function(){if(el.dataset.url)openViewer(el.dataset.url,el.dataset.name)});
+  else if(a==='openEditor') _resolveFileFromEl(el).then(function(u){openEditor(u,el.dataset.name,el.dataset.fid,el.dataset.did)}).catch(function(){if(el.dataset.url)openEditor(el.dataset.url,el.dataset.name,el.dataset.fid,el.dataset.did)});
   else if(a==='showActModal') showActModal(action, id);
   else if(a==='doAct') doAct(action, id).catch(function(){_actBusy=false;});
   else if(a==='closeModal'){var mw=$e('mwrap');if(mw)mw.innerHTML=''}
@@ -62,7 +67,7 @@ document.addEventListener('click', function(e){
   else if(a==='doTmplUpload') doTmplUpload();
   else if(a==='doTmplDelete') doTmplDelete(id);
   else if(a==='showTmplEdit') showTmplEdit(id, el.dataset.name, el.dataset.cat, el.dataset.desc);
-  else if(a==='tmplPreview') tmplPreview(el.dataset.url, el.dataset.name, el.dataset.ext);
+  else if(a==='tmplPreview') tmplPreview(el.dataset.path||el.dataset.url, el.dataset.name, el.dataset.ext);
   else if(a==='admApv') admApv(id);
   else if(a==='admRej') admRej(id);
   else if(a==='admDel') admDel(id);
@@ -115,7 +120,7 @@ document.addEventListener('click', function(e){
   else if(a==='sigColor'){pedSigColor(el.dataset.color);document.querySelectorAll('#sp-draw .csw').forEach(function(s){s.classList.remove('on')});el.classList.add('on')}
   else if(a==='txtColor'){PED.txtColor=el.dataset.color;document.querySelectorAll('#ps-txt .csw').forEach(function(s){s.classList.remove('on')});el.classList.add('on')}
   else if(a==='uploadLocal') $e('ped-local').click();
-  else if(a==='dlFile') dlFile(el.dataset.url,el.dataset.name);
+  else if(a==='dlFile') _resolveFileFromEl(el).then(function(u){dlFile(u,el.dataset.name)}).catch(function(){if(el.dataset.url)dlFile(el.dataset.url,el.dataset.name)});
   else if(a==='acceptFwd') doAcceptFwd(id);
   else if(a==='showDeclineFwdModal') showDeclineFwdModal(id);
   else if(a==='doDeclineFwd') doDeclineFwd(id).catch(function(e){_declineFwdBusy=false;console.error('doDeclineFwd error:',e)});

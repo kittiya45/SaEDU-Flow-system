@@ -172,7 +172,16 @@ async function _devHealthPanel(sqlReady){
     '</div>'+errRows+'</div>';
   }
 
-  return countCard+issueCard+errCard;
+  return countCard+issueCard+
+    '<div class="card"><div class="card-head">'+
+      '<div style="width:26px;height:26px;border-radius:7px;background:#FFF7ED;display:flex;align-items:center;justify-content:center;color:#EA580C">'+svg('folder',13)+'</div>'+
+      '<div><div class="card-head-title">ล้างไฟล์ลงนามซ้ำ / orphan</div>'+
+      '<div style="font-size:10px;color:#a89e99;margin-top:1px">ไฟล์ [ลงนาม] v2–v7 จากระบบเก่า และแถว DB ที่ไม่มีไฟล์ใน Storage</div></div>'+
+      '<button class="btn btn-soft sm ml-auto" onclick="_devScanStorageCleanup()">'+svg('srch',12)+' สแกน</button>'+
+    '</div>'+
+    '<div class="card-body">'+
+      '<div id="dev-storage-cleanup-result" style="font-size:12px;color:#a89e99">กด "สแกน" เพื่อตรวจหาไฟล์ที่ลบได้</div>'+
+    '</div></div>'+errCard;
 }
 
 /* ซ่อมสถานะเอกสารจากแท็บสุขภาพ — ใช้ _reconcileDocState (docDetail.js) แล้วโหลดหน้าใหม่ */
@@ -186,6 +195,103 @@ async function _devFixDoc(docId){
   }catch(e){
     if(al) al.innerHTML='<div class="al al-er" style="margin:8px 16px"><span class="al-icon">'+svg('warn',13)+'</span><span>ซ่อมไม่สำเร็จ: '+esc(e.message||String(e))+'</span></div>';
   }
+}
+
+/* ═══ Storage cleanup — ไฟล์ลงนามซ้ำ v2+ และ orphan DB rows ═══ */
+function _devIsLegacySignedCopy(f){
+  var n=f.file_name||'';
+  var p=f.file_path||'';
+  return /\[ลงนาม\].*v[2-9]/i.test(n)||/\sv[2-9](\.| )/i.test(n)||/\/v[2-9]\./i.test(p)||/v[2-9]\.pdf$/i.test(p);
+}
+function _devSignedGroupKey(f){
+  return String(f.file_path||'').replace(/v[0-9]+\./,'').replace(/\[ลงนาม\]\s*v[0-9]+/i,'[ลงนาม]');
+}
+window._devCleanupList=[];
+
+async function _devScanStorageCleanup(){
+  var box=$e('dev-storage-cleanup-result');
+  if(!box) return;
+  box.innerHTML='<div style="padding:12px 0;display:flex;align-items:center;gap:8px"><span class="sp sp-dark"></span><span>กำลังสแกน...</span></div>';
+  window._devCleanupList=[];
+  try{
+    var files=await dg('document_files','?file_path=like.signed/*&select=id,document_id,file_name,file_path,version,uploaded_at&order=document_id,uploaded_at.desc&limit=3000');
+    if(!Array.isArray(files)) files=[];
+    files=files.filter(function(f){return (f.file_name||'').indexOf('[ลงนาม]')>=0||_devIsLegacySignedCopy(f)});
+    var groups={};
+    files.forEach(function(f){
+      var k=f.document_id+'|'+_devSignedGroupKey(f);
+      (groups[k]=groups[k]||[]).push(f);
+    });
+    var dupes=[];
+    Object.keys(groups).forEach(function(k){
+      var arr=groups[k];
+      if(arr.length<=1) return;
+      arr.sort(function(a,b){
+        var aLeg=_devIsLegacySignedCopy(a)?1:0;
+        var bLeg=_devIsLegacySignedCopy(b)?1:0;
+        if(aLeg!==bLeg) return aLeg-bLeg;
+        return (b.version||0)-(a.version||0);
+      });
+      for(var i=1;i<arr.length;i++) dupes.push(arr[i]);
+    });
+    files.forEach(function(f){
+      if(_devIsLegacySignedCopy(f)&&dupes.indexOf(f)<0){
+        var hasCanonical=files.some(function(o){
+          return o.document_id===f.document_id&&!_devIsLegacySignedCopy(o)&&o.id!==f.id;
+        });
+        if(hasCanonical) dupes.push(f);
+      }
+    });
+    var orphanCnt=0;
+    for(var i=0;i<Math.min(dupes.length,60);i++){
+      try{
+        var url=await resolveFilePath(dupes[i].file_path,60);
+        if(!url){orphanCnt++;continue;}
+        var head=await fetch(url,{method:'HEAD'});
+        if(!head.ok) orphanCnt++;
+      }catch(e){orphanCnt++;}
+    }
+    window._devCleanupList=dupes;
+    var html='<div style="line-height:1.7">';
+    html+='<div><strong>'+dupes.length+'</strong> แถว document_files ที่เป็นไฟล์ลงนามซ้ำ/เก่า</div>';
+    if(orphanCnt) html+='<div style="color:#B45309;margin-top:4px">ตัวอย่าง '+orphanCnt+' แถวที่ไฟล์ใน Storage หายไปแล้ว (orphan DB)</div>';
+    if(dupes.length){
+      html+='<ul style="margin:10px 0 0;padding-left:18px;font-size:11px;color:#6b6560;max-height:160px;overflow:auto">';
+      dupes.slice(0,15).forEach(function(f){
+        html+='<li>'+esc(f.file_name)+' <span class="mono">'+esc(f.file_path)+'</span></li>';
+      });
+      if(dupes.length>15) html+='<li>… และอีก '+(dupes.length-15)+' รายการ</li>';
+      html+='</ul>';
+      html+='<button class="btn btn-danger sm" style="margin-top:12px" onclick="_devRunStorageCleanup()">'+svg('trash',12)+' ลบ '+dupes.length+' รายการ (Storage + DB)</button>';
+    } else {
+      html+='<div style="color:#16A34A;margin-top:8px">'+svg('ok',12)+' ไม่พบไฟล์ซ้ำที่ต้องลบ</div>';
+    }
+    html+='</div>';
+    box.innerHTML=html;
+  }catch(e){
+    box.innerHTML=alrtH('er','สแกนไม่สำเร็จ: '+esc(e.message||String(e)));
+  }
+}
+
+async function _devRunStorageCleanup(){
+  var list=window._devCleanupList||[];
+  if(!list.length){showAlert('ไม่มีรายการที่จะลบ — กดสแกนก่อน','wa');return;}
+  showConfirm('ลบไฟล์ซ้ำ '+list.length+' รายการ?','จะลบจาก Supabase Storage และแถว document_files — ไม่สามารถกู้คืนได้',async function(){
+    var box=$e('dev-storage-cleanup-result');
+    var ok=0,fail=0;
+    for(var i=0;i<list.length;i++){
+      var f=list[i];
+      try{
+        await deleteStorage(f.file_path);
+        var r=await fetch(SU+'/rest/v1/document_files?id=eq.'+safeId(f.id),{method:'DELETE',headers:{apikey:SK,Authorization:H.Authorization}});
+        if(!r.ok) throw new Error('DB '+r.status);
+        ok++;
+      }catch(e){fail++;}
+    }
+    if(box) box.innerHTML=alrtH(fail?'wa':'ok','ลบสำเร็จ '+ok+' รายการ'+(fail?(' — ล้มเหลว '+fail):''));
+    window._devCleanupList=[];
+    showAlert('ล้างไฟล์ซ้ำเสร็จ — ลบ '+ok+' รายการ'+(fail?(' (ล้มเหลว '+fail+')'):''),fail?'wa':'ok');
+  },{confirmLabel:'ลบไฟล์ซ้ำ',confirmClass:'btn-danger'});
 }
 
 /* ═══ แท็บ 2: บันทึกระบบ ═══ */
@@ -973,8 +1079,7 @@ async function _sbxTestEmail(){
   box.innerHTML='<div class="al al-in"><span class="sp sp-dark"></span><span> กำลังส่งอีเมลทดสอบ...</span></div>';
   try{
     // header ต้องเป็นชุดเล็กเสมอสำหรับ Edge Functions — ห้ามส่ง H ตรง ๆ (มี Prefer ที่ CORS ปฏิเสธ)
-    var r=await fetch(SU+'/functions/v1/send-email',{method:'POST',headers:{apikey:SK,'Authorization':H.Authorization,'Content-Type':'application/json'},
-      body:JSON.stringify({to:to,subject:(SETT.email_prefix||'[กนค.]')+' ทดสอบระบบอีเมล (Dev Sandbox)',html:'<p>อีเมลทดสอบจากแท็บ "ทดสอบระบบ" ใน Dev Panel — ถ้าได้รับฉบับนี้แปลว่า Edge Function send-email และ Resend ทำงานปกติค่ะ</p><p style="color:#888;font-size:12px">ส่งเมื่อ '+new Date().toLocaleString('th-TH')+'</p>'})});
+    var r=await sendEmailEdge({to:to,subject:(SETT.email_prefix||'[กนค.]')+' ทดสอบระบบอีเมล (Dev Sandbox)',html:'<p>อีเมลทดสอบจากแท็บ "ทดสอบระบบ" ใน Dev Panel — ถ้าได้รับฉบับนี้แปลว่า Edge Function send-email และ Brevo ทำงานปกติค่ะ</p><p style="color:#888;font-size:12px">ส่งเมื่อ '+new Date().toLocaleString('th-TH')+'</p>',testSelf:true});
     box.innerHTML=r.ok?alrtH('ok','ส่งสำเร็จ — เช็คกล่องจดหมาย '+to+' (Edge Function + Resend ทำงานปกติ)')
       :alrtH('er','ส่งไม่สำเร็จ (HTTP '+r.status+') — เช็ค RESEND_API_KEY / การ deploy ฟังก์ชัน send-email');
   }catch(e){box.innerHTML=alrtH('er','ส่งไม่สำเร็จ: '+(e.message||e)+' — ถ้าเป็น "Failed to fetch" มักคือฟังก์ชันยังไม่ถูก deploy');}
@@ -984,7 +1089,7 @@ async function _sbxTestLine(){
   box.innerHTML='<div class="al al-in"><span class="sp sp-dark"></span><span> กำลังส่ง LINE ทดสอบ...</span></div>';
   try{
     if(typeof sendLinePush!=='function') throw new Error('ไม่พบฟังก์ชัน sendLinePush');
-    var res=await sendLinePush(CU.id,'🧪 ทดสอบระบบ LINE จาก Dev Panel — '+new Date().toLocaleString('th-TH'));
+    var res=await sendLinePush(CU.id,'🧪 ทดสอบระบบ LINE จาก Dev Panel — '+new Date().toLocaleString('th-TH'),null,null,true);
     if(res&&res.skipped==='not_linked') box.innerHTML=alrtH('wa','บัญชีนี้ยังไม่ได้เชื่อม LINE — เชื่อมก่อนที่กระดิ่ง → "รับแจ้งเตือนทาง LINE" แล้วลองใหม่');
     else box.innerHTML=alrtH('ok','ส่ง LINE สำเร็จ — เช็คแชท LINE ของคุณ (Edge Function send-line ทำงานปกติ)');
   }catch(e){box.innerHTML=alrtH('er','ส่ง LINE ไม่สำเร็จ: '+(e.message||e)+' — เช็คการ deploy ฟังก์ชัน send-line / LINE_CHANNEL_ACCESS_TOKEN');}

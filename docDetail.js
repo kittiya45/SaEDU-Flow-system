@@ -22,6 +22,19 @@ function _toggleDetMore(){
 function _fileBaseName(f){
   return f.file_name.replace(/^(\[(ลงนาม|ตีกลับ|แก้ไข)\]\s*)+/g,'').replace(/^(signed|reject|edited)_\d+_/,'');
 }
+function _isSignedFile(f){
+  return f.file_name.indexOf('[ลงนาม]')>=0||f.file_path.indexOf('signed/')===0||/^signed_/.test(f.file_path||'');
+}
+function _signedStablePath(docId,baseName){
+  var safe=baseName.replace(/[^a-zA-Z0-9._-]/g,'_').slice(0,100);
+  return 'signed/'+docId+'/'+safe+'.pdf';
+}
+async function _deleteStorage(path){
+  if(!path) return;
+  try{
+    await fetch(SU+'/storage/v1/object/documents/'+encodeURIComponent(path),{method:'DELETE',headers:{apikey:SK,Authorization:H.Authorization}});
+  }catch(e){}
+}
 function _fileGroups(files){
   var m={},order=[];
   files.forEach(function(f){
@@ -44,7 +57,7 @@ function _fileGroups(files){
 function _canSeeVerHist(){return ['ROLE-SYS','ROLE-STF'].includes(CU.role_code)}
 function _rCurFileRow(f,docId){
   var ft=fType(f);
-  var isSigned=f.file_name.indexOf('[ลงนาม]')>=0||f.file_name.indexOf('signed_')>=0;
+  var isSigned=_isSignedFile(f);
   var isRejFile=f.file_name.indexOf('[ตีกลับ]')>=0;
   var isEditFile=f.file_name.indexOf('[แก้ไข]')>=0||f.file_name.indexOf('edited_')>=0;
   var _dispName=_fileBaseName(f);
@@ -60,9 +73,9 @@ function _rCurFileRow(f,docId){
   if(isEditFile) h.push('<span class="badge b-pending text-[10px] px-[7px] py-0.5">แก้ไข</span>');
   h.push('<span class="file-meta">'+ft.label+' · '+fsz(f.file_size)+' · '+dtStr+'</span></div>');
   h.push('</div><div class="file-actions">');
-  h.push('<button class="btn btn-ghost xs" data-action="openViewer" data-url="'+furl(f.file_path)+'" data-name="'+esc(_dispName)+'">'+svg('eye',12)+' ดู</button>');
-  h.push('<button class="btn btn-soft xs" data-action="openEditor" data-url="'+furl(f.file_path)+'" data-name="'+esc(_dispName)+'" data-fid="'+f.id+'" data-did="'+docId+'">'+svg('edit',12)+' แก้ไข</button>');
-  h.push('<button class="btn btn-soft xs" data-action="dlFile" data-url="'+furl(f.file_path)+'" data-name="'+esc(_dispName)+'">'+svg('dn',12)+' โหลด</button>');
+  h.push('<button class="btn btn-ghost xs" data-action="openViewer" data-path="'+esc(f.file_path)+'" data-name="'+esc(_dispName)+'">'+svg('eye',12)+' ดู</button>');
+  h.push('<button class="btn btn-soft xs" data-action="openEditor" data-path="'+esc(f.file_path)+'" data-name="'+esc(_dispName)+'" data-fid="'+f.id+'" data-did="'+docId+'">'+svg('edit',12)+' แก้ไข</button>');
+  h.push('<button class="btn btn-soft xs" data-action="dlFile" data-path="'+esc(f.file_path)+'" data-name="'+esc(_dispName)+'">'+svg('dn',12)+' โหลด</button>');
   h.push('</div></div>');
   return h.join('');
 }
@@ -167,10 +180,11 @@ async function vDet(docId){
   }
   if(doc.status==='rejected'&&doc.created_by===CU.id){
     html.push('<button class="btn btn-primary sm" data-action="doReSubmit" data-id="'+docId+'">'+svg('up',13)+' ส่งใหม่อีกครั้ง</button>');
+  } else if(doc.status==='draft'&&doc.created_by===CU.id&&wf.length>0){
+    html.push('<button class="btn btn-primary sm" data-action="doReSubmit" data-id="'+docId+'">'+svg('up',13)+' ส่งเข้าระบบอีกครั้ง</button>');
   }
-  // [Recall] ผู้จัดทำดึงเอกสารกลับเป็นฉบับร่างได้ เฉพาะตอนที่ยังไม่มีผู้อนุมัติขั้นตอนใดเลย
-  // (step 1 คือ step ผู้จัดทำเอง auto-done ตอน submit — นับเฉพาะ step 2 ขึ้นไป)
-  if(doc.status==='pending'&&doc.created_by===CU.id&&!wf.some(function(s){return s.step_number>1&&s.status==='done'})){
+  // ผู้จัดทำดึงกลับเป็นฉบับร่างได้ทุกกรณีที่ยังอยู่ใน workflow (pending) — แม้มีผู้อนุมัติไปแล้วบางขั้น
+  if(doc.status==='pending'&&doc.created_by===CU.id&&wf.length>0){
     html.push('<button class="btn btn-soft sm" data-action="doRecall" data-id="'+docId+'">'+svg('undo',13)+' ดึงกลับ</button>');
   }
   // Secondary
@@ -227,23 +241,23 @@ async function vDet(docId){
   html.push('<div class="card"><div class="card-head">'+_ico('doc','#FFF3EE','#E83A00')+'<span class="card-head-title">ข้อมูลเอกสาร</span></div><div class="card-body">');
   var _addrDisplay=doc.doc_type==='outgoing'?(PTH[doc.addressed_to]||doc.addressed_to||'—'):(doc.addressed_to||'—');
   var _fromDisplay=doc.doc_type==='outgoing'&&doc.description?'โครงการ: '+doc.description:(doc.from_department||'—');
-  // หัวเรื่อง — ฟิลด์ที่สำคัญที่สุดของเอกสาร ขึ้นก่อนเป็นหัวข้อใหญ่ + เลขที่เอกสาร
-  html.push('<div class="detail-head"><span class="detail-title">'+esc(doc.title)+'</span><span class="mono">'+esc(doc.doc_number||'—')+'</span></div>');
-  var _scell=function(label,val,cls){return '<div class="stat-cell'+(cls?' '+cls:'')+'"><span class="stat-label">'+label+'</span><span class="stat-value">'+val+'</span></div>'};
-  // โซน 1: ผู้รับ/ผู้ส่ง — ข้อมูล "ใคร" ที่ต้องอ่านก่อน
-  html.push('<div class="detail-addr">');
-  html.push(_scell('เรียน (ถึง)','<strong style="color:var(--orange)">'+esc(_addrDisplay)+'</strong>'));
-  html.push(_scell('จากฝ่าย / หน่วยงาน','<strong>'+esc(_fromDisplay)+'</strong>','addr-from'));
+  // หัวเรื่อง + เลขที่เอกสาร
+  html.push('<div class="detail-head"><span class="detail-title">'+esc(doc.title)+'</span><span class="detail-num">'+esc(doc.doc_number||'—')+'</span></div>');
+  var _scell=function(label,val){return '<div class="stat-cell"><span class="stat-label">'+label+'</span><span class="stat-value">'+val+'</span></div>'};
+  // โซน 1: ผู้รับ/ผู้ส่ง — พื้นอ่อน 2 คอลัมน์เท่ากัน
+  html.push('<div class="detail-parties">');
+  html.push(_scell('เรียน (ถึง)','<span class="detail-val-accent">'+esc(_addrDisplay)+'</span>'));
+  html.push(_scell('จากฝ่าย / หน่วยงาน','<span class="detail-val">'+esc(_fromDisplay)+'</span>'));
   html.push('</div>');
-  // โซน 2: เมตาดาต้าเชิงโครงสร้าง — grid 3 คอลัมน์เรียงตรงกันเป็น 2 แถว
-  html.push('<div class="stat-grid">');
+  // โซน 2: เมตาดาต้า — grid 3 คอลัมน์
+  html.push('<div class="detail-fields">');
   [['ประเภท',tBadge(doc.doc_type)],
    ['ความเร่งด่วน',uBadge(doc.urgency)+
      (['ROLE-STF','ROLE-SYS'].includes(CU.role_code)?'<button class="btn btn-soft xs" data-action="showChgUrgency" data-id="'+docId+'" title="แก้ไขความเร่งด่วน">'+svg('edit',11)+'</button>':'')],
-   ['วันที่เอกสาร',fd(doc.doc_date)],
-   ['กำหนดเสร็จ','<span class="text-[#D97706]">'+fd(doc.due_date)+(doc.deadline_datetime?' '+new Date(doc.deadline_datetime).toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'}):'')+'</span>'],
-   ['ผู้จัดทำ',esc(creator.full_name)],
-   ['ผู้รับเอกสารเสร็จสิ้น',doc.final_recipient_id&&_aMap[doc.final_recipient_id]?'<strong>'+esc(_aMap[doc.final_recipient_id].full_name)+'</strong>':'<span class="text-[#a89e99]">ผู้จัดทำ (ค่าเริ่มต้น)</span>']
+   ['วันที่เอกสาร','<span class="detail-val">'+fd(doc.doc_date)+'</span>'],
+   ['กำหนดเสร็จ','<span class="detail-val-warn">'+fd(doc.due_date)+(doc.deadline_datetime?' '+new Date(doc.deadline_datetime).toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'}):'')+'</span>'],
+   ['ผู้จัดทำ','<span class="detail-val">'+esc(creator.full_name)+'</span>'],
+   ['ผู้รับเอกสารเสร็จสิ้น',doc.final_recipient_id&&_aMap[doc.final_recipient_id]?'<span class="detail-val">'+esc(_aMap[doc.final_recipient_id].full_name)+'</span>':'<span class="detail-val-muted">ผู้จัดทำ (ค่าเริ่มต้น)</span>']
   ].forEach(function(r){html.push(_scell(r[0],r[1]))});
   html.push('</div>');
   // โซน 3: รายละเอียดเพิ่มเติม — ข้อความยาว แยกเป็นบล็อกอ่านง่าย line-height สูง
@@ -252,20 +266,20 @@ async function vDet(docId){
   // Show forwarded_to info
   if(doc.forwarded_to_id&&doc.status==='completed'){
     var _fwdUser=_aMap[doc.forwarded_to_id];
-    if(_fwdUser) html.push('<div class="al al-ok mt-3.5"><span class="al-icon">'+svg('sign',15)+'</span><div><strong>ส่งเอกสารถึง: '+esc(_fwdUser.full_name)+'</strong>'+(doc.forwarded_at?'<div class="text-[11px] mt-0.5">เมื่อ '+new Date(doc.forwarded_at).toLocaleString('th-TH',{dateStyle:'medium',timeStyle:'short'})+'</div>':'')+'</div></div>')
+    if(_fwdUser) html.push('<div class="al al-ok detail-fwd"><span class="al-icon">'+svg('sign',15)+'</span><div style="line-height:1.65"><strong>ส่งเอกสารถึง: '+esc(_fwdUser.full_name)+'</strong>'+(doc.forwarded_at?'<div style="font-size:11px;margin-top:4px;opacity:.85">เมื่อ '+new Date(doc.forwarded_at).toLocaleString('th-TH',{dateStyle:'medium',timeStyle:'short'})+'</div>':'')+'</div></div>')
   }
   html.push('</div></div>');
 
   // Files — จัดกลุ่มตามไฟล์ต้นฉบับ: ฉบับล่าสุดของแต่ละไฟล์ (Word/PDF/เอกสารเบิกเงิน) = ฉบับปัจจุบัน
   // เวอร์ชันเก่าที่ถูกทับเห็นได้เฉพาะ admin/เจ้าหน้าที่ (ดู _fileGroups/_canSeeVerHist ด้านบน)
-  var _signedFile=files.find(function(f){return f.file_name.indexOf('[ลงนาม]')>=0||f.file_name.indexOf('signed_')>=0});
+  var _signedFile=files.find(function(f){return _isSignedFile(f)});
 
   html.push('<div class="card"><div class="card-head">'+_ico('folder','#FFF3EE','#E83A00')+'<span class="card-head-title">ไฟล์แนบ</span>');
   html.push('<span class="ml-auto flex items-center gap-2">');
   if(_signedFile){
     var _signedDispName=_fileBaseName(_signedFile);
-    html.push('<button class="btn btn-ghost xs" data-action="openViewer" data-url="'+furl(_signedFile.file_path)+'" data-name="'+esc(_signedDispName)+'">'+svg('eye',12)+' ดูฉบับเซ็น</button>');
-    html.push('<button class="btn btn-soft xs" data-action="dlFile" data-url="'+furl(_signedFile.file_path)+'" data-name="'+esc(_signedDispName)+'">'+svg('dn',12)+' โหลดฉบับเซ็น</button>');
+    html.push('<button class="btn btn-ghost xs" data-action="openViewer" data-path="'+esc(_signedFile.file_path)+'" data-name="'+esc(_signedDispName)+'">'+svg('eye',12)+' ดูฉบับเซ็น</button>');
+    html.push('<button class="btn btn-soft xs" data-action="dlFile" data-path="'+esc(_signedFile.file_path)+'" data-name="'+esc(_signedDispName)+'">'+svg('dn',12)+' โหลดฉบับเซ็น</button>');
   }
   html.push('<span class="text-xs text-[#a89e99]" id="dfcount">'+_rFileCountHtml(files)+'</span>');
   html.push('</span></div>');
@@ -402,7 +416,7 @@ async function showVerHist(docId){
   if(!_histFiles.length){w.innerHTML='';return}
   var rows=_histFiles.map(function(f){
     var ft=fType(f);
-    var isSigned=f.file_name.indexOf('[ลงนาม]')>=0||f.file_name.indexOf('signed_')>=0;
+    var isSigned=_isSignedFile(f);
     var isEdited=f.file_name.indexOf('[แก้ไข]')>=0||f.file_name.indexOf('edited_')>=0;
     var isRejFile=f.file_name.indexOf('[ตีกลับ]')>=0;
     var dtStr=f.uploaded_at?new Date(f.uploaded_at).toLocaleString('th-TH',{day:'numeric',month:'short',year:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
@@ -420,8 +434,8 @@ async function showVerHist(docId){
         '</div>'+
       '</div>'+
       '<div class="file-actions">'+
-        '<button class="btn btn-ghost xs" data-action="openViewer" data-url="'+furl(f.file_path)+'" data-name="'+esc(_dn)+'">'+svg('eye',12)+' ดู</button>'+
-        '<button class="btn btn-soft xs" data-action="dlFile" data-url="'+furl(f.file_path)+'" data-name="'+esc(_dn)+'">'+svg('dn',12)+' โหลด</button>'+
+        '<button class="btn btn-ghost xs" data-action="openViewer" data-path="'+esc(f.file_path)+'" data-name="'+esc(_dn)+'">'+svg('eye',12)+' ดู</button>'+
+        '<button class="btn btn-soft xs" data-action="dlFile" data-path="'+esc(f.file_path)+'" data-name="'+esc(_dn)+'">'+svg('dn',12)+' โหลด</button>'+
       '</div>'+
     '</div>'
   }).join('');
@@ -476,11 +490,11 @@ async function doForward(docId){
     var fwdStatus='skipped';
     try{
       if(recipEmail&&!recipEmail.includes('@gnk.student')){
-        var fwdResp=await fetch(SU+'/functions/v1/send-email',{method:'POST',headers:{'Content-Type':'application/json','Authorization':H.Authorization,'apikey':SK},body:JSON.stringify({to:recipEmail,subject:emailSubj,html:emailBody})});
+        var fwdResp=await sendEmailEdge({to:recipEmail,subject:emailSubj,html:emailBody,documentId:docId,recipientUserId:toId});
         fwdStatus=fwdResp.ok?'sent':'failed';
         if(fwdResp.ok) showEmailToast(recipEmail,emailSubj);
       }
-      await dp('notifications',{document_id:docId,recipient_id:toId,recipient_email:recipEmail||'',subject:emailSubj,body:emailBody,notification_type:'forward',status:fwdStatus,sent_at:new Date().toISOString()});
+      await logNotifRow({document_id:docId,recipient_id:toId,recipient_email:recipEmail||'',subject:emailSubj,body:emailBody,notification_type:'forward',status:fwdStatus,sent_at:new Date().toISOString()});
     }catch(fe){console.warn('Forward notify failed:',fe)}
     // LINE OA push (ช่องทางเสริม — ข้ามเงียบ ๆ ถ้าผู้รับไม่ได้ผูก LINE)
     try{
@@ -508,9 +522,10 @@ function doAcceptFwd(docId){
 
 async function _doAcceptFwdConfirmed(docId){
   try{
-    await dp('document_history',{document_id:docId,action:'เจ้าหน้าที่รับเอกสาร',performed_by:CU.id,note:'รับและอนุมัติเอกสารเรียบร้อยแล้ว'});
+    await acceptForwardedDoc(docId);
     var a=$e('dal');if(a)a.innerHTML=alrtH('ok','รับเอกสารเรียบร้อยแล้ว');
-    setTimeout(function(){nav('det',docId)},900);
+    if(CV==='docs'){try{fDocs();}catch(e){nav('docs')}}
+    else setTimeout(function(){nav('det',docId)},900);
   }catch(e){showAlert('เกิดข้อผิดพลาด: '+e.message,'er')}
 }
 
@@ -544,25 +559,7 @@ async function doDeclineFwd(docId){
   var mw=$e('mwrap');
   if(mw)mw.innerHTML='<div class="mo"><div class="modal"><div class="modal-body text-center py-10"><div class="sp sp-dark w-8 h-8 border-[3px] mx-auto"></div><p class="mt-4 text-[#a89e99]">กำลังดำเนินการ...</p></div></div></div>';
   try{
-    // เปลี่ยนสถานะเอกสารเป็น rejected และล้าง forwarded state
-    await dpa('documents',docId,{status:'rejected',forwarded_to_id:null,forwarded_at:null,updated_at:new Date().toISOString()});
-
-    // Reset workflow steps: step แรกของ reviewer → rejected (ให้ resubmit ทำงานได้), ที่เหลือ → waiting
-    var _wfR=await dg('workflow_steps','?document_id=eq.'+safeId(docId)+'&order=step_number');
-    // หา reviewer step แรก; ถ้าไม่มีให้ใช้ step 1 (creator) เป็น fallback เพื่อให้ resubmit ทำงานได้
-    var _firstRev=_wfR.find(function(s){return s.step_number>1})||(_wfR.length?_wfR[0]:null);
-    for(var _ri=0;_ri<_wfR.length;_ri++){
-      var _ru={action_taken:null,note:null,revision_section:null,action_at:null,completed_at:null,rejected_by:null};
-      if(_firstRev&&_wfR[_ri].id===_firstRev.id){
-        _ru.status='rejected'; _ru.rejected_by=CU.id;
-      } else {
-        _ru.status='pending';
-      }
-      _ru.deadline_datetime=null;
-      await dpa('workflow_steps',_wfR[_ri].id,_ru);
-    }
-
-    await dp('document_history',{document_id:docId,action:'ไม่อนุมัติ — ส่งคืนให้ดำเนินการใหม่',performed_by:CU.id,note:note});
+    await declineForwardedDoc(docId,note);
     try{await sendNotifEmail(docId,'reject','rejected',note)}catch(ne){console.warn('Notify failed:',ne)}
     if(mw)mw.innerHTML='';
     var _a=$e('dal');
@@ -636,44 +633,59 @@ async function doAct(action,docId){
   }
   var mw=$e('mwrap'); if(mw) mw.innerHTML='<div class="mo"><div class="modal"><div class="modal-body text-center py-10"><div class="sp sp-dark w-8 h-8 border-[3px] mx-auto"></div><p class="mt-4 text-[#a89e99]">กำลังดำเนินการ...</p></div></div></div>';
   var wf,cur,ns,nst;
-  // [self-heal] ห่อ write หลัก (step → next step → doc status) ด้วย try/catch
-  // ถ้าพังกลางทาง ให้ _reconcileDocState ซ่อมสถานะให้สอดคล้อง แล้วแจ้งผู้ใช้ให้ลองใหม่
-  // แทนที่จะปล่อยให้ค้างครึ่ง ๆ กลาง ๆ (step เปลี่ยนแต่ doc ไม่ขยับ)
+  var usedRpc=false;
+  // [atomic RPC] อนุมัติ/ตีกลับแบบ transaction เดียว — fallback เป็น write แยกถ้า SQL ยังไม่ deploy
   try{
-    wf=await dg('workflow_steps','?document_id=eq.'+docId+'&order=step_number');
-    cur=wf.filter(function(s){return s.status==='active'})[0]||wf[0];
-    if(cur){
-      await dpa('workflow_steps',cur.id,{status:action==='approve'?'done':'rejected',action_taken:action,note:note,revision_section:revSection||null,action_at:new Date().toISOString(),completed_at:action==='approve'?new Date().toISOString():null,rejected_by:action==='reject'?CU.id:null});
-      if(action==='approve'){
-        // หาขั้นตอนถัดไป รวม rejected steps ที่อยู่ใน cascade (ต้อง re-activate)
-        var nx=wf.find(function(s){return s.step_number>cur.step_number&&s.status!=='done'});
-        if(nx){
-          var _nxUpd={status:'active',deadline_datetime:stepDeadline(nx.deadline_days)};
-          if(nx.status==='rejected'){
-            // ล้างข้อมูลตีกลับเมื่อ re-activate กลับขึ้นไปใน cascade
-            Object.assign(_nxUpd,{action_taken:null,note:null,revision_section:null,action_at:null,completed_at:null,rejected_by:null});
+    var rpcRes=await drpc('workflow_action',{p_doc:docId,p_action:action,p_note:note,p_revision_section:revSection||null});
+    if(rpcRes&&typeof rpcRes==='object'){
+      nst=rpcRes.status;
+      ns=rpcRes.current_step;
+      usedRpc=true;
+      wf=await dg('workflow_steps','?document_id=eq.'+safeId(docId)+'&order=step_number');
+      cur=wf.filter(function(s){return s.step_number===(rpcRes.cur_step_number||1)})[0]||wf[0];
+    }
+  }catch(_rpcE){
+    if(!rpcFnMissing(_rpcE)){
+      await _reconcileDocState(docId);
+      _actBusy=false;
+      if(mw) mw.innerHTML='';
+      showAlert('ดำเนินการไม่สำเร็จ ระบบได้ตรวจซ่อมสถานะเอกสารให้แล้ว กรุณาลองใหม่อีกครั้ง','er');
+      return;
+    }
+    // fallback: write แยกตาราง (เดิม)
+    try{
+      wf=await dg('workflow_steps','?document_id=eq.'+docId+'&order=step_number');
+      cur=wf.filter(function(s){return s.status==='active'})[0]||wf[0];
+      if(cur){
+        await dpa('workflow_steps',cur.id,{status:action==='approve'?'done':'rejected',action_taken:action,note:note,revision_section:revSection||null,action_at:new Date().toISOString(),completed_at:action==='approve'?new Date().toISOString():null,rejected_by:action==='reject'?CU.id:null});
+        if(action==='approve'){
+          var nx=wf.find(function(s){return s.step_number>cur.step_number&&s.status!=='done'});
+          if(nx){
+            var _nxUpd={status:'active',deadline_datetime:stepDeadline(nx.deadline_days)};
+            if(nx.status==='rejected'){
+              Object.assign(_nxUpd,{action_taken:null,note:null,revision_section:null,action_at:null,completed_at:null,rejected_by:null});
+            }
+            await dpa('workflow_steps',nx.id,_nxUpd);
           }
-          await dpa('workflow_steps',nx.id,_nxUpd);
         }
       }
+      ns=Math.min((doc.current_step||1)+1,doc.total_steps||1);
+      var allDone=action==='approve'&&!wf.some(function(s){return s.step_number>cur.step_number&&s.status!=='done'});
+      nst=action==='approve'?(allDone?(doc.doc_type==='incoming'?'numbering':'completed'):'pending'):'rejected';
+      await dpa('documents',docId,{status:nst,current_step:ns,updated_at:new Date().toISOString()});
+    }catch(_te){
+      await _reconcileDocState(docId);
+      _actBusy=false;
+      if(mw) mw.innerHTML='';
+      showAlert('ดำเนินการไม่สำเร็จ ระบบได้ตรวจซ่อมสถานะเอกสารให้แล้ว กรุณาลองใหม่อีกครั้ง','er');
+      return;
     }
-    ns=Math.min((doc.current_step||1)+1,doc.total_steps||1);
-    // allDone: ไม่มี step ใดหลัง step ปัจจุบันที่ยังไม่ done (รวม rejected steps ใน cascade)
-    var allDone=action==='approve'&&!wf.some(function(s){return s.step_number>cur.step_number&&s.status!=='done'});
-    // เมื่อลงนามครบ: ขาเข้า → numbering, ขาออก → completed
-    // เมื่อตีกลับ: กลับไปหาผู้จัดทำเอกสารโดยตรงเสมอ (ไม่ cascade ทีละขั้นแล้ว)
-    nst=action==='approve'?(allDone?(doc.doc_type==='incoming'?'numbering':'completed'):'pending'):'rejected';
-    await dpa('documents',docId,{status:nst,current_step:ns,updated_at:new Date().toISOString()});
-  }catch(_te){
-    await _reconcileDocState(docId);
-    _actBusy=false;
-    if(mw) mw.innerHTML='';
-    showAlert('ดำเนินการไม่สำเร็จ ระบบได้ตรวจซ่อมสถานะเอกสารให้แล้ว กรุณาลองใหม่อีกครั้ง','er');
-    return;
   }
 
-  var _histAct=action==='approve'?'อนุมัติ / ลงนาม':'ส่งคืนแก้ไขไปยังผู้จัดทำ';
-  await dp('document_history',{document_id:docId,action:_histAct,performed_by:CU.id,note:note});
+  if(!usedRpc){
+    var _histAct=action==='approve'?'อนุมัติ / ลงนาม':'ส่งคืนแก้ไขไปยังผู้จัดทำ';
+    await dp('document_history',{document_id:docId,action:_histAct,performed_by:CU.id,note:note});
+  }
   if(action==='reject'){
     // แจ้งเตือน (เพื่อทราบเท่านั้น) ผู้ที่อนุมัติ/ลงนามไปแล้วก่อนหน้า step ที่ตีกลับ
     var _priorApproved=wf.filter(function(s){return s.step_number>1&&s.step_number<cur.step_number&&s.status==='done'&&s.assigned_to});
@@ -716,17 +728,20 @@ async function doAct(action,docId){
       await dp('document_history',{document_id:docId,action:'ส่งเอกสารคืนผู้รับเอกสาร',performed_by:CU.id,note:doc.final_recipient_note||'เอกสารเสร็จสิ้น ส่งคืนผู้รับผิดชอบ'})
     }
   }
-  // Embed signature into latest PDF if provided
+  // Embed signature — ซ้อนลายเซ็นทับ PDF เดิม (อัปเดตไฟล์เดิม ไม่สร้างสำเนาใหม่ทุกขั้นตอน)
   if(sigSrc&&action==='approve'){
     try{
-      var files=await dg('document_files','?document_id=eq.'+docId+'&file_type=like.application%2Fpdf&order=uploaded_at.desc&limit=1');
-      if(files&&files.length){
-        var latestFile=files[0];
-        var fileUrl2=furl(latestFile.file_path);
+      var allPdfs=await dg('document_files','?document_id=eq.'+safeId(docId)+'&file_type=like.application%2Fpdf&order=uploaded_at.desc');
+      if(allPdfs&&allPdfs.length){
+        var latestFile=allPdfs[0];
+        var baseName=_fileBaseName(latestFile);
+        var groupPdfs=allPdfs.filter(function(f){return _fileBaseName(f)===baseName});
+        var sourceFile=groupPdfs[0];
+        var signedRow=groupPdfs.find(function(f){return _isSignedFile(f)});
         if(!window.PDFLib) await loadSc('https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js');
-        if(latestFile.file_size&&latestFile.file_size>20*1024*1024)
-          throw new Error('ไฟล์ PDF ขนาด '+Math.round(latestFile.file_size/1024/1024)+'MB ใหญ่เกินไป กรุณาใช้ตัวแก้ไข PDF แนบลายเซ็นด้วยตนเอง');
-        var pdfResp=await fetch(fileUrl2);
+        if(sourceFile.file_size&&sourceFile.file_size>20*1024*1024)
+          throw new Error('ไฟล์ PDF ขนาด '+Math.round(sourceFile.file_size/1024/1024)+'MB ใหญ่เกินไป กรุณาใช้ตัวแก้ไข PDF แนบลายเซ็นด้วยตนเอง');
+        var pdfResp=await fetch(await resolveFileUrl(sourceFile.file_path));
         if(pdfResp.ok){
           var pdfBuf=await pdfResp.arrayBuffer();
           var pdfDoc=await PDFLib.PDFDocument.load(new Uint8Array(pdfBuf),{ignoreEncryption:true});
@@ -739,8 +754,6 @@ async function doAct(action,docId){
           }else{
             throw new Error('รองรับเฉพาะไฟล์ PNG หรือ JPEG สำหรับลายเซ็น กรุณาแปลงไฟล์ก่อน');
           }
-          // วาดทุกจุดที่ผู้ใช้ลากวางไว้ (_actSigMarks จาก docSign.js — หลายจุด หลายหน้าได้)
-          // ไม่มีจุดเลย = fallback มุมขวาล่างหน้าสุดท้าย (พฤติกรรมเดิม)
           var _marks=(window._actSigMarks&&_actSigMarks.length)?_actSigMarks:[null];
           var _pgN=pdfDoc.getPageCount();
           for(var _mi=0;_mi<_marks.length;_mi++){
@@ -755,20 +768,22 @@ async function doAct(action,docId){
             }
             _sx=Math.max(0,Math.min(pw-_w,_sx));
             _sy=Math.max(0,Math.min(ph-_h,_sy));
-            // วางแบบ contain (คงสัดส่วนรูป จัดกึ่งกลางกรอบ) ให้ตรงกับ preview ใน docSign.js
-            // ห้าม stretch เต็มกรอบ — ขนาด/สัดส่วนลายเซ็นจริงจะไม่ตรงกับที่ผู้ใช้เห็นตอนวาง
             var _fs=Math.min(_w/emb.width,_h/emb.height);
             var _dw=emb.width*_fs,_dh=emb.height*_fs;
             _pg.drawImage(emb,{x:_sx+(_w-_dw)/2,y:_sy+(_h-_dh)/2,width:_dw,height:_dh});
           }
           var newBytes=await pdfDoc.save();
-          var _baseName=latestFile.file_name.replace(/^(\[ลงนาม\]\s*)+/,'');
-          var safeName=_baseName.replace(/[^a-zA-Z0-9._-]/g,'_');
-          var newPath='signed_'+Date.now()+'_'+safeName;
+          var stablePath=_signedStablePath(docId,baseName);
           var newBlob=new Blob([newBytes],{type:'application/pdf'});
-          await upFile(newPath,newBlob);
-          await dp('document_files',{document_id:docId,file_name:'[ลงนาม] '+_baseName,file_path:newPath,file_size:newBlob.size,file_type:'application/pdf',uploaded_by:CU.id,version:(latestFile.version||1)+1});
-          await dp('document_history',{document_id:docId,action:'ฝังลายเซ็นในเอกสาร'+(_marks.length>1?' ('+_marks.length+' จุด)':''),performed_by:CU.id})
+          var oldPath=signedRow?signedRow.file_path:null;
+          await upFile(stablePath,newBlob);
+          if(signedRow){
+            await dpa('document_files',signedRow.id,{file_path:stablePath,file_size:newBlob.size,uploaded_by:CU.id,version:(signedRow.version||1)+1});
+            if(oldPath&&oldPath!==stablePath) await _deleteStorage(oldPath);
+          }else{
+            await dp('document_files',{document_id:docId,file_name:'[ลงนาม] '+baseName,file_path:stablePath,file_size:newBlob.size,file_type:'application/pdf',uploaded_by:CU.id,version:(sourceFile.version||1)+1});
+          }
+          await dp('document_history',{document_id:docId,action:'ฝังลายเซ็นในเอกสาร'+(_marks.length>1?' ('+_marks.length+' จุด)':'')+(signedRow?' (ซ้อนทับฉบับเดิม)':''),performed_by:CU.id})
         }
       }
     } catch(sigErr){
@@ -793,34 +808,28 @@ var _resubBusy=false;
 function doReSubmit(docId){
   if(_resubBusy)return;
   showConfirm(
-    'ส่งเอกสารใหม่อีกครั้ง?',
-    'เอกสารจะเริ่มขั้นตอนอนุมัติใหม่ตั้งแต่ต้น กรุณาแน่ใจว่าแก้ไขครบถ้วนแล้ว',
+    'ส่งเอกสารเข้าระบบอีกครั้ง?',
+    'เอกสารจะเริ่มขั้นตอนอนุมัติใหม่ตั้งแต่ต้น (รวมผู้ที่เคยอนุมัติไปแล้วต้องอนุมัติใหม่) กรุณาแน่ใจว่าแก้ไขครบถ้วนแล้ว',
     function(){_doReSubmitConfirmed(docId);},
-    {confirmLabel:'ส่งใหม่',confirmClass:'btn-primary',icon:'up',iconBg:'#EFF6FF',iconColor:'#2563EB'}
+    {confirmLabel:'ส่งเข้าระบบ',confirmClass:'btn-primary',icon:'up',iconBg:'#EFF6FF',iconColor:'#2563EB'}
   );
 }
 async function _doReSubmitConfirmed(docId){
   if(_resubBusy)return;
   _resubBusy=true;
   try{
-    var wf=await dg('workflow_steps','?document_id=eq.'+docId+'&order=step_number');
-    // รีเซ็ตทุก step ตั้งแต่ step 2 ขึ้นไปทั้งหมด เพื่อเริ่มใหม่จริงตั้งแต่ต้น
-    // (รวม step ที่ status='done' ด้วย — ไม่ข้ามผู้อนุมัติที่เคย approve ไปแล้ว)
-    var _firstRevStep=wf.find(function(s){return s.step_number>1});
-    if(!_firstRevStep){showAlert('ไม่พบขั้นตอนที่ต้องอนุมัติ','wa');_resubBusy=false;return}
-
-    for(var i=0;i<wf.length;i++){
-      var step=wf[i];
-      if(step.step_number===1) continue; // step ผู้จัดทำ auto-done ตอน submit ไม่ต้อง reset
-      var _upd={action_taken:null,note:null,revision_section:null,action_at:null,completed_at:null,rejected_by:null};
-      if(step.id===_firstRevStep.id){_upd.status='active';_upd.deadline_datetime=stepDeadline(step.deadline_days);}
-      else{_upd.status='pending';_upd.deadline_datetime=null;}
-      await dpa('workflow_steps',step.id,_upd);
+    var doc=(await dg('documents','?id=eq.'+safeId(docId)))[0];
+    if(!doc||doc.created_by!==CU.id||!['draft','rejected'].includes(doc.status)){
+      showAlert('ส่งใหม่ไม่ได้: สถานะเอกสารเปลี่ยนไปแล้ว','wa');_resubBusy=false;nav('det',docId);return;
     }
-
-    await dpa('documents',docId,{status:'pending',updated_at:new Date().toISOString()});
-    await dp('document_history',{document_id:docId,action:'ส่งใหม่อีกครั้ง',performed_by:CU.id,note:'ผู้จัดทำส่งเอกสารใหม่หลังแก้ไขแล้ว — เริ่มขั้นตอนอนุมัติใหม่ทั้งหมด'});
-    try{await sendNotifEmail(docId,'resubmit','pending','')}catch(ne){console.warn('Email notif failed:',ne)}
+    var _rs=await restartDocWorkflow(docId);
+    if(!_rs.ok){showAlert('ไม่พบขั้นตอนที่ต้องอนุมัติ','wa');_resubBusy=false;return;}
+    var _note=doc.status==='rejected'?'ผู้จัดทำส่งเอกสารใหม่หลังแก้ไขแล้ว — เริ่มขั้นตอนอนุมัติใหม่ทั้งหมด':'ผู้จัดทำส่งเอกสารเข้าระบบอีกครั้ง — เริ่มขั้นตอนอนุมัติใหม่ทั้งหมด';
+    await dp('document_history',{document_id:docId,action:'ส่งใหม่อีกครั้ง',performed_by:CU.id,note:_note});
+    try{
+      if(_rs.singleStep) await sendNotifEmail(docId,'create',_rs.status,'');
+      else await sendNotifEmail(docId,'resubmit','pending','');
+    }catch(ne){console.warn('Email notif failed:',ne)}
     nav('det',docId);
   }catch(e){
     showAlert('เกิดข้อผิดพลาด: '+e.message,'er');
@@ -830,12 +839,12 @@ async function _doReSubmitConfirmed(docId){
 }
 
 var _recallBusy=false;
-/* ── RECALL — ผู้จัดทำดึงเอกสารกลับเป็นฉบับร่าง (ได้เฉพาะตอนยังไม่มีผู้อนุมัติขั้นตอนใด) ── */
+/* ── RECALL — ผู้จัดทำดึงกลับเป็นฉบับร่างได้ทุกกรณี (แม้มีผู้อนุมัติไปแล้ว) ── */
 function doRecall(docId){
   if(_recallBusy)return;
   showConfirm(
     'ดึงเอกสารกลับ?',
-    'เอกสารจะกลับเป็นฉบับร่างและออกจากขั้นตอนอนุมัติ ผู้รับผิดชอบขั้นตอนปัจจุบันจะไม่เห็นงานนี้จนกว่าจะส่งใหม่อีกครั้ง',
+    'เอกสารจะกลับเป็นฉบับร่างและรีเซ็ตขั้นตอนอนุมัติทั้งหมด ผู้ที่เคยอนุมัติหรือถืองานอยู่จะไม่เห็นงานนี้จนกว่าจะส่งเข้าระบบอีกครั้ง',
     function(){_doRecallConfirmed(docId);},
     {confirmLabel:'ดึงกลับ',confirmClass:'btn-danger',icon:'undo',iconBg:'#FFFBEB',iconColor:'#D97706'}
   );
@@ -844,52 +853,36 @@ async function _doRecallConfirmed(docId){
   if(_recallBusy)return;
   _recallBusy=true;
   try{
-    // เช็คสถานะสดจาก DB ก่อนเสมอ — กันเคสมีคนอนุมัติ/ตีกลับไประหว่างที่เปิดหน้าค้างไว้
     var doc=(await dg('documents','?id=eq.'+safeId(docId)))[0];
     if(!doc||doc.status!=='pending'||doc.created_by!==CU.id){
       showAlert('ดึงกลับไม่ได้: สถานะเอกสารเปลี่ยนไปแล้ว','wa');_recallBusy=false;nav('det',docId);return
     }
-    var wf=await dg('workflow_steps','?document_id=eq.'+safeId(docId)+'&order=step_number');
-    if(!Array.isArray(wf)||!wf.length){showAlert('ไม่พบขั้นตอนของเอกสาร','er');_recallBusy=false;return}
-    if(wf.some(function(s){return s.step_number>1&&s.status==='done'})){
-      showAlert('ดึงกลับไม่ได้: มีผู้อนุมัติบางขั้นตอนไปแล้ว ต้องให้ผู้ที่ถือเอกสารกด "ส่งคืนแก้ไข" แทน','wa');_recallBusy=false;nav('det',docId);return
+    var rpcRes=await recallDocumentRpc(docId);
+    var _notifyIds={};
+    (rpcRes.notify_ids||[]).forEach(function(uid){_notifyIds[uid]=true});
+    if(doc.notify_step!==false){
+      for(var uid in _notifyIds){
+        try{
+          var _ru=await dg('user_directory','?id=eq.'+safeId(uid)+'&select=id,full_name,contact_email,email');
+          var _u=Array.isArray(_ru)?_ru[0]:null;
+          var _em=_u?(_u.contact_email||_u.email):'';
+          var _subj=(SETT.email_prefix||'[กนค.]')+' ↩ ผู้จัดทำดึงเอกสารกลับ: '+(doc.title||'');
+          if(_u&&_em&&_em.includes('@')&&!_em.includes('@gnk.student')){
+            var _body='เรียน '+esc(_u.full_name)+',<br><br>เอกสารเรื่อง "'+esc(doc.title||'')+'" ถูกผู้จัดทำดึงกลับไปแก้ไขแล้ว ไม่ต้องดำเนินการใด ๆ หากส่งเข้าระบบใหม่จะมีอีเมลแจ้งอีกครั้ง';
+            var _er=await sendEmailEdge({to:_em,subject:_subj,html:_body,documentId:docId,recipientUserId:_u.id});
+            if(_er.ok&&typeof showEmailToast==='function') showEmailToast(_em,_subj);
+            await logNotifRow({document_id:docId,recipient_id:_u.id,recipient_email:_em,subject:_subj,body:_body,notification_type:'recall',status:_er.ok?'sent':'failed',sent_at:new Date().toISOString()});
+          }
+          if(_u){
+            var _lineTxt=(SETT.email_prefix||'[กนค.]')+' ↩️ ผู้จัดทำดึงเอกสารกลับ\nเรียน '+_u.full_name+'\nเรื่อง: '+(doc.title||'')+'\nเอกสารถูกดึงกลับไปแก้ไขแล้ว ไม่ต้องดำเนินการใด ๆ หากส่งเข้าระบบใหม่จะมีการแจ้งอีกครั้ง';
+            var _rcFlex=null;
+            try{_rcFlex=buildLineFlex({headText:'↩️ ผู้จัดทำดึงเอกสารกลับ',recipName:_u.full_name,subj:doc.title||'',infoText:'เอกสารถูกดึงกลับไปแก้ไขแล้ว ไม่ต้องดำเนินการใด ๆ หากส่งเข้าระบบใหม่จะมีการแจ้งอีกครั้ง'})}catch(fe){}
+            try{await sendLineWithLog(docId,_u.id,_em||'',_subj,_lineTxt,'recall',_rcFlex)}catch(le){console.warn('Recall LINE failed:',le)}
+          }
+        }catch(ne){console.warn('Recall notify failed:',ne)}
+      }
     }
-    // จำผู้ถือ step active ไว้ก่อนรีเซ็ต เพื่อส่งอีเมลแจ้งว่างานนี้ถูกดึงกลับแล้ว
-    var _activeStep=wf.filter(function(s){return s.status==='active'&&s.assigned_to&&s.assigned_to!==CU.id})[0];
-    // รีเซ็ต step กลับรูปเดียวกับฉบับร่างที่เพิ่งสร้าง (step 1 active, ที่เหลือ pending)
-    // — ต้องเป็นรูปนี้ เพราะตอนกดส่งใหม่ docForm.js (FDI branch) ไม่สร้าง/แก้ step ใด ๆ เลย
-    for(var i=0;i<wf.length;i++){
-      var step=wf[i];
-      var _upd={action_taken:null,note:null,revision_section:null,action_at:null,completed_at:null,rejected_by:null};
-      if(step.step_number===1){_upd.status='active';_upd.deadline_datetime=stepDeadline(step.deadline_days);}
-      else{_upd.status='pending';_upd.deadline_datetime=null;}
-      await dpa('workflow_steps',step.id,_upd);
-    }
-    await dpa('documents',docId,{status:'draft',current_step:1,updated_at:new Date().toISOString()});
-    await dp('document_history',{document_id:docId,action:'ดึงเอกสารกลับ',performed_by:CU.id,note:'ผู้จัดทำดึงเอกสารกลับเป็นฉบับร่าง — ออกจากขั้นตอนอนุมัติ'});
-    // แจ้งผู้ที่ถือ step active อยู่ (ถ้าเปิด notify_step) ว่าไม่ต้องดำเนินการต่อ
-    if(_activeStep&&doc.notify_step!==false){
-      try{
-        var _ru=await dg('user_directory','?id=eq.'+safeId(_activeStep.assigned_to)+'&select=id,full_name,contact_email,email');
-        var _u=Array.isArray(_ru)?_ru[0]:null;
-        var _em=_u?(_u.contact_email||_u.email):'';
-        var _subj=(SETT.email_prefix||'[กนค.]')+' ↩ ผู้จัดทำดึงเอกสารกลับ: '+(doc.title||'');
-        if(_u&&_em&&_em.includes('@')&&!_em.includes('@gnk.student')){
-          var _body='เรียน '+esc(_u.full_name)+',<br><br>เอกสารเรื่อง "'+esc(doc.title||'')+'" ถูกผู้จัดทำดึงกลับไปแก้ไขแล้ว ไม่ต้องดำเนินการใด ๆ หากส่งเข้าระบบใหม่จะมีอีเมลแจ้งอีกครั้ง';
-          var _er=await fetch(SU+'/functions/v1/send-email',{method:'POST',headers:{'Content-Type':'application/json','Authorization':H.Authorization,'apikey':SK},body:JSON.stringify({to:_em,subject:_subj,html:_body})});
-          if(_er.ok&&typeof showEmailToast==='function') showEmailToast(_em,_subj);
-          await dp('notifications',{document_id:docId,recipient_id:_u.id,recipient_email:_em,subject:_subj,body:_body,notification_type:'recall',status:_er.ok?'sent':'failed',sent_at:new Date().toISOString()});
-        }
-        // LINE OA push (ส่งได้แม้ผู้รับไม่มีอีเมลจริง)
-        if(_u){
-          var _lineTxt=(SETT.email_prefix||'[กนค.]')+' ↩️ ผู้จัดทำดึงเอกสารกลับ\nเรียน '+_u.full_name+'\nเรื่อง: '+(doc.title||'')+'\nเอกสารถูกดึงกลับไปแก้ไขแล้ว ไม่ต้องดำเนินการใด ๆ หากส่งเข้าระบบใหม่จะมีการแจ้งอีกครั้ง';
-          var _rcFlex=null;
-          try{_rcFlex=buildLineFlex({headText:'↩️ ผู้จัดทำดึงเอกสารกลับ',recipName:_u.full_name,subj:doc.title||'',infoText:'เอกสารถูกดึงกลับไปแก้ไขแล้ว ไม่ต้องดำเนินการใด ๆ หากส่งเข้าระบบใหม่จะมีการแจ้งอีกครั้ง'})}catch(fe){}
-          try{await sendLineWithLog(docId,_u.id,_em||'',_subj,_lineTxt,'recall',_rcFlex)}catch(le){console.warn('Recall LINE failed:',le)}
-        }
-      }catch(ne){console.warn('Recall notify failed:',ne)}
-    }
-    nav('det',docId).then(function(){showAlert('ดึงเอกสารกลับเรียบร้อยแล้ว เอกสารกลับเป็นฉบับร่าง แก้ไขแล้วกดส่งใหม่ได้เลย','ok')}).catch(function(){});
+    nav('det',docId).then(function(){showAlert('ดึงเอกสารกลับเรียบร้อยแล้ว กด "ส่งเข้าระบบอีกครั้ง" เพื่อเริ่ม Flow ใหม่ได้เลย','ok')}).catch(function(){});
   }catch(e){
     showAlert('เกิดข้อผิดพลาด: '+e.message,'er');
   }finally{
