@@ -198,6 +198,11 @@ async function nav(view, id) {
 
   var content = '';
   try {
+    if(view==='dash'||view==='todo'){
+      if(!await _ensureHomeViews()){
+        throw new Error('โหลดหน้าภาพรวม/งานของฉันไม่สำเร็จ — ลอง hard refresh (Cmd+Shift+R) หรือปิด ad blocker แล้วรีเฟรช');
+      }
+    }
     if      (view==='dash')               content = await vDash();
     else if (view==='docs')               content = await vDocs();
     else if (view==='todo')               content = await vTodo();

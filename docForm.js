@@ -74,25 +74,24 @@ async function vForm(editId){
 // Files card
 html.push('<div class="card"><div class="card-head">'+_ico('folder','#FFF3EE','#E83A00')+'<span class="card-head-title">ไฟล์เอกสาร</span></div><div class="card-body">');
 
+html.push('<div class="files-stack">');
 html.push('<div id="fflist">'+buildFileList(FF, editId||'')+'</div>');
 
 html.push(`
   <div class="upload-zone" id="fzone">
     <div class="upload-zone-inner">
-      
       <div class="upload-zone-icon">
         ${svg('folder',48)}
       </div>
-
       <div class="upload-zone-text">คลิกหรือลากไฟล์มาวางที่นี่</div>
       <div class="upload-zone-hint">PDF, DOCX, PNG, JPG สูงสุด ${SETT.max_file_size_mb||10} MB</div>
-
     </div>
   </div>
 `);
 
 html.push('<input type="file" id="finp" class="hidden" multiple accept=".pdf,.doc,.docx,.png,.jpg">');
-html.push('<div id="fprog"></div></div></div>');
+html.push('<div id="fprog"></div>');
+html.push('</div></div></div>');
   // Action buttons
   html.push('<div class="flex gap-2.5 justify-end mt-1">');
   html.push('<button class="btn btn-soft" data-action="saveDraft">'+svg('save',14)+' บันทึกร่าง</button>');
@@ -517,9 +516,9 @@ function buildFileList(files, docId){
       fChip(f,18) +
       '<div class="file-info"><div class="file-name">'+esc(f.file_name)+'</div><div class="file-meta"><strong style="color:'+ft.cl+'">'+ft.label+'</strong> · '+fsz(f.file_size)+' · v'+f.version+'</div></div>' +
       '<div class="file-actions">' +
-      '<button style="display:inline-flex;align-items:center;gap:4px;height:28px;padding:0 10px;border-radius:8px;border:2px solid #3b82f6;background:#eff6ff;color:#3b82f6;font-size:11px;font-weight:600;cursor:pointer" data-action="openViewer" data-path="'+esc(f.file_path)+'" data-name="'+esc(f.file_name)+'">'+svg('eye',12)+' ดู</button>' +
+      '<button class="btn btn-soft xs" data-action="openViewer" data-path="'+esc(f.file_path)+'" data-name="'+esc(f.file_name)+'">'+svg('eye',12)+' ดู</button>' +
       (docId?'<button class="btn btn-soft xs" data-action="openEditor" data-path="'+esc(f.file_path)+'" data-name="'+esc(f.file_name)+'" data-fid="'+f.id+'" data-did="'+docId+'">'+svg('edit',12)+' แก้ไข</button>':'')+
-      '<button class="btn btn-danger xs btn-icon" data-action="delFF" data-id="'+(f.id||'')+'" data-idx="'+i+'">'+svg('trash',12)+'</button>' +
+      '<button class="btn btn-danger xs btn-icon" data-action="delFF" data-id="'+(f.id||'')+'" data-idx="'+i+'" title="ลบไฟล์">'+svg('trash',12)+'</button>' +
       '</div></div>'
   }).join('')
 }

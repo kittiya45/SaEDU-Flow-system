@@ -228,19 +228,52 @@ button.ptab{border:none;background:transparent;font-family:inherit}
 .tab-count.tab-count-zero{background:transparent;color:#cfc8c1;font-weight:600}
 
 /* ── FILE ITEMS ── */
-.file-item{display:flex;align-items:center;gap:13px;padding:13px 14px;border:1px solid var(--border);border-radius:12px;margin-bottom:8px;background:#fff}
-.file-item:last-child{margin-bottom:0}
+.files-stack{display:flex;flex-direction:column;gap:16px}
+#fflist{display:flex;flex-direction:column;gap:10px}
+#fflist:empty{display:none}
+#fprog:empty{display:none}
+#fprog .al{margin:0}
+.files-card-head{flex-wrap:wrap;row-gap:8px;padding:14px 18px}
+.file-head-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.file-head-btns{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.files-count-chip{font-size:10px;font-weight:600;color:var(--text-3);background:#F5F3F0;padding:3px 10px;border-radius:20px;line-height:1.45;white-space:nowrap}
+.files-list{display:flex;flex-direction:column;gap:10px}
+.files-list-label{font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#16A34A;margin:0 0 10px;padding-left:1px}
+.files-hist-toggle{cursor:pointer;font-size:11px;font-weight:600;color:#2563EB;padding:12px 0 0;margin-top:12px;border:none;border-top:1px dashed #E8E4DE;width:100%;text-align:left;background:transparent;display:flex;align-items:center;gap:6px;line-height:1.5}
+.files-hist-toggle:hover{color:#1D4ED8}
+#dfiles{padding:16px 18px 14px}
+#dfiles .file-item{padding:11px 14px;gap:10px;box-shadow:none;border-radius:12px}
+#dfiles .file-item:hover{box-shadow:none}
+#dfiles .file-chip-wrap .file-chip{width:36px;height:36px;border-radius:10px}
+#dfiles .file-actions .btn.xs{padding:3px 7px;font-size:10px;gap:4px;border-radius:6px}
+.file-item{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--border);border-radius:12px;margin-bottom:0;background:#fff;transition:border-color .15s,background .15s}
 .file-item:hover{border-color:var(--orange-mid);background:var(--orange-pale)}
-/* [UX] ไอคอนไฟล์ในกล่องสีพื้น (chip) ให้ดูมีน้ำหนัก แทน svg ลอยๆ — สี chip บอกสถานะ (เขียว=ฉบับล่าสุด) แทนการย้อมทั้งแถวเขียวซึ่งทำให้ชื่อไฟล์อ่านยาก */
+.file-item-detail{align-items:center}
+.file-item-hist{background:#FAFAF8}
+.file-item-hist:hover{background:#F7F5F2}
 .file-chip{width:40px;height:40px;border-radius:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:#F5F3F0;color:var(--text-2)}
 .file-chip-cur{background:var(--ok-bg);color:var(--ok)}
 .file-icon{font-size:22px;flex-shrink:0}
-.file-info{flex:1;min-width:0}
-.file-name{font-size:13.5px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.file-meta{font-size:11px;color:var(--text-3)}
-.file-actions{display:flex;gap:6px;flex-shrink:0}
+.file-info{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.file-name{font-size:13px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.4}
+.file-name-muted{font-size:12.5px;color:var(--text-2)}
+.file-sub{display:flex;align-items:center;flex-wrap:wrap;gap:5px 8px}
+.file-sub .badge{font-size:9px;padding:2px 7px;line-height:1.35}
+.file-meta{font-size:10px;color:var(--text-3);line-height:1.4}
+.file-actions{display:flex;align-items:center;gap:5px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end}
+.files-list-modal .files-list{gap:10px;padding:0}
+.badge-muted{background:#F5F3F0;color:#8c8279}
+
+/* ── กรอบวางลายเซ็นบน PDF preview (อนุมัติ) ── */
+.sig-stamp{overflow:hidden;z-index:2}
+.sig-stamp img.sig-stamp-img{max-width:100%;max-height:100%}
 
 /* ── UPLOAD ZONE ── */
+.files-stack .upload-zone{
+  margin-top:0;
+  min-height:152px;
+  padding:28px 24px;
+}
 .upload-zone{
   border: 2px dashed #EBEBEB;
   border-radius: 16px;
@@ -266,14 +299,14 @@ button.ptab{border:none;background:transparent;font-family:inherit}
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 10px;
 }
 
 /* ไอคอน */
 .upload-zone-icon{
-  opacity: 0.25;          /* จาง */
-  transform: scale(1.1);  /* ใหญ่ขึ้นนิด */
-  margin-bottom: 6px;
+  opacity: 0.25;
+  transform: scale(1.05);
+  margin-bottom: 2px;
 }
 
 .upload-zone-icon svg{

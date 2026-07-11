@@ -240,6 +240,10 @@ async function _enterAppAsUser(row,opts){
   await loadDocTypes();
   await loadAppSettings();
   await loadProjects();
+  if(!await _ensureHomeViews()){
+    if(opts.onError)opts.onError('โหลดหน้าภาพรวมไม่สำเร็จ — ลอง hard refresh (Cmd+Shift+R) หรือปิด ad blocker');
+    return false;
+  }
   // นักพัฒนา (ROLE-DEV) เข้าระบบแล้วไปหน้าเครื่องมือนักพัฒนาเลย — เป็นหน้าหลักของ role นี้
   await nav(CU.role_code==='ROLE-DEV'?'dev':'dash');
   // overdue: cron รายวัน (check-overdue) — fallback ตอน login เฉพาะเมื่อปิด cron ใน app_settings

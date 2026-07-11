@@ -1,84 +1,39 @@
 // Supabase Edge Function: send-email
 // ส่งอีเมลจริงผ่าน Brevo Transactional API
 // Secrets: BREVO_API_KEY, FROM_EMAIL, FROM_NAME
-// @ts-nocheck — Deno runtime, VS Code TypeScript checker ไม่รู้จัก Deno globals
+// Body: { to, subject, html, documentId?, recipientUserId?, testSelf? }
+// @ts-nocheck
 
-const CORS = {
-  "Access-Control-Allow-Origin":  "*",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization, apikey",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
+import { corsHeaders, json } from '../_shared/cors.ts';
+import { requireAuth } from '../_shared/requireAuth.ts';
+import { validateEmailSend } from '../_shared/validateNotify.ts';
+import { sendBrevoEmail } from '../_shared/brevo.ts';
 
 Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: CORS });
-  }
-
-  if (req.method !== "POST") {
-    return new Response(JSON.stringify({ error: "Method not allowed" }), {
-      status: 405,
-      headers: { ...CORS, "Content-Type": "application/json" },
-    });
-  }
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+  if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
 
   try {
-    const { to, subject, html } = await req.json();
+    const body = await req.json();
+    const { to, subject, html, documentId, recipientUserId, testSelf } = body;
 
     if (!to || !subject || !html) {
-      return new Response(
-        JSON.stringify({ error: "Missing required fields: to, subject, html" }),
-        { status: 400, headers: { ...CORS, "Content-Type": "application/json" } }
-      );
+      return json({ error: 'Missing required fields: to, subject, html' }, 400);
     }
 
-    const BREVO_API_KEY = Deno.env.get("BREVO_API_KEY") ?? "";
-    const FROM_NAME     = Deno.env.get("FROM_NAME")     ?? "SAEDU Flow";
-    const FROM_EMAIL    = Deno.env.get("FROM_EMAIL")    ?? "";
+    const { caller, admin } = await requireAuth(req);
+    await validateEmailSend(admin, caller, { to, documentId, recipientUserId, testSelf });
 
-    if (!BREVO_API_KEY) {
-      return new Response(
-        JSON.stringify({ error: "BREVO_API_KEY not configured" }),
-        { status: 500, headers: { ...CORS, "Content-Type": "application/json" } }
-      );
+    const result = await sendBrevoEmail({ to, subject, html });
+    if (!result.ok) {
+      return json({ error: result.error }, result.status);
     }
 
-    const toList = (Array.isArray(to) ? to : [to]).map((email: string) => ({ email }));
-
-    const brevoRes = await fetch("https://api.brevo.com/v3/smtp/email", {
-      method: "POST",
-      headers: {
-        "api-key":      BREVO_API_KEY,
-        "Content-Type": "application/json",
-        "Accept":       "application/json",
-      },
-      body: JSON.stringify({
-        sender:      { name: FROM_NAME, email: FROM_EMAIL },
-        to:          toList,
-        subject:     subject,
-        htmlContent: html,
-      }),
-    });
-
-    const data = await brevoRes.json();
-
-    if (!brevoRes.ok) {
-      console.error("Brevo error:", JSON.stringify(data));
-      return new Response(JSON.stringify({ error: data }), {
-        status: brevoRes.status,
-        headers: { ...CORS, "Content-Type": "application/json" },
-      });
-    }
-
-    return new Response(JSON.stringify({ ok: true, messageId: data.messageId }), {
-      status: 200,
-      headers: { ...CORS, "Content-Type": "application/json" },
-    });
-
+    return json({ ok: true, messageId: result.messageId });
   } catch (err) {
-    console.error("Edge function error:", err);
-    return new Response(JSON.stringify({ error: String(err) }), {
-      status: 500,
-      headers: { ...CORS, "Content-Type": "application/json" },
-    });
+    const e = err as { status?: number; message?: string };
+    if (e.status) return json({ error: e.message }, e.status);
+    console.error('send-email error:', err);
+    return json({ error: String(err) }, 500);
   }
 });

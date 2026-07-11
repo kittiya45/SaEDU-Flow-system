@@ -62,30 +62,31 @@ function _rCurFileRow(f,docId){
   var isEditFile=f.file_name.indexOf('[แก้ไข]')>=0||f.file_name.indexOf('edited_')>=0;
   var _dispName=_fileBaseName(f);
   var dtStr=f.uploaded_at?new Date(f.uploaded_at).toLocaleString('th-TH',{day:'numeric',month:'short',year:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
-  var h=['<div class="file-item">'];
-  h.push(fChip(f,19));
+  var h=['<div class="file-item file-item-detail">'];
+  h.push('<div class="file-chip-wrap">'+fChip(f,18)+'</div>');
   h.push('<div class="file-info">');
   h.push('<div class="file-name">'+esc(_dispName)+'</div>');
-  h.push('<div class="flex gap-[5px] items-center mt-1.5 flex-wrap">');
-  h.push('<span class="badge b-completed text-[10px] px-[7px] py-0.5">v'+f.version+' ล่าสุด</span>');
-  if(isSigned) h.push('<span class="badge b-signed text-[10px] px-[7px] py-0.5">ลงนามแล้ว</span>');
-  if(isRejFile) h.push('<span class="badge b-rejected text-[10px] px-[7px] py-0.5">ตีกลับ</span>');
-  if(isEditFile) h.push('<span class="badge b-pending text-[10px] px-[7px] py-0.5">แก้ไข</span>');
-  h.push('<span class="file-meta">'+ft.label+' · '+fsz(f.file_size)+' · '+dtStr+'</span></div>');
-  h.push('</div><div class="file-actions">');
-  h.push('<button class="btn btn-ghost xs" data-action="openViewer" data-path="'+esc(f.file_path)+'" data-name="'+esc(_dispName)+'">'+svg('eye',12)+' ดู</button>');
-  h.push('<button class="btn btn-soft xs" data-action="openEditor" data-path="'+esc(f.file_path)+'" data-name="'+esc(_dispName)+'" data-fid="'+f.id+'" data-did="'+docId+'">'+svg('edit',12)+' แก้ไข</button>');
-  h.push('<button class="btn btn-soft xs" data-action="dlFile" data-path="'+esc(f.file_path)+'" data-name="'+esc(_dispName)+'">'+svg('dn',12)+' โหลด</button>');
+  h.push('<div class="file-sub">');
+  h.push('<span class="badge b-completed">v'+f.version+' ล่าสุด</span>');
+  if(isSigned) h.push('<span class="badge b-signed">ลงนามแล้ว</span>');
+  if(isRejFile) h.push('<span class="badge b-rejected">ตีกลับ</span>');
+  if(isEditFile) h.push('<span class="badge b-pending">แก้ไข</span>');
+  h.push('<span class="file-meta">'+ft.label+' · '+fsz(f.file_size)+(dtStr?' · '+dtStr:'')+'</span>');
+  h.push('</div></div><div class="file-actions">');
+  h.push('<button class="btn btn-ghost xs" data-action="openViewer" data-path="'+esc(f.file_path)+'" data-name="'+esc(_dispName)+'">'+svg('eye',11)+' ดู</button>');
+  h.push('<button class="btn btn-soft xs" data-action="openEditor" data-path="'+esc(f.file_path)+'" data-name="'+esc(_dispName)+'" data-fid="'+f.id+'" data-did="'+docId+'">'+svg('edit',11)+' แก้ไข</button>');
+  h.push('<button class="btn btn-soft xs" data-action="dlFile" data-path="'+esc(f.file_path)+'" data-name="'+esc(_dispName)+'">'+svg('dn',11)+' โหลด</button>');
   h.push('</div></div>');
   return h.join('');
 }
 function _rFilesBodyHtml(files,docId){
   if(!files.length) return '<div class="card-empty py-6"><div class="card-empty-icon">'+svg('folder',40)+'</div><div class="card-empty-text">ยังไม่มีไฟล์แนบ</div></div>';
   var fg=_fileGroups(files);
-  var h=['<div class="text-[11px] font-bold tracking-[.5px] uppercase text-[#16A34A] mb-2.5">ฉบับปัจจุบัน</div>'];
+  var h=['<div class="files-list-label">ฉบับปัจจุบัน</div>','<div class="files-list">'];
   fg.cur.forEach(function(f){h.push(_rCurFileRow(f,docId))});
+  h.push('</div>');
   if(_canSeeVerHist()&&fg.hist.length){
-    h.push('<button class="cursor-pointer text-xs font-semibold text-[#2563EB] py-2 mt-2 border-t border-dashed border-[#EBEBEB] w-full text-left bg-transparent border-x-0 border-b-0 flex items-center gap-1.5" data-action="showVerHist" data-id="'+docId+'">'+svg('tri',10)+' ประวัติเวอร์ชันก่อนหน้า ('+fg.hist.length+' ไฟล์)</button>');
+    h.push('<button class="files-hist-toggle" data-action="showVerHist" data-id="'+docId+'">'+svg('tri',10)+' ประวัติเวอร์ชันก่อนหน้า ('+fg.hist.length+' ไฟล์)</button>');
   }
   return h.join('');
 }
@@ -274,14 +275,16 @@ async function vDet(docId){
   // เวอร์ชันเก่าที่ถูกทับเห็นได้เฉพาะ admin/เจ้าหน้าที่ (ดู _fileGroups/_canSeeVerHist ด้านบน)
   var _signedFile=files.find(function(f){return _isSignedFile(f)});
 
-  html.push('<div class="card"><div class="card-head">'+_ico('folder','#FFF3EE','#E83A00')+'<span class="card-head-title">ไฟล์แนบ</span>');
-  html.push('<span class="ml-auto flex items-center gap-2">');
+  html.push('<div class="card files-card"><div class="card-head files-card-head">'+_ico('folder','#FFF3EE','#E83A00')+'<span class="card-head-title">ไฟล์แนบ</span>');
+  html.push('<span class="file-head-actions ml-auto">');
   if(_signedFile){
     var _signedDispName=_fileBaseName(_signedFile);
+    html.push('<span class="file-head-btns">');
     html.push('<button class="btn btn-ghost xs" data-action="openViewer" data-path="'+esc(_signedFile.file_path)+'" data-name="'+esc(_signedDispName)+'">'+svg('eye',12)+' ดูฉบับเซ็น</button>');
     html.push('<button class="btn btn-soft xs" data-action="dlFile" data-path="'+esc(_signedFile.file_path)+'" data-name="'+esc(_signedDispName)+'">'+svg('dn',12)+' โหลดฉบับเซ็น</button>');
+    html.push('</span>');
   }
-  html.push('<span class="text-xs text-[#a89e99]" id="dfcount">'+_rFileCountHtml(files)+'</span>');
+  html.push('<span class="files-count-chip" id="dfcount">'+_rFileCountHtml(files)+'</span>');
   html.push('</span></div>');
   html.push('<div class="card-body" id="dfiles">'+_rFilesBodyHtml(files,docId)+'</div></div>');
 
@@ -421,28 +424,28 @@ async function showVerHist(docId){
     var isRejFile=f.file_name.indexOf('[ตีกลับ]')>=0;
     var dtStr=f.uploaded_at?new Date(f.uploaded_at).toLocaleString('th-TH',{day:'numeric',month:'short',year:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
     var _dn=_fileBaseName(f);
-    return '<div class="file-item bg-[#FAFAF8]">'+
-      fChip(f,18)+
+    return '<div class="file-item file-item-detail file-item-hist">'+
+      '<div class="file-chip-wrap">'+fChip(f,17)+'</div>'+
       '<div class="file-info">'+
-        '<div class="file-name text-[#6b6560] text-xs">'+esc(_dn)+'</div>'+
-        '<div class="flex gap-[5px] items-center mt-[3px] flex-wrap">'+
-          '<span class="badge b-draft text-[10px] px-1.5 py-px">v'+f.version+'</span>'+
-          (isSigned?'<span class="badge b-signed text-[10px] px-1.5 py-px">ลงนาม</span>':'')+
-          (isEdited?'<span class="badge text-[10px] px-1.5 py-px bg-[#f5f5f5] text-[#888]">แก้ไข</span>':'')+
-          (isRejFile?'<span class="badge b-rejected text-[10px] px-1.5 py-px">ตีกลับ</span>':'')+
-          '<span class="file-meta">'+ft.label+' · '+fsz(f.file_size)+' · '+dtStr+'</span>'+
+        '<div class="file-name file-name-muted">'+esc(_dn)+'</div>'+
+        '<div class="file-sub">'+
+          '<span class="badge b-draft">v'+f.version+'</span>'+
+          (isSigned?'<span class="badge b-signed">ลงนาม</span>':'')+
+          (isEdited?'<span class="badge badge-muted">แก้ไข</span>':'')+
+          (isRejFile?'<span class="badge b-rejected">ตีกลับ</span>':'')+
+          '<span class="file-meta">'+ft.label+' · '+fsz(f.file_size)+(dtStr?' · '+dtStr:'')+'</span>'+
         '</div>'+
       '</div>'+
       '<div class="file-actions">'+
-        '<button class="btn btn-ghost xs" data-action="openViewer" data-path="'+esc(f.file_path)+'" data-name="'+esc(_dn)+'">'+svg('eye',12)+' ดู</button>'+
-        '<button class="btn btn-soft xs" data-action="dlFile" data-path="'+esc(f.file_path)+'" data-name="'+esc(_dn)+'">'+svg('dn',12)+' โหลด</button>'+
+        '<button class="btn btn-ghost xs" data-action="openViewer" data-path="'+esc(f.file_path)+'" data-name="'+esc(_dn)+'">'+svg('eye',11)+' ดู</button>'+
+        '<button class="btn btn-soft xs" data-action="dlFile" data-path="'+esc(f.file_path)+'" data-name="'+esc(_dn)+'">'+svg('dn',11)+' โหลด</button>'+
       '</div>'+
     '</div>'
   }).join('');
   w.innerHTML='<div class="mo"><div class="modal">'+
     '<div class="modal-head"><span class="modal-title">'+svg('save',15)+' ประวัติเวอร์ชันก่อนหน้า</span>'+
     '<button class="btn btn-ghost xs btn-icon ml-auto" data-action="closeModal">'+svg('x',14)+'</button></div>'+
-    '<div class="modal-body" style="max-height:60vh;overflow-y:auto">'+rows+'</div>'+
+    '<div class="modal-body files-list-modal" style="max-height:60vh;overflow-y:auto"><div class="files-list">'+rows+'</div></div>'+
   '</div></div>'
 }
 
@@ -762,15 +765,15 @@ async function doAct(action,docId){
             var pw=_pg.getWidth(),ph=_pg.getHeight();
             var _w=180,_h=60,_sx=pw-220,_sy=40;
             if(_mk&&typeof _mk.xFrac==='number'){
-              _w=(_mk.wFrac||180/pw)*pw;_h=_w/3;
+              _w=(_mk.wFrac||180/pw)*pw;
+              _h=_mk.hFrac!=null?_mk.hFrac*ph:_w/3;
               _sx=_mk.xFrac*pw;
               _sy=(1-_mk.yFrac)*ph-_h;
             }
             _sx=Math.max(0,Math.min(pw-_w,_sx));
             _sy=Math.max(0,Math.min(ph-_h,_sy));
-            var _fs=Math.min(_w/emb.width,_h/emb.height);
-            var _dw=emb.width*_fs,_dh=emb.height*_fs;
-            _pg.drawImage(emb,{x:_sx+(_w-_dw)/2,y:_sy+(_h-_dh)/2,width:_dw,height:_dh});
+            var _fit=fitImgInBox(emb.width,emb.height,_w,_h);
+            _pg.drawImage(emb,{x:_sx+_fit.ox,y:_sy+_fit.oy,width:_fit.dw,height:_fit.dh});
           }
           var newBytes=await pdfDoc.save();
           var stablePath=_signedStablePath(docId,baseName);

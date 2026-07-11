@@ -163,7 +163,7 @@ async function showActModal(action,docId){
 // ─── Signature state ───
 var _actSigCtx=null, _actSigDrawing=false;
 var _actSigColor='#1C1C1E', _actSigSz=2;
-var _actSigMarks=[];   // จุดวางลายเซ็น {page,xFrac,yFrac,wFrac} — สัดส่วนเทียบขนาดหน้านั้น ๆ (สูง = กว้าง/3)
+var _actSigMarks=[];   // จุดวางลายเซ็น {page,xFrac,yFrac,wFrac,hFrac} — สัดส่วนเทียบขนาดหน้านั้น
 var _actSigLastIdx=-1; // จุดที่แตะล่าสุด ใช้เป็นต้นแบบของ "วางตำแหน่งเดียวกันทุกหน้า"
 var _actSigPgDims={};  // ขนาดหน้าแต่ละหน้า (pt) {p:{w,h}} — รองรับเอกสารที่หน้าไม่เท่ากัน
 var _actSigDefW=null;  // ขนาดลายเซ็น (สัดส่วนความกว้างหน้า) จากแถบ "ขนาดลายเซ็น" — null = ค่าเริ่มต้น 180pt
@@ -341,6 +341,7 @@ async function _renderSigDoc(keepPage){
   var zi=$e('sig-zoom-info'); if(zi) zi.textContent=Math.round(_actSigZoom*100)+'%';
   if(keepPage)_sigGoPage(_actSigPage,true);
   else _sigPageUI(_actSigPage);
+  requestAnimationFrame(function(){_renderSigStamps()});
 }
 
 /* กระโดดไปหน้า p (จาก dropdown / ปุ่มลูกศร / chip) */
@@ -404,9 +405,9 @@ function _sigSizeAll(pct){
   _actSigDefW=pct/100;
   _actSigMarks.forEach(function(m){
     m.wFrac=_actSigDefW;
-    var hf=_sigHFrac(m.wFrac,m.page);
-    m.xFrac=Math.min(m.xFrac,Math.max(0,1-m.wFrac)); // ขยายแล้วไม่ให้ล้นขอบ — เลื่อนกรอบเข้ามา
-    m.yFrac=Math.min(m.yFrac,Math.max(0,1-hf));
+    m.hFrac=_sigHFrac(m.wFrac,m.page);
+    m.xFrac=Math.min(m.xFrac,Math.max(0,1-m.wFrac));
+    m.yFrac=Math.min(m.yFrac,Math.max(0,1-m.hFrac));
   });
   _renderSigStamps();
 }
@@ -416,7 +417,7 @@ function _seedDefaultMark(){
   if(_actSigMarks.length||!_actSigPdf)return;
   var p=_actSigPdf.numPages;
   var wf=_sigDefaultWFrac(p),hf=_sigHFrac(wf,p),d=_sigPgDim(p);
-  _actSigMarks.push({page:p,wFrac:wf,
+  _actSigMarks.push({page:p,wFrac:wf,hFrac:hf,
     xFrac:Math.max(0,1-wf-40/d.w),
     yFrac:Math.max(0,1-hf-40/d.h)});
   _actSigLastIdx=0;
@@ -426,7 +427,7 @@ function _seedDefaultMark(){
 function _addSigMarkAt(xf,yf,p){
   p=p||_actSigPage;
   var wf=_sigDefaultWFrac(p),hf=_sigHFrac(wf,p);
-  _actSigMarks.push({page:p,wFrac:wf,
+  _actSigMarks.push({page:p,wFrac:wf,hFrac:hf,
     xFrac:Math.max(0,Math.min(1-wf,xf-wf/2)),
     yFrac:Math.max(0,Math.min(1-hf,yf-hf/2))});
   _actSigLastIdx=_actSigMarks.length-1;
@@ -450,7 +451,7 @@ function _sigStampAllPages(){
     var hf=_sigHFrac(wf,p),d=_sigPgDim(p);
     var xf=ref?Math.min(ref.xFrac,Math.max(0,1-wf)):Math.max(0,1-wf-40/d.w);
     var yf=ref?Math.min(ref.yFrac,Math.max(0,1-hf)):Math.max(0,1-hf-40/d.h);
-    _actSigMarks.push({page:p,xFrac:xf,yFrac:yf,wFrac:wf});
+    _actSigMarks.push({page:p,xFrac:xf,yFrac:yf,wFrac:wf,hFrac:hf});
   }
   _renderSigStamps();_renderSigMarkList();
 }
@@ -461,12 +462,14 @@ function _renderSigStamps(){
   _actSigMarks.forEach(function(m,i){
     var layer=$e('sig-layer-p'+m.page),canvas=$e('sig-canvas-p'+m.page);
     if(!layer||!canvas)return;
-    layer.appendChild(_mkStampEl(m,i,canvas.offsetWidth,canvas.offsetHeight));
+    var cr=canvas.getBoundingClientRect();
+    layer.appendChild(_mkStampEl(m,i,cr.width,cr.height));
   });
 }
 
 function _mkStampEl(m,i,cw,ch){
-  var w=m.wFrac*cw,h=w/3;
+  var hf=m.hFrac!=null?m.hFrac:_sigHFrac(m.wFrac,m.page);
+  var w=m.wFrac*cw,h=hf*ch;
   var el=document.createElement('div');
   el.className='sig-stamp';
   el.dataset.idx=i;
@@ -517,11 +520,14 @@ function _mkStampEl(m,i,cw,ch){
     _actSigLastIdx=i;
     rz.onpointermove=function(ev){
       var nw=Math.max(cw*0.05,Math.min(cw*0.6,ow+ev.clientX-sx));
-      nw=Math.min(nw,cw-m.xFrac*cw);           // ไม่ล้นขอบขวา
-      nw=Math.min(nw,(ch-m.yFrac*ch)*3);        // ไม่ล้นขอบล่าง
-      w=nw;h=nw/3;
+      nw=Math.min(nw,cw-m.xFrac*cw);
+      var nh=Math.max(ch*0.03,Math.min(ch*0.45,nw/3));
+      nh=Math.min(nh,ch-m.yFrac*ch);
+      nw=Math.min(nw,nh*3);
+      w=nw;h=nh;
       el.style.width=w+'px';el.style.height=h+'px';
       m.wFrac=w/cw;
+      m.hFrac=h/ch;
     };
     rz.onpointerup=rz.onpointercancel=function(ev){
       rz.onpointermove=rz.onpointerup=rz.onpointercancel=null;
@@ -537,11 +543,24 @@ function _mkStampEl(m,i,cw,ch){
 
 function _paintStamp(el){
   var src=getActSigSrc();
-  if(src){
-    el.style.background='rgba(255,255,255,.55) url('+src+') center/contain no-repeat';
-  }else{
+  el.style.overflow='hidden';
+  el.style.position='absolute';
+  var img=el.querySelector('img.sig-stamp-img');
+  if(!src){
+    if(img) img.remove();
     el.style.background='rgba(232,58,0,0.12)';
+    return;
   }
+  el.style.background='rgba(255,255,255,.55)';
+  if(!img){
+    img=document.createElement('img');
+    img.className='sig-stamp-img';
+    img.draggable=false;
+    img.alt='';
+    img.style.cssText='position:absolute;inset:0;width:100%;height:100%;object-fit:contain;object-position:center;pointer-events:none;display:block';
+    el.insertBefore(img,el.firstChild);
+  }
+  if(img.src!==src) img.src=src;
 }
 
 /* รีเฟรชภาพลายเซ็นในทุกกรอบ — เรียกทุกครั้งที่วาด/ลบ/อัปโหลดลายเซ็นใหม่ */

@@ -9,7 +9,8 @@
 --   3. log_notification()    — บันทึก notifications พร้อมตรวจสิทธิ์ผู้ส่ง
 --   4. จำกัด notifications INSERT ตรง (ต้องผ่าน RPC หรือ admin/dev)
 --   5. index สำหรับ overdue scan
---   6. app_settings.schema_version = '2' (frontend แจ้งเตือนถ้ายังไม่ deploy)
+--   6. app_settings.schema_version = '3' (frontend แจ้งเตือนถ้ายังไม่ deploy)
+--      รัน workflow_ops_rpc.sql + cron_overdue.sql ด้วยถ้ายังไม่ได้รัน
 -- รันใน Supabase Dashboard → SQL Editor (idempotent — รันซ้ำได้)
 
 -- ── helpers (reuse add_working_days จาก overdue_once_auto_approve.sql) ─────
@@ -319,7 +320,7 @@ CREATE INDEX IF NOT EXISTS workflow_steps_active_assignee_idx
 
 -- ── 6. Schema version marker ────────────────────────────────────────────────
 INSERT INTO public.app_settings (key, value, label, value_type)
-VALUES ('schema_version', '2', 'เวอร์ชัน schema ที่ frontend ต้องการ', 'text')
+VALUES ('schema_version', '3', 'เวอร์ชัน schema ที่ frontend ต้องการ', 'text')
 ON CONFLICT (key) DO UPDATE
   SET value = EXCLUDED.value,
       label = EXCLUDED.label,

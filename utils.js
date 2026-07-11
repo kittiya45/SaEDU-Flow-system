@@ -1,4 +1,31 @@
 /* ─── UTILS ─── */
+/* โหลด homeViews.js / dashboard.js สำรอง — กรณี cache เก่าชี้ dashboard.js หรือ ad blocker บล็อกไฟล์แรก */
+var _homeViewsLoad=null;
+function _homeViewsOk(){return typeof vDash==='function'&&typeof vTodo==='function'}
+function _loadScriptOnce(url){
+  return new Promise(function(ok,no){
+    var s=document.createElement('script');
+    s.src=url;
+    s.async=false;
+    s.onload=function(){ok();};
+    s.onerror=function(){no(new Error('โหลด '+url+' ไม่สำเร็จ'));};
+    document.head.appendChild(s);
+  });
+}
+async function _ensureHomeViews(){
+  if(_homeViewsOk()) return true;
+  if(_homeViewsLoad) return _homeViewsLoad;
+  _homeViewsLoad=(async function(){
+    var urls=['homeViews.js?v=2','dashboard.js?v=23'];
+    for(var i=0;i<urls.length;i++){
+      if(_homeViewsOk()) return true;
+      try{await _loadScriptOnce(urls[i]);}catch(e){console.warn(e);}
+    }
+    return _homeViewsOk();
+  })();
+  try{return await _homeViewsLoad;}
+  finally{_homeViewsLoad=null;}
+}
 async function dlFile(urlOrPath,name){
   var resolved=urlOrPath;
   try{resolved=await resolveFileUrl(urlOrPath)}catch(e){}
@@ -192,6 +219,14 @@ function loadSc(src){
   return new Promise(function(res,rej){var s=document.createElement('script');s.src=src;s.onload=res;s.onerror=rej;document.head.appendChild(s)})
 }
 function debounce(fn,ms){var t=null;return function(){var args=arguments;clearTimeout(t);t=setTimeout(function(){fn.apply(null,args)},ms)}}
+
+/* คำนวณขนาดวางรูปในกรอบ (contain, กึ่งกลาง) — ใช้ร่วมกัน preview + ฝัง PDF */
+function fitImgInBox(iw,ih,bw,bh){
+  if(!iw||!ih||!bw||!bh) return {dw:bw,dh:bh,ox:0,oy:0};
+  var s=Math.min(bw/iw,bh/ih);
+  var dw=iw*s,dh=ih*s;
+  return {dw:dw,dh:dh,ox:(bw-dw)/2,oy:(bh-dh)/2};
+}
 
 /* ─── addWorkingDays: บวกวันทำการ (ข้ามเสาร์-อาทิตย์) ─── */
 function addWorkingDays(fromDate, days){

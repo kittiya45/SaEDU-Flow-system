@@ -40,7 +40,7 @@ The Supabase JS client loads first (non-deferred, blocking) so `supabase.createC
 ```
 supabase-js (CDN, pinned version, blocking)
 → config.js → utils.js → events.js → auth.js
-→ dashboard.js → docList.js → docForm.js → workflow.js → report.js
+→ homeViews.js → docList.js → docForm.js → workflow.js → report.js
 → docSign.js → docDetail.js   ← docDetail MUST load after docSign and docList
 → docNum.js → notif.js → viewer.js → editor.js
 → stats.js → sysAdmin.js → dev.js → docTypeAdmin.js → templates.js
@@ -111,7 +111,7 @@ For operations that need non-id filters (e.g., PATCH by key), use `fetch(SU+'/re
 | `calendar_events` | Custom dashboard calendar events, `created_by` |
 | `projects` | Project/ฝ่าย list used in stats and doc forms |
 | `system_logs` | Client-side JS error log (created by `supabase/create_dev_role.sql`). Written fail-silently by `logSysErr()` in config.js (`window.onerror` + `unhandledrejection`, capped 15/session); viewed in the Dev Panel. Insert: any authenticated; select/delete: `is_admin() or is_dev()` |
-| `announcements` | Home-page announcement board (created by `supabase/create_announcements.sql` — run *after* create_dev_role.sql, its policy references `is_dev()`). Rendered by `_rAnnounceBoard()` in dashboard.js between the stat cards and the recent-docs grid; card hides entirely when no active rows or table missing (vDash's fetch is fail-open). Managed via `_rAnnbManageCard` (dev.js) appended to the ตั้งค่าระบบ panel — add/edit/pin/toggle `is_active`/delete. Select: any authenticated; write: `is_admin() or is_dev()`. `created_by` is `on delete set null` — no unlink step needed in `_admDelConfirmed` |
+| `announcements` | Home-page announcement board (created by `supabase/create_announcements.sql` — run *after* create_dev_role.sql, its policy references `is_dev()`). Rendered by `_rAnnounceBoard()` in homeViews.js between the stat cards and the recent-docs grid; card hides entirely when no active rows or table missing (vDash's fetch is fail-open). Managed via `_rAnnbManageCard` (dev.js) appended to the ตั้งค่าระบบ panel — add/edit/pin/toggle `is_active`/delete. Select: any authenticated; write: `is_admin() or is_dev()`. `created_by` is `on delete set null` — no unlink step needed in `_admDelConfirmed` |
 
 **Admin config tables:** `app_settings`, `email_templates`, `workflow_templates`, `workflow_template_steps` were missing for a long time (the frontend — `sysAdmin.js`, `docForm.js`, `notif.js`, `config.js` — always called `dg()`/`dp()` against them, wrapped in `try/catch`, silently no-oping) until `supabase/create_admin_config_tables.sql` created them with matching columns + RLS (`is_admin()`-gated writes, any-logged-in-user reads). The corresponding admin UI ("ตั้งค่าระบบ", "แบบฟอร์มอีเมล", "เทมเพลต workflow" in `vSys()`) now actually persists.
 
@@ -133,8 +133,8 @@ Each screen has an async `vXxx()` function that returns an HTML string:
 
 | Function | File | Notes |
 |---|---|---|
-| `vDash()` | dashboard.js | Stats cards + calendar widget |
-| `vTodo()` | dashboard.js | Active workflow steps assigned to CU |
+| `vDash()` | homeViews.js | Stats cards + calendar widget |
+| `vTodo()` | homeViews.js | Active workflow steps assigned to CU |
 | `vDocs()` | docList.js | Doc table with tabs, type filter, search |
 | `vForm(id)` | docForm.js | Create/edit doc; `id` null = new |
 | `vDet(id)` | docDetail.js | Detail view with action buttons |

@@ -15,7 +15,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <!-- คอมไพล์จาก tailwind.css ด้วย `npm run build` — ไม่ใช่ Tailwind CDN อีกต่อไป (ดู package.json) -->
 <link rel="stylesheet" href="styles.tailwind.css?v=4">
-<link rel="stylesheet" href="styles.css?v=19">
+<link rel="stylesheet" href="styles.css?v=20">
 </head>
 <body>
 <div id="app"></div>
@@ -27,22 +27,22 @@
 <script src="config.js?v=16" defer></script>
 
 <!-- รวมฟังก์ชันช่วยจัดการหน้าจอและแจ้งเตือน -->
-<script src="utils.js?v=12" defer></script>
+<script src="utils.js?v=13" defer></script>
 
 <!-- ตัวดักจับการคลิกและส่งคำสั่งจัดการหน้าเว็บ -->
 <script src="events.js?v=7" defer></script>
 
 <!-- ระบบ Login และจัดการเซสชันผู้ใช้ -->
-<script src="auth.js?v=9" defer></script>
+<script src="auth.js?v=10" defer></script>
 
-<!-- หน้าสรุปผลและรายการงานล่าสุด -->
-<script src="dashboard.js?v=22" defer></script>
+<!-- หน้าสรุปผลและรายการงานล่าสุด (homeViews.js + dashboard.js สำรอง — ad blocker/cache มักบล็อกชื่อ dashboard.js) -->
+<script src="homeViews.js?v=2" defer></script>
 
 <!-- ตารางรายการเอกสารและการค้นหา -->
 <script src="docList.js?v=6" defer></script>
 
 <!-- ฟอร์มสร้าง/แก้ไขเอกสารและอัปโหลดไฟล์ -->
-<script src="docForm.js?v=18" defer></script>
+<script src="docForm.js?v=19" defer></script>
 
 <!-- ระบบอนุมัติ ตีกลับ และส่งต่อเอกสาร -->
 <script src="workflow.js?v=11" defer></script>
@@ -90,7 +90,7 @@
 <script src="adminImport.js?v=2" defer></script>
 
 <!-- จัดการโครงสร้างเมนูและหน้าตาเว็บหลัก -->
-<script src="layout.js?v=11" defer></script>
+<script src="layout.js?v=12" defer></script>
 
 <!-- ตัวเริ่มรันระบบ — เช็ค session ที่ค้างไว้ก่อน (Supabase Auth) ถ้าไม่มีค่อยเรียกหน้า Login -->
 <script src="boot.js?v=3" defer></script>
