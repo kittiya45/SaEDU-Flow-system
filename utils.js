@@ -58,6 +58,25 @@ function tBadge(t){
   var lbl={incoming:'ขาเข้า',outgoing:'ขาออก',certificate:'หนังสือรับรอง',memo:'บันทึกข้อความ'};
   return '<span class="badge '+(cls[t]||'b-draft')+'">'+esc(lbl[t]||t)+'</span>'
 }
+/* จำแนกประเภทไฟล์จากนามสกุล/mime — คืน {ic,label,bg,cl} สำหรับ chip ไอคอนรายการไฟล์
+   ใช้ร่วมกัน: buildFileList (docForm), _rCurFileRow/showVerHist (docDetail) */
+function fType(f){
+  var n=((f&&(f.file_name||f.name))||'').toLowerCase(), t=((f&&f.file_type)||'').toLowerCase();
+  var ext=(n.match(/\.([a-z0-9]+)$/)||[])[1]||'';
+  if(t.indexOf('image')>=0||['png','jpg','jpeg','gif','webp'].indexOf(ext)>=0)
+    return {ic:'img2',label:ext?ext.toUpperCase():'รูปภาพ',bg:'#EDE9FE',cl:'#7C3AED'};
+  if(t.indexOf('pdf')>=0||ext==='pdf')
+    return {ic:'pdf_ico',label:'PDF',bg:'#FEE2E2',cl:'#DC2626'};
+  if(t.indexOf('word')>=0||t.indexOf('officedocument')>=0||ext==='doc'||ext==='docx')
+    return {ic:'word_ico',label:ext?ext.toUpperCase():'Word',bg:'#DBEAFE',cl:'#2563EB'};
+  if(t.indexOf('html')>=0||ext==='html')
+    return {ic:'doc',label:'HTML',bg:'#FEF3C7',cl:'#D97706'};
+  return {ic:'doc',label:ext?ext.toUpperCase():'ไฟล์',bg:'#F5F3F0',cl:'#6b6560'};
+}
+function fChip(f,s){
+  var ft=fType(f);
+  return '<div class="file-chip" style="background:'+ft.bg+';color:'+ft.cl+'">'+svg(ft.ic,s||19)+'</div>'
+}
 function urgCls(u){if(u==='urgent')return'urg-urgent';if(u==='very_urgent')return'urg-vurgent';return'urg-normal'}
 /* ความเร่งด่วนแบบ badge แบ่งสี: เขียว=ปกติ, เหลือง=เร่งด่วน, แดง=ด่วนมาก */
 function uBadge(u){

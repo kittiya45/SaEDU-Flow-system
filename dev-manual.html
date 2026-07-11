@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>คู่มือนักพัฒนา (Handover) — SAEDU Flow</title>
+<link rel="icon" type="image/png" href="img/Logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --orange:#E83A00; --orange-50:#FFF6F1; --orange-100:#FFE7DA;
+    --ink-900:#14110F; --ink-700:#3A332E; --ink-500:#6B6560; --ink-400:#8A837D;
+    --ink-200:#E5E1DD; --ink-100:#F1EDE9; --ink-50:#F8F5F2;
+    --green:#0A7C42; --green-50:#ECFDF3; --blue:#1D4ED8; --blue-50:#EFF6FF;
+    --amber:#92400E; --amber-50:#FFFBEB; --red:#991B1B; --red-50:#FEF2F2;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth;-webkit-font-smoothing:antialiased}
+  body{font-family:'Noto Sans Thai',sans-serif;background:var(--ink-50);color:var(--ink-900);line-height:1.8;font-size:14.5px}
+  .wrap{max-width:860px;margin:0 auto;padding:36px 20px 80px}
+  .hero{background:linear-gradient(135deg,#14110F,#3A332E);color:#fff;border-radius:20px;padding:32px 32px 28px;margin-bottom:28px}
+  .hero .tag{display:inline-block;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);border-radius:99px;padding:3px 14px;font-size:11.5px;font-weight:600;letter-spacing:.4px;margin-bottom:14px}
+  .hero h1{font-size:26px;font-weight:800;letter-spacing:-.5px;line-height:1.3}
+  .hero p{color:rgba(255,255,255,.75);margin-top:8px;font-size:13.5px;max-width:600px}
+  .toc{background:#fff;border:1px solid var(--ink-200);border-radius:16px;padding:20px 24px;margin-bottom:28px}
+  .toc-title{font-size:11px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;color:var(--ink-400);margin-bottom:10px}
+  .toc a{display:block;color:var(--ink-700);text-decoration:none;font-size:13.5px;padding:4px 0;font-weight:500}
+  .toc a:hover{color:var(--orange)}
+  .toc a::before{content:'›';color:var(--orange);margin-right:8px;font-weight:800}
+  section{background:#fff;border:1px solid var(--ink-200);border-radius:16px;padding:26px 28px;margin-bottom:20px}
+  h2{font-size:19px;font-weight:800;letter-spacing:-.3px;display:flex;align-items:center;gap:10px;margin-bottom:14px;scroll-margin-top:20px}
+  h2 .n{width:30px;height:30px;border-radius:9px;background:var(--orange-50);color:var(--orange);display:inline-flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;flex-shrink:0}
+  h3{font-size:15px;font-weight:700;margin:20px 0 8px;color:var(--ink-900)}
+  p{color:var(--ink-700);margin-bottom:10px}
+  ul,ol{margin:6px 0 12px 22px;color:var(--ink-700)}
+  li{margin-bottom:5px}
+  code{font-family:'IBM Plex Mono',monospace;font-size:12.5px;background:var(--ink-100);border-radius:5px;padding:1.5px 6px;color:var(--ink-900);word-break:break-word}
+  pre{background:#1B1714;color:#F1EDE9;border-radius:12px;padding:16px 18px;overflow-x:auto;margin:10px 0 14px;font-size:12.5px;line-height:1.7}
+  pre code{background:none;color:inherit;padding:0}
+  .note{border-radius:12px;padding:12px 16px;margin:12px 0;font-size:13px;display:flex;gap:10px;line-height:1.7}
+  .note b{font-weight:700}
+  .note.warn{background:var(--amber-50);color:var(--amber);border:1px solid #FDE68A}
+  .note.danger{background:var(--red-50);color:var(--red);border:1px solid #FECACA}
+  .note.ok{background:var(--green-50);color:var(--green);border:1px solid #BBF7D0}
+  .note.info{background:var(--blue-50);color:var(--blue);border:1px solid #BFDBFE}
+  table{width:100%;border-collapse:collapse;margin:10px 0 14px;font-size:13px}
+  th{text-align:left;font-size:11px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:var(--ink-400);padding:8px 10px;border-bottom:2px solid var(--ink-100)}
+  td{padding:8px 10px;border-bottom:1px solid var(--ink-100);color:var(--ink-700);vertical-align:top}
+  td code{white-space:nowrap}
+  .tbl-scroll{overflow-x:auto}
+  .foot{text-align:center;color:var(--ink-400);font-size:12px;margin-top:32px}
+  a.lnk{color:var(--orange);font-weight:600;text-decoration:none}
+  a.lnk:hover{text-decoration:underline}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="hero">
+    <div class="tag">DEVELOPER HANDOVER · สำหรับนักโปรแกรมเมอร์ที่มารับช่วงดูแลระบบ</div>
+    <h1>คู่มือนักพัฒนา — SAEDU Flow</h1>
+    <p>ระบบเสนอเอกสารอิเล็กทรอนิกส์ กนค. คณะครุศาสตร์ จุฬาฯ — เอกสารนี้สรุปสถาปัตยกรรม วิธีพัฒนา วิธี deploy และกับดักที่คนก่อนหน้าเจอมาแล้ว อ่านให้จบก่อนแก้โค้ดครั้งแรกนะคะ</p>
+  </div>
+
+  <div class="toc">
+    <div class="toc-title">สารบัญ</div>
+    <a href="#arch">1. สถาปัตยกรรมภาพรวม</a>
+    <a href="#local">2. เริ่มพัฒนาในเครื่อง</a>
+    <a href="#files">3. โครงไฟล์และลำดับโหลดสคริปต์</a>
+    <a href="#db">4. ฐานข้อมูลและ RLS</a>
+    <a href="#deploy">5. การ Deploy</a>
+    <a href="#pitfalls">6. กับดักที่พบบ่อย (อ่านก่อนแก้บั๊ก!)</a>
+    <a href="#devtools">7. เครื่องมือนักพัฒนาในแอป (ROLE-DEV)</a>
+    <a href="#secrets">8. บริการภายนอกและ Secrets</a>
+  </div>
+
+  <section id="arch">
+    <h2><span class="n">1</span>สถาปัตยกรรมภาพรวม</h2>
+    <p><b>Vanilla JS SPA — ไม่มี framework ไม่มี bundler</b> โค้ดทุกไฟล์รันตรง ๆ ในเบราว์เซอร์จาก static file ขั้นตอน build มีอย่างเดียวคือคอมไพล์ Tailwind CSS</p>
+    <ul>
+      <li><b>Frontend:</b> ไฟล์ <code>.js</code> ที่ root ทั้งหมด — แชร์ global scope เดียวกัน (ไม่มี module) โหลดด้วย <code>defer</code> ตามลำดับใน <code>index.html</code></li>
+      <li><b>Backend:</b> Supabase (Postgres + Auth + Storage + Edge Functions) — เรียกผ่าน PostgREST ด้วย <code>fetch</code> ตรง ๆ (helper <code>dg/dp/dpa/dd</code> ใน config.js) ไม่ใช้ supabase-js query builder (ใช้เฉพาะ <code>sb.auth.*</code>)</li>
+      <li><b>Hosting:</b> Vercel — auto-deploy ทุกครั้งที่ push ขึ้น branch <code>main</code></li>
+      <li><b>เอกสารเชิงลึกที่สุดคือ <code>CLAUDE.md</code></b> ที่ root ของ repo — อัปเดตล่าสุดเสมอ อ่านคู่กับไฟล์นี้</li>
+    </ul>
+  </section>
+
+  <section id="local">
+    <h2><span class="n">2</span>เริ่มพัฒนาในเครื่อง</h2>
+<pre><code>git clone https://github.com/kittiya45/SaEDU-Flow-system.git
+cd SaEDU-Flow-system
+npm install
+npm run build        # คอมไพล์ tailwind.css → styles.tailwind.css (ไฟล์นี้ gitignore ไว้ ต้อง build เอง)
+python3 -m http.server 8000
+# เปิด http://localhost:8000</code></pre>
+    <p>ถ้ากำลังแก้ class Tailwind ในไฟล์ <code>.js</code> ให้รัน <code>npm run watch</code> แทน <code>npm run build</code> เพื่อให้ CSS ตามทันตลอด</p>
+    <div class="note info"><span>ℹ️</span><span>ไม่มี lint/test ในโปรเจกต์ — ตรวจงานโดยเปิดเว็บแล้วกดใช้ฟีเจอร์จริง ระบบชี้ไปที่ฐานข้อมูล production เสมอ (ไม่มี staging) — <b>ระวังตอนทดสอบฟีเจอร์ที่เขียนข้อมูล</b></span></div>
+  </section>
+
+  <section id="files">
+    <h2><span class="n">3</span>โครงไฟล์และลำดับโหลดสคริปต์</h2>
+    <div class="tbl-scroll"><table>
+      <tr><th>ไฟล์</th><th>หน้าที่</th></tr>
+      <tr><td><code>config.js</code></td><td>ค่าคงที่ทั้งหมด (DTYPES, POSS, CLUBS, RTH, CAN ฯลฯ), helper API (dg/dp/dpa/dd), global state (CU, CV, SETT), error logger</td></tr>
+      <tr><td><code>utils.js</code></td><td>helper UI: svg(), esc(), fd(), showConfirm(), showAlert(), addWorkingDays()</td></tr>
+      <tr><td><code>events.js</code></td><td>event delegation กลาง — ปุ่มทุกปุ่มใช้ <code>data-action</code> แล้วมาแตกที่นี่</td></tr>
+      <tr><td><code>auth.js</code></td><td>login/สมัครสมาชิก (Supabase Auth), session refresh, _enterAppAsUser()</td></tr>
+      <tr><td><code>dashboard.js / docList.js / docForm.js / docDetail.js</code></td><td>หน้าหลัก 4 หน้า: ภาพรวม, รายการเอกสาร, ฟอร์มสร้าง/แก้, รายละเอียด+อนุมัติ/ตีกลับ</td></tr>
+      <tr><td><code>workflow.js / docSign.js / docNum.js</code></td><td>ขั้นตอนอนุมัติ, modal ลงนาม, ออกเลขหนังสือ</td></tr>
+      <tr><td><code>notif.js</code></td><td>อีเมล (Resend) + LINE OA + ตรวจเอกสารเลยกำหนด/auto-approve</td></tr>
+      <tr><td><code>sysAdmin.js / docTypeAdmin.js / admin.js</code></td><td>จัดการระบบ (ตั้งค่า, ข้อมูลอ้างอิง), ประเภทเอกสาร, จัดการผู้ใช้</td></tr>
+      <tr><td><code>dev.js</code></td><td>เครื่องมือนักพัฒนา (หน้าที่คุณกำลังใช้อยู่)</td></tr>
+      <tr><td><code>layout.js / boot.js</code></td><td>sidebar + router <code>nav()</code>, ตัวเริ่มระบบ</td></tr>
+      <tr><td><code>supabase/</code></td><td><b>ไม่ใช่โค้ดแอป</b> — SQL สำหรับรันมือใน Supabase SQL Editor + source ของ Edge Functions</td></tr>
+    </table></div>
+    <div class="note warn"><span>⚠️</span><span><b>ลำดับโหลดสคริปต์ใน index.html สำคัญมาก</b> — ทุกไฟล์แชร์ global scope เช่น <code>docDetail.js</code> จงใจ override ฟังก์ชัน <code>doAcceptFwd()</code> ของ <code>docList.js</code> (โหลดทีหลังชนะ) ถ้าสลับลำดับพฤติกรรมจะเปลี่ยนเงียบ ๆ</span></div>
+  </section>
+
+  <section id="db">
+    <h2><span class="n">4</span>ฐานข้อมูลและ RLS</h2>
+    <div class="tbl-scroll"><table>
+      <tr><th>ตาราง</th><th>เก็บอะไร</th></tr>
+      <tr><td><code>users</code></td><td>บัญชีผู้ใช้ — <code>auth_uid</code> ลิงก์ไป auth.users (<b>อย่า</b>เดาว่า auth_uid === id)</td></tr>
+      <tr><td><code>documents</code></td><td>เอกสารหลัก (status, doc_type, created_by, forwarded_to_id)</td></tr>
+      <tr><td><code>workflow_steps</code></td><td>ขั้นตอนต่อเอกสาร (pending/active/done/rejected)</td></tr>
+      <tr><td><code>document_files</code></td><td>ไฟล์แนบ (ชี้ Storage bucket "documents")</td></tr>
+      <tr><td><code>document_history</code></td><td><b>append-only</b> — ห้ามลบ (dd() บล็อก + RLS บังคับ)</td></tr>
+      <tr><td><code>notifications</code></td><td><b>append-only</b> — log อีเมล/LINE คอลัมน์เวลาใช้ <code>sent_at</code> ไม่ใช่ created_at</td></tr>
+      <tr><td><code>app_settings</code></td><td>ตั้งค่าระบบ + ข้อมูลอ้างอิง (clubs_json, positions_json ฯลฯ) — แก้ผ่าน UI "จัดการระบบ" ได้เลย ไม่ต้องแก้โค้ด</td></tr>
+      <tr><td><code>system_logs</code></td><td>JS error จากเบราว์เซอร์ผู้ใช้ — ดูในแท็บ "บันทึกระบบ" ของ Dev Panel</td></tr>
+    </table></div>
+    <h3>กติกา RLS ที่ต้องรู้</h3>
+    <ul>
+      <li>RLS <b>เปิดอยู่ทุกตารางใน production</b> — ตารางใหม่ต้องมีทั้ง policy และ <code>ENABLE ROW LEVEL SECURITY</code> ไม่งั้นแอปอ่าน/เขียนไม่ได้ (ไม่มี default-allow)</li>
+      <li><code>is_admin()</code> (ฝั่ง SQL) = <code>ROLE-SYS, ROLE-STF</code> ใช้ gate ตาราง config และการจัดการ users — ส่วน <code>is_dev()</code> = <code>ROLE-DEV</code> แยกต่างหาก มี policy คู่ขนานชุด <code>*_dev</code> ให้สิทธิ์แคบกว่า (ดู create_dev_role.sql)</li>
+      <li>ผู้ใช้อ่านแถว <code>users</code> ได้เฉพาะของตัวเอง — <b>ถ้าต้องการชื่อ/ตำแหน่งของคนอื่น ให้ query view <code>user_directory</code> เสมอ</b> query ตาราง users ตรง ๆ จะได้ <code>[]</code> เงียบ ๆ ไม่ error</li>
+      <li>ไฟล์ SQL ทั้งหมดอยู่ใน <code>supabase/</code> พร้อมคอมเมนต์บอกลำดับการรัน — เริ่มอ่านจากหัวข้อ "supabase/ folder" ใน CLAUDE.md</li>
+    </ul>
+  </section>
+
+  <section id="deploy">
+    <h2><span class="n">5</span>การ Deploy</h2>
+    <h3>เว็บ (Vercel)</h3>
+<pre><code>git add -A && git commit -m "..." && git push origin main
+# Vercel รัน npm run build ให้เอง (vercel.json) แล้ว deploy — เสร็จใน ~1 นาที</code></pre>
+    <h3>Edge Functions (Supabase)</h3>
+<pre><code>npx supabase login
+npx supabase link --project-ref jrubupvzltxqstzcpoov
+npx supabase functions deploy send-email          # หรือ admin-delete-user, admin-set-password,
+npx supabase functions deploy send-line            # convert-docx, send-line
+npx supabase functions deploy line-webhook --no-verify-jwt   # ตัวนี้ต้องมี --no-verify-jwt เสมอ!</code></pre>
+    <div class="note danger"><span>⛔</span><span><b>อย่า deploy Edge Function ผ่านหน้าเว็บ Dashboard</b> — เคยสร้าง function ใต้ URL slug คนละชื่อกับที่ตั้งแบบเงียบ ๆ ทำให้ endpoint จริง 404 ใช้ CLI เท่านั้น</span></div>
+    <h3>SQL migration</h3>
+    <p>ไม่มีระบบ auto-migrate — SQL ทุกไฟล์ใน <code>supabase/</code> รันมือใน Dashboard → SQL Editor ไฟล์ส่วนใหญ่ idempotent (รันซ้ำได้) อ่านคอมเมนต์หัวไฟล์ก่อนรันทุกครั้ง</p>
+  </section>
+
+  <section id="pitfalls">
+    <h2><span class="n">6</span>กับดักที่พบบ่อย — คนก่อนหน้าเจอมาแล้วทุกข้อ</h2>
+    <ul>
+      <li><b>"แก้ CSS/JS แล้วหน้าเว็บไม่เปลี่ยน"</b> → 90% คือลืมบัมป์ <code>?v=N</code> ใน index.html (ทั้ง script และ styles.tailwind.css) หรือผู้ใช้ยังไม่ hard-refresh</li>
+      <li><b>เรียก Edge Function แล้ว "Failed to fetch" เงียบ ๆ</b> → ห้ามส่ง header object <code>H</code> ตรง ๆ (มี <code>Prefer</code> ที่ CORS ของ functions ไม่รับ) ให้สร้าง header ใหม่: <code>{apikey:SK, Authorization:H.Authorization, 'Content-Type':'application/json'}</code></li>
+      <li><b><code>showConfirm()</code>/<code>showAlert()</code> ล้าง modal ทั้งกล่อง</b> → ถ้าจะอ่านค่าฟอร์มใน modal หลัง confirm ต้อง capture ใส่ตัวแปรก่อนเรียก (ดูตัวอย่าง <code>doSetDocNumber()</code> ใน docNum.js)</li>
+      <li><b>ห้ามสร้างชื่อ class Tailwind แบบต่อ string</b> (<code>`bg-${color}`</code>) — ตัว build จะหา class ไม่เจอ สไตล์หายเงียบ ๆ ให้ทำ lookup table ของ class เต็ม ๆ แทน</li>
+      <li><b>raw fetch ที่ข้าม helper ต้องใช้ <code>H.Authorization</code></b> — ถ้าใช้ <code>'Bearer '+SK</code> จะกลายเป็น anon role แล้ว RLS ปฏิเสธเงียบ ๆ (UI ขึ้นสำเร็จแต่ข้อมูลไม่เปลี่ยน) และต้องเช็ค <code>r.ok</code> เองเสมอ</li>
+      <li><b><code>dg()</code> อาจคืน error object ไม่ใช่ array</b> — เช็ค <code>Array.isArray()</code> ก่อนใช้ <code>.length</code> ทุกครั้ง (ชื่อคอลัมน์ผิดจะได้ error object ไม่ใช่ [])</li>
+      <li><b>ลบผู้ใช้ต้อง unlink FK ทุกตัวก่อน</b> — ดูลำดับใน <code>_admDelConfirmed()</code> (admin.js) ถ้าเพิ่มคอลัมน์ใหม่ที่อ้าง users.id ต้องเพิ่ม unlink ด้วย</li>
+      <li><b>ค่าจากคอลัมน์ free-text ต้อง <code>esc()</code> ก่อนใส่ HTML เสมอ</b> (เช่น department) — กัน XSS</li>
+      <li><b>อนุมัติ/ตีกลับไม่ atomic</b> (REST หลายคำสั่งต่อกัน) — ถ้าพังกลางทางใช้ "ซ่อมสถานะ" ใน Dev Panel หรือ <code>_reconcileDocState()</code></li>
+    </ul>
+  </section>
+
+  <section id="devtools">
+    <h2><span class="n">7</span>เครื่องมือนักพัฒนาในแอป (ROLE-DEV)</h2>
+    <p>ระบบนักพัฒนา<b>แยกขาดจากแอดมิน</b> ทั้งเมนูและสิทธิ์ฐานข้อมูล — บัญชี role <b>"นักพัฒนา" (ROLE-DEV)</b> เห็นเมนูเดียวคือ <b>"นักพัฒนา"</b> (แอดมินไม่เห็น/เข้าหน้านี้ไม่ได้) ภายในมี 5 แท็บ:</p>
+    <ul>
+      <li><b>สุขภาพระบบ</b> — นับแถวตารางหลัก + ตรวจเอกสารสถานะไม่สอดคล้อง + ปุ่มซ่อม</li>
+      <li><b>บันทึกระบบ</b> — error log จากเบราว์เซอร์ผู้ใช้ / ประวัติการใช้งาน / log การแจ้งเตือน</li>
+      <li><b>ซ่อมเอกสาร</b> — แก้สถานะเอกสารและขั้นตอนตรง ๆ (ทุกการแก้ถูกบันทึกลง document_history)</li>
+      <li><b>จัดการระบบ</b> — เนื้อหาเดียวกับหน้าจัดการระบบของแอดมิน (ฝังมาไว้ในนี้): ข้อมูลอ้างอิง (ชมรม, ตำแหน่ง, ประเภทจดหมาย), ตั้งค่าระบบ + ประกาศหน้า Login, แม่แบบอีเมล, workflow template — <b>แก้ผ่านนี่ก่อนเสมอ ถ้าไม่จำเป็นอย่าแก้ hardcode ใน config.js</b> (ค่าใน app_settings override ค่าในโค้ดอยู่แล้ว)</li>
+      <li><b>คู่มือ & ลิงก์</b> — หน้านี้ + ลิงก์ GitHub / Supabase / Vercel</li>
+    </ul>
+    <h3>สิทธิ์ฐานข้อมูลของ ROLE-DEV (จาก is_dev() — ไม่ใช่ is_admin())</h3>
+    <ul>
+      <li>✅ เขียนตาราง config ทั้งหมด (app_settings, email_templates, workflow_templates, doc_types, doc_number_settings, projects)</li>
+      <li>✅ UPDATE documents / workflow_steps (เครื่องมือซ่อมเอกสาร) และอ่าน/ลบ system_logs, อ่าน notifications</li>
+      <li>❌ จัดการผู้ใช้ (เห็นเฉพาะแถวตัวเองใน users), ❌ ลบเอกสาร/ไฟล์/ประวัติ, ❌ Edge Functions ฝั่งแอดมิน (admin-delete-user ฯลฯ)</li>
+    </ul>
+    <h3>วิธีมอบสิทธิ์นักพัฒนา</h3>
+    <ol>
+      <li>รัน <code>supabase/create_dev_role.sql</code> ใน SQL Editor (ครั้งเดียว — รันซ้ำได้)</li>
+      <li>ให้คนนั้นสมัครสมาชิกตามปกติ → แอดมินอนุมัติบัญชี</li>
+      <li>หน้า "จัดการผู้ใช้" → ⋮ → แก้ไขข้อมูล → สิทธิ์ = "นักพัฒนา (ROLE-DEV)"</li>
+    </ol>
+    <div class="note ok"><span>✅</span><span>ROLE-DEV ไม่ได้สิทธิ์แอดมิน — จัดการผู้ใช้/ลบข้อมูล/อ่านอีเมลผู้ใช้ไม่ได้ จึงปลอดภัยพอที่จะมอบให้นักโปรแกรมเมอร์ที่มารับช่วงดูแลระบบ</span></div>
+  </section>
+
+  <section id="secrets">
+    <h2><span class="n">8</span>บริการภายนอกและ Secrets</h2>
+    <div class="tbl-scroll"><table>
+      <tr><th>บริการ</th><th>ใช้ทำอะไร</th><th>Secret (ตั้งด้วย npx supabase secrets set)</th></tr>
+      <tr><td>Resend</td><td>ส่งอีเมลแจ้งเตือน (ผ่าน Edge Function send-email)</td><td><code>RESEND_API_KEY</code></td></tr>
+      <tr><td>CloudConvert</td><td>แปลง DOCX→PDF สำหรับ preview (ฟรี ~25 นาที/วัน)</td><td><code>CLOUDCONVERT_API_KEY</code></td></tr>
+      <tr><td>LINE OA</td><td>แจ้งเตือนทาง LINE (send-line + line-webhook)</td><td><code>LINE_CHANNEL_ACCESS_TOKEN</code>, <code>LINE_CHANNEL_SECRET</code></td></tr>
+      <tr><td>Supabase</td><td>anon key อยู่ใน config.js (public โดยตั้งใจ — RLS คุม) / service role key ใช้เฉพาะสคริปต์ local ห้าม commit</td><td>—</td></tr>
+    </table></div>
+    <div class="note ok"><span>✅</span><span>ถ้า secret ไหนหาย ฟีเจอร์นั้นจะพังแบบ fail-open (ข้ามเงียบ ๆ) ไม่ล้มทั้งระบบ — เช็คได้จาก error log ใน Dev Panel</span></div>
+  </section>
+
+  <div class="foot">SAEDU Flow — คู่มือนักพัฒนา · อัปเดตล่าสุด กรกฎาคม 2569 · รายละเอียดเชิงลึกทั้งหมดอยู่ใน CLAUDE.md ที่ root ของ repo</div>
+</div>
+</body>
+</html>

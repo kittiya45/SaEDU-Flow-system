@@ -323,9 +323,22 @@ function _buildCal(docs){
 async function vDash(){
   var _ds=await Promise.all([
     dg('documents','?order=created_at.desc&limit=500&select=id,title,doc_type,status,urgency,due_date,created_by,created_at,doc_number'),
-    dg('workflow_steps','?assigned_to=eq.'+CU.id+'&select=document_id,status')
+    dg('workflow_steps','?assigned_to=eq.'+CU.id+'&select=document_id,status'),
+    // บอร์ดประกาศ — ตารางอาจยังไม่ถูกสร้าง (supabase/create_announcements.sql) → ได้ error object → ซ่อนการ์ดเงียบ ๆ
+    dg('announcements','?is_active=eq.true&order=pinned.desc,created_at.desc&limit=10').catch(function(){return null})
   ]);
   var _allD2=_ds[0], _mySteps2=_ds[1];
+  var _anns=Array.isArray(_ds[2])?_ds[2]:[];
+  var _annAuthors={};
+  if(_anns.length){
+    try{
+      var _aIds=Array.from(new Set(_anns.map(function(a){return a.created_by}).filter(Boolean)));
+      if(_aIds.length){
+        var _aUs=await dg('user_directory','?id=in.('+_aIds.map(safeId).join(',')+')&select=id,full_name');
+        (Array.isArray(_aUs)?_aUs:[]).forEach(function(u){_annAuthors[u.id]=u.full_name;});
+      }
+    }catch(e){}
+  }
   var _myIds2=_mySteps2.map(function(s){return s.document_id});
   var _myActive=_mySteps2.filter(function(s){return s.status==='active'}).length;
   var _canSeeAll=CU.role_code==='ROLE-SYS'||CU.position_code==='GNK-SEC';
@@ -391,6 +404,9 @@ async function vDash(){
     );
   });
   html.push('</div>');
+
+  /* ── บอร์ดประกาศ (ซ่อนทั้งการ์ดเมื่อไม่มีประกาศ active) ── */
+  html.push(_rAnnounceBoard(_anns,_annAuthors));
 
   /* ── Main 2-col grid ── */
 
@@ -746,4 +762,45 @@ async function vTodo(){
   html.push(renderGroup('งานอื่น ๆ',     'var(--text-2)','var(--border)','ok', normal));
 
   return html.join('');
+}
+
+/* ─── บอร์ดประกาศหน้า Home ───
+   ข้อมูลจากตาราง announcements (supabase/create_announcements.sql) — ทุกคนที่ล็อกอินเห็น
+   แอดมิน/นักพัฒนาเห็นปุ่ม "จัดการประกาศ" ลัดไปหน้าจัดการ (การ์ดในแท็บตั้งค่าระบบ — dev.js) */
+function _rAnnounceBoard(anns,authors){
+  if(!Array.isArray(anns)||!anns.length) return '';
+  var TH={
+    info:   {bg:'#EFF6FF',cl:'#2563EB',ic:'info', label:'ข้อมูล'},
+    warning:{bg:'#FFFBEB',cl:'#D97706',ic:'warn', label:'เตือน'},
+    error:  {bg:'#FEF2F2',cl:'#DC2626',ic:'warn', label:'สำคัญ'}
+  };
+  var canManage=['ROLE-SYS','ROLE-DEV'].includes(CU.role_code);
+  var rows=anns.map(function(a,i){
+    var t=TH[a.level]||TH.info;
+    return '<div style="display:flex;gap:12px;padding:13px 20px;'+(i?'border-top:1px solid #F5F3F0;':'')+'align-items:flex-start">'+
+      '<div style="width:30px;height:30px;border-radius:9px;background:'+t.bg+';display:flex;align-items:center;justify-content:center;color:'+t.cl+';flex-shrink:0;margin-top:1px">'+svg(t.ic,14)+'</div>'+
+      '<div style="flex:1;min-width:0">'+
+        '<div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">'+
+          (a.pinned?'<span title="ปักหมุด" style="color:#E83A00;display:inline-flex">'+svg('pin',12)+'</span>':'')+
+          '<span style="font-size:13.5px;font-weight:800;color:#18120E">'+esc(a.title)+'</span>'+
+          '<span style="font-size:9.5px;font-weight:700;color:'+t.cl+';background:'+t.bg+';border-radius:99px;padding:1px 8px">'+t.label+'</span>'+
+        '</div>'+
+        (a.body?'<div style="font-size:12.5px;color:#6b6560;line-height:1.8;margin-top:4px;white-space:pre-wrap;word-break:break-word">'+esc(a.body)+'</div>':'')+
+        '<div style="font-size:10.5px;color:#a89e99;margin-top:6px">'+fd(a.created_at)+(authors&&authors[a.created_by]?' · '+esc(authors[a.created_by]):'')+'</div>'+
+      '</div>'+
+    '</div>';
+  }).join('');
+  return '<div class="card" style="margin-bottom:28px">'+
+    '<div class="card-head">'+
+      '<div style="width:26px;height:26px;border-radius:7px;background:#FFF3EE;display:flex;align-items:center;justify-content:center;color:#E83A00">'+svg('megaphone',13)+'</div>'+
+      '<span class="card-head-title">ประกาศ</span>'+
+      '<span style="font-size:10px;color:#a89e99;margin-left:2px">'+anns.length+' รายการ</span>'+
+      (canManage?'<button class="btn btn-soft sm ml-auto" onclick="_annbGoManage()">'+svg('edit',12)+' จัดการประกาศ</button>':'')+
+    '</div>'+rows+'</div>';
+}
+
+/* ลัดไปหน้าจัดการประกาศ — แอดมินไปหน้าจัดการระบบ, นักพัฒนาไปแท็บจัดการระบบใน Dev Panel */
+function _annbGoManage(){
+  _sysTab='settings';
+  if(CU.role_code==='ROLE-DEV'){_devTab='sysadmin';nav('dev');}else{nav('sys');}
 }

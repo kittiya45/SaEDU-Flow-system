@@ -3,8 +3,21 @@
 var _sysTab='docnum'; // tab ที่เปิดอยู่
 
 async function vSys(){
+  // หน้านี้ของแอดมินเท่านั้น — นักพัฒนา (ROLE-DEV) ใช้เนื้อหาเดียวกันผ่านแท็บ "จัดการระบบ"
+  // ใน Dev Panel ซึ่งเรียก _vSysContent() ตรง ๆ (สิทธิ์เขียนฝั่ง DB ของ dev มาจาก policy is_dev()
+  // ใน supabase/create_dev_role.sql — แยกจาก is_admin() ของแอดมิน)
   if(CU.role_code!=='ROLE-SYS') return '<div class="card-empty"><div class="card-empty-text">ไม่มีสิทธิ์เข้าถึง</div></div>';
+  return await _vSysContent();
+}
+
+/* opts.embed=true → ตัด page header ใหญ่ (ไอคอน+ชื่อหน้า+สถิติ) ออก — ใช้ตอนฝังใน Dev Panel
+   ซึ่งมี header ของตัวเองอยู่แล้ว จะได้ไม่ซ้อนหัวข้อสองชั้น */
+async function _vSysContent(opts){
+  opts=opts||{};
   var _docNumCfgs=[], _docTypes=[], _settings=[], _emailTmpls=[], _wfTmpls=[], _projects=[];
+  // บอร์ดประกาศหน้า Home — null = อ่านตารางไม่ได้ (ยังไม่รัน create_announcements.sql) ให้การ์ดแสดงคำเตือน
+  var _anns=null;
+  try{var _ar=await dg('announcements','?order=pinned.desc,created_at.desc&limit=50');if(Array.isArray(_ar))_anns=_ar;}catch(e){}
   try{_docNumCfgs=await dg('doc_number_settings','?order=year.desc');}catch(e){}
   try{_docTypes=await dg('doc_types','?order=sort_order,created_at');}catch(e){}
   try{_settings=await dg('app_settings','?order=key');}catch(e){}
@@ -88,13 +101,14 @@ async function vSys(){
     docnum:   rDocNumCard(_docNumCfgs),
     doctypes: rDocTypesCard(_docTypes),
     projects: rProjectsCard(_projects),
-    settings: rAppSettingsCard(_settings),
+    // การ์ดเสริมจาก dev.js: Popup ประกาศหน้า Login + บอร์ดประกาศหน้า Home + ตัวแก้ app_settings ราย key
+    settings: rAppSettingsCard(_settings)+(typeof _rDevExtraSettingsCards==='function'?_rDevExtraSettingsCards(_settings,_anns):''),
     email:    rEmailTemplatesCard(_emailTmpls),
     workflow: rWfTemplatesCard(_wfTmpls),
     refdata:  rRefDataCard()
   };
 
-  var html=_pageHeader+tabNav;
+  var html=(opts.embed?'':_pageHeader)+tabNav;
   _tabs.forEach(function(t){
     html+='<div id="sys-tab-'+t.k+'" style="display:'+(t.k===_sysTab?'block':'none')+'">'+_panelContent[t.k]+'</div>';
   });
@@ -1263,15 +1277,17 @@ function _rdCanCard(){
     {code:'ROLE-ADV',label:'อาจารย์กิจการ'},
     {code:'ROLE-STF',label:'เจ้าหน้าที่'},
     {code:'ROLE-CRT',label:'ผู้จัดทำ'},
-    {code:'ROLE-SYS',label:'ผู้ดูแลระบบ'}
+    {code:'ROLE-SYS',label:'ผู้ดูแลระบบ'},
+    {code:'ROLE-DEV',label:'นักพัฒนา'}
   ];
-  var curSg=(Array.isArray(SETT.can_sign_roles_json)&&SETT.can_sign_roles_json)||['ROLE-SGN','ROLE-ADV','ROLE-SYS'];
-  var curRv=(Array.isArray(SETT.can_review_roles_json)&&SETT.can_review_roles_json)||['ROLE-REV','ROLE-SGN','ROLE-ADV','ROLE-SYS'];
+  var curSg=(Array.isArray(SETT.can_sign_roles_json)&&SETT.can_sign_roles_json)||['ROLE-SGN','ROLE-ADV','ROLE-SYS','ROLE-DEV'];
+  var curRv=(Array.isArray(SETT.can_review_roles_json)&&SETT.can_review_roles_json)||['ROLE-REV','ROLE-SGN','ROLE-ADV','ROLE-SYS','ROLE-DEV'];
 
   var rows=allRoles.map(function(r){
-    var isSys=r.code==='ROLE-SYS';
-    var sgChk=curSg.includes(r.code);
-    var rvChk=curRv.includes(r.code);
+    // ROLE-SYS และ ROLE-DEV ล็อกเสมอ — แอดมินมีสิทธิ์ทุกอย่าง, นักพัฒนาต้องทดสอบระบบได้ทุก flow
+    var isSys=r.code==='ROLE-SYS'||r.code==='ROLE-DEV';
+    var sgChk=isSys||curSg.includes(r.code);
+    var rvChk=isSys||curRv.includes(r.code);
     return '<div style="display:grid;grid-template-columns:1fr 80px 80px;gap:8px;align-items:center;padding:10px 16px;border-top:1px solid #F9F8F7">'+
       '<span style="font-size:12px;font-weight:600;color:#18120E">'+r.label+
         (isSys?'<span style="font-size:10px;color:#a89e99;margin-left:6px">ล็อกเสมอ</span>':'')+
@@ -1303,19 +1319,21 @@ function _rdCanCard(){
     '</div>'+
     rows+
     '<div style="padding:10px 16px;background:#FAFAF8;border-top:1px solid #F5F3F0;font-size:10px;color:#a89e99;border-radius:0 0 16px 16px">'+
-      svg('warn',11)+' ผู้ดูแลระบบ (ROLE-SYS) มีสิทธิ์ทุกอย่างเสมอ ไม่สามารถเปลี่ยนแปลงได้'+
+      svg('warn',11)+' ผู้ดูแลระบบ (ROLE-SYS) และนักพัฒนา (ROLE-DEV) มีสิทธิ์เสมอ ไม่สามารถเปลี่ยนแปลงได้ — นักพัฒนาต้องใช้ทดสอบระบบได้ทุกขั้นตอน'+
     '</div>'+
   '</div>';
 }
 
 async function _rdSaveCAN(){
   var al=$e('rd-can-al');
-  var roles=['ROLE-SGN','ROLE-REV','ROLE-ADV','ROLE-STF','ROLE-CRT','ROLE-SYS'];
+  var roles=['ROLE-SGN','ROLE-REV','ROLE-ADV','ROLE-STF','ROLE-CRT','ROLE-SYS','ROLE-DEV'];
   try{
     var sgRoles=roles.filter(function(r){var el=$e('can-sg-'+r);return el&&el.checked;});
     var rvRoles=roles.filter(function(r){var el=$e('can-rv-'+r);return el&&el.checked;});
     if(!sgRoles.includes('ROLE-SYS')) sgRoles.push('ROLE-SYS');
     if(!rvRoles.includes('ROLE-SYS')) rvRoles.push('ROLE-SYS');
+    if(!sgRoles.includes('ROLE-DEV')) sgRoles.push('ROLE-DEV');
+    if(!rvRoles.includes('ROLE-DEV')) rvRoles.push('ROLE-DEV');
     var pairs=[{key:'can_sign_roles_json',val:sgRoles},{key:'can_review_roles_json',val:rvRoles}];
     for(var i=0;i<pairs.length;i++){
       var k=pairs[i].key, v=JSON.stringify(pairs[i].val);

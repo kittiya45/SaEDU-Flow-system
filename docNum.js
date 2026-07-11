@@ -228,10 +228,36 @@ function _updateDateStamp(){
 }
 
 function _updateStampFontSize(){
-  var sz=parseInt(($e('num-fontsize')||{}).value)||12;
-  var lbl=$e('num-fontsize-val'); if(lbl) lbl.textContent=sz+'px';
-  var ns=$e('num-stamp-num'); if(ns) ns.style.fontSize=sz+'px';
-  var ds=$e('num-stamp-date'); if(ds) ds.style.fontSize=sz+'px';
+  var sz=parseInt(($e('num-fontsize')||{}).value)||12; // ขนาดจริงในเอกสาร (pt)
+  var lbl=$e('num-fontsize-val'); if(lbl) lbl.textContent=sz+' pt';
+  // บนจอต้องคูณ scale ของ preview — ไม่งั้นผลจริง (pt เต็ม) จะใหญ่กว่าที่เห็นราว 1/scale เท่า
+  var cont=$e('num-stamp-container');
+  var sc=cont?parseFloat(cont.dataset.scale)||1:1;
+  var px=(sz*sc).toFixed(2)+'px';
+  var ns=$e('num-stamp-num'); if(ns) ns.style.fontSize=px;
+  var ds=$e('num-stamp-date'); if(ds) ds.style.fontSize=px;
+}
+
+/* โหลดฟอนต์ THSarabunNew ตัวเดียวกับที่ใช้ฝังลง PDF มาใช้ใน preview ด้วย —
+   ถ้าปล่อยให้ fallback เป็น sans-serif ความกว้าง/สัดส่วนตัวอักษรบนจอจะไม่ตรงกับผลจริง */
+function _ensureSarabunPrevFont(){
+  if($e('sarabun-prev-style'))return;
+  var st=document.createElement('style');
+  st.id='sarabun-prev-style';
+  st.textContent="@font-face{font-family:'THSarabunPrev';src:url('https://cdn.jsdelivr.net/gh/Phonbopit/sarabun-webfont@master/fonts/thsarabunnew-webfont.ttf') format('truetype');font-display:swap}";
+  document.head.appendChild(st);
+}
+
+/* ตำแหน่งมุมซ้ายบนของ "บรรทัดตัวอักษรจริง" ใน stamp เทียบกับ container (px บนจอ)
+   — วัดจาก Range ของ text node โดยตรง จึงไม่เพี้ยนจาก border/padding ของกล่อง */
+function _stampTextOrigin(el,cont){
+  try{
+    var r=document.createRange(); r.selectNodeContents(el);
+    var tr=r.getBoundingClientRect(), cr=cont.getBoundingClientRect();
+    if(tr&&tr.width) return {x:tr.left-cr.left, y:tr.top-cr.top};
+  }catch(_e){}
+  // fallback: ขอบกล่อง + border 1.5 + padding (6 ซ้าย / 2 บน)
+  return {x:(parseInt(el.style.left)||0)+7.5, y:(parseInt(el.style.top)||0)+3.5};
 }
 
 /* ─── Drag handler สำหรับ stamp overlays ─── */
@@ -297,9 +323,12 @@ async function _loadNumPDFPreview(docId){
     cont.dataset.pdfH=String(vp0.height);
     cont.appendChild(canvas);
 
-    var SCSS='position:absolute;color:#1261AB;font-size:12px;font-family:"TH Sarabun PSK", Sarabun, sans-serif;font-weight:700;white-space:nowrap;cursor:grab;'+
+    _ensureSarabunPrevFont();
+    // ฟอนต์เดียวกับที่ฝังจริง + weight 400 (ตัวที่ฝังคือ regular ไม่ใช่ bold) + line-height:1
+    // เพื่อให้ตำแหน่ง/ขนาดบนจอ = ผลจริงบนไฟล์
+    var SCSS='position:absolute;color:#1261AB;font-family:"THSarabunPrev","TH Sarabun PSK",Sarabun,sans-serif;font-weight:400;white-space:nowrap;cursor:grab;'+
              'user-select:none;padding:2px 6px;border:1.5px dashed rgba(18,97,171,.55);border-radius:3px;'+
-             'background:rgba(255,255,255,.88);line-height:1.5;touch-action:none';
+             'background:rgba(255,255,255,.88);line-height:1;touch-action:none';
     var defTop=Math.round(vp.height*0.32);
 
     var ns=document.createElement('div');
@@ -318,6 +347,7 @@ async function _loadNumPDFPreview(docId){
     wrap.appendChild(cont);
     _makeStampDraggable(ns,cont);
     _makeStampDraggable(ds,cont);
+    _updateStampFontSize(); // ใส่ขนาดตามสเกล preview (pt × scale)
   }catch(e){
     console.warn('PDF preview failed:',e);
     wrap.innerHTML='<div style="color:rgba(255,255,255,.6);font-size:12px;padding:20px;text-align:center">โหลดตัวอย่างไม่ได้<br>ระบบจะประทับที่ตำแหน่งเริ่มต้น</div>';
@@ -333,11 +363,13 @@ function doSetDocNumber(docId){
   var _scSc=_sc?parseFloat(_sc.dataset.scale)||1:1;
   var _scPdfH=_sc?parseFloat(_sc.dataset.pdfH)||842:842;
   var _ns=$e('num-stamp-num'), _ds=$e('num-stamp-date');
-  var _numPdfX,_numPdfY,_datPdfX,_datPdfY;
-  if(_ns){_numPdfX=parseInt(_ns.style.left)/_scSc; _numPdfY=_scPdfH-parseInt(_ns.style.top)/_scSc-14;}
-  else    {_numPdfX=42; _numPdfY=_scPdfH-270;}
-  if(_ds){_datPdfX=parseInt(_ds.style.left)/_scSc; _datPdfY=_scPdfH-parseInt(_ds.style.top)/_scSc-14;}
-  else    {_datPdfX=42; _datPdfY=_scPdfH-290;}
+  // เก็บ "มุมซ้ายบนของบรรทัดตัวอักษร" เป็น pt จากขอบบนหน้า — แปลงเป็น baseline ตอนฝัง
+  // (ต้องใช้ metrics ของฟอนต์จริง ซึ่งมีหลังโหลดฟอนต์ใน _doSetDocNumberConfirmed แล้วเท่านั้น)
+  var _numPdfX,_numTopPdf,_datPdfX,_datTopPdf;
+  if(_ns){var _no=_stampTextOrigin(_ns,_sc); _numPdfX=_no.x/_scSc; _numTopPdf=_no.y/_scSc;}
+  else    {_numPdfX=42; _numTopPdf=256;}
+  if(_ds){var _do2=_stampTextOrigin(_ds,_sc); _datPdfX=_do2.x/_scSc; _datTopPdf=_do2.y/_scSc;}
+  else    {_datPdfX=42; _datTopPdf=276;}
   var _cap={
     docDate:docDate,
     sem:gv('num-sem')||'',
@@ -350,8 +382,8 @@ function doSetDocNumber(docId){
     fwdId:gv('num-fwd')||null,
     docnum:(gv('num-docnum')||'').trim(),
     fontsize:parseInt(($e('num-fontsize')||{}).value)||12,
-    numPdfX:_numPdfX, numPdfY:_numPdfY,
-    datPdfX:_datPdfX, datPdfY:_datPdfY
+    numPdfX:_numPdfX, numTopPdf:_numTopPdf,
+    datPdfX:_datPdfX, datTopPdf:_datTopPdf
   };
   var previewNum=($e('num-preview')||{}).textContent||'—';
   var dateDisplay=_fmtDateThai?_fmtDateThai(docDate):docDate;
@@ -377,7 +409,7 @@ async function _doSetDocNumberConfirmed(docId,cap){
   try{
     var doc=(await dg('documents','?id=eq.'+safeId(docId)))[0]||{};
     var docNum, note='', fwdId=null;
-    var _numPdfX=cap.numPdfX,_numPdfY=cap.numPdfY,_datPdfX=cap.datPdfX,_datPdfY=cap.datPdfY,_dateText='';
+    var _numPdfX=cap.numPdfX,_numTopPdf=cap.numTopPdf,_datPdfX=cap.datPdfX,_datTopPdf=cap.datTopPdf,_dateText='';
 
     if(doc.doc_type==='outgoing'){
       var sem=cap.sem||'1';
@@ -471,8 +503,18 @@ async function _doSetDocNumberConfirmed(docId,cap){
               var _clr=PDFLib.rgb(0.07,0.38,0.67);
               var clamp=function(v,lo,hi){return Math.max(lo,Math.min(hi,v));};
               var _stampSz=cap.fontsize||12;
-              if(docNum) _pg.drawText(docNum,{x:clamp(_numPdfX,0,_pw2-10),y:clamp(_numPdfY,10,_ph-10),size:_stampSz,font:_stampFont,color:_clr});
-              if(_dateText) _pg.drawText(_dateText,{x:clamp(_datPdfX,0,_pw2-10),y:clamp(_datPdfY,10,_ph-10),size:_stampSz,font:_stampFont,color:_clr});
+              // แปลง "top ของบรรทัด" (ที่จับจาก preview) → baseline สำหรับ drawText
+              // ใช้ ascent/descent ของฟอนต์จริงตามโมเดล line box ของ CSS (line-height:1):
+              // baseline = top + (fontSize + ascent − |descent|)/2 — ให้ตำแหน่งบนจอ = บนไฟล์
+              var _baseOff=(function(sz){
+                try{
+                  var fk=_stampFont.embedder.font;
+                  var A=fk.ascent/fk.unitsPerEm*sz, D=Math.abs(fk.descent)/fk.unitsPerEm*sz;
+                  return (sz+A-D)/2;
+                }catch(_me){return sz*0.8}
+              })(_stampSz);
+              if(docNum) _pg.drawText(docNum,{x:clamp(_numPdfX,0,_pw2-10),y:clamp(_ph-_numTopPdf-_baseOff,10,_ph-10),size:_stampSz,font:_stampFont,color:_clr});
+              if(_dateText) _pg.drawText(_dateText,{x:clamp(_datPdfX,0,_pw2-10),y:clamp(_ph-_datTopPdf-_baseOff,10,_ph-10),size:_stampSz,font:_stampFont,color:_clr});
               var _stampBytes=await _pdfDoc.save();
               var _stampPath='stamped_'+Date.now()+'_'+_pf.file_name.replace(/[^a-zA-Z0-9._-]/g,'_');
               var _stampBlob=new Blob([_stampBytes],{type:'application/pdf'});

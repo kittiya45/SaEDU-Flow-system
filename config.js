@@ -29,10 +29,31 @@ async function dd(t,id){
   if(!r.ok){var e=await r.json().catch(function(){return{}});throw new Error(e.message||String(r.status))}
 }
 function safeId(id){return encodeURIComponent(String(id||''))}
+/* ─── System error log → ตาราง system_logs (ดูใน Dev Panel) ───
+   fail-silent เสมอ: log ไม่ได้ = ข้ามเงียบ ๆ (ตารางยังไม่ถูกสร้าง / ยังไม่ล็อกอิน / เน็ตล่ม — ไม่กระทบผู้ใช้)
+   จำกัด 15 รายการต่อ session + ไม่ log ข้อความเดิมซ้ำติดกัน กัน error loop ยิง insert รัว ๆ */
+var _selCount=0,_selLast='';
+function logSysErr(source,message,detail){
+  try{
+    if(!CU||_selCount>=15) return;
+    var m=String(message||'').slice(0,500);
+    if(m===_selLast) return;
+    _selLast=m; _selCount++;
+    fetch(SU+'/rest/v1/system_logs',{method:'POST',headers:H,body:JSON.stringify({
+      level:'error',source:String(source||'').slice(0,80),message:m,
+      detail:detail?String(detail).slice(0,2000):null,user_id:CU.id
+    })}).catch(function(){});
+  }catch(e){}
+}
+window.addEventListener('error',function(ev){
+  logSysErr('window.onerror',ev.message,(ev.filename||'')+':'+(ev.lineno||0)+(ev.error&&ev.error.stack?'\n'+ev.error.stack:''));
+});
+
 /* [Safety net] dp()/dpa() เพิ่งเปลี่ยนให้ throw จริงเมื่อ RLS ปฏิเสธหรือ error (เดิมเงียบ ๆ คืน [] ทำให้ปุ่มดูเหมือนใช้งานไม่ได้)
    จุดเรียกใช้บางจุดยังไม่ได้ครอบ try/catch ของตัวเอง — ดักด้วย unhandledrejection กลาง ๆ ไว้ ไม่ให้ error หายไปเงียบ ๆ อีก */
 window.addEventListener('unhandledrejection',function(ev){
   console.error('Unhandled error:',ev.reason);
+  logSysErr('unhandledrejection',(ev.reason&&ev.reason.message)||ev.reason,ev.reason&&ev.reason.stack);
   if(typeof showAlert==='function') showAlert('เกิดข้อผิดพลาด: '+((ev.reason&&ev.reason.message)||ev.reason||'ไม่ทราบสาเหตุ'),'er');
 });
 async function upFile(path,file){
@@ -135,7 +156,7 @@ var SENDER_POS=[
   {name:'แผนกศิลป์และออกแบบ',code:'24',isClub:false}
 ];
 var STTH={draft:'ร่างเอกสาร',pending:'รอลงนาม',signed:'ลงนามแล้ว',rejected:'ส่งคืนแก้ไข',numbering:'รอออกเลขหนังสือ',completed:'เสร็จสิ้น'};
-var RTH={'ROLE-SYS':'ผู้ดูแลระบบ','ROLE-SGN':'ผู้ลงนาม','ROLE-REV':'ผู้ตรวจทาน','ROLE-CRT':'ผู้จัดทำ','ROLE-STF':'เจ้าหน้าที่','ROLE-ADV':'อาจารย์กิจการ'};
+var RTH={'ROLE-SYS':'ผู้ดูแลระบบ','ROLE-SGN':'ผู้ลงนาม','ROLE-REV':'ผู้ตรวจทาน','ROLE-CRT':'ผู้จัดทำ','ROLE-STF':'เจ้าหน้าที่','ROLE-ADV':'อาจารย์กิจการ','ROLE-DEV':'นักพัฒนา'};
 var POSS=['GNK-PRE','GNK-VPR','GNK-VPR2','GNK-SEC','GNK-TRS','GNK-ACA','GNK-STR','GNK-SPT','GNK-ART','GNK-SDV','GNK-YR4','GNK-YR3','GNK-YR2','GNK-YR1','GNK-WEL','GNK-CER','GNK-REG','GNK-FAC','GNK-AVT','GNK-SUP','GNK-COM','GNK-PHO','GNK-DES','GNK-IT','GNK-FND','GNK-CPR','GNK-CVP','GNK-CSEC','GNK-CTRS'];
 var PTH={'GNK-PRE':'หัวหน้านิสิต','GNK-VPR':'รองหัวหน้านิสิตคนที่ 1','GNK-VPR2':'รองหัวหน้านิสิตคนที่ 2','GNK-SEC':'เลขานุการ','GNK-TRS':'เหรัญญิก','GNK-ACA':'ฝ่ายวิชาการ','GNK-STR':'ฝ่ายนิสิตสัมพันธ์','GNK-SPT':'ฝ่ายกีฬา','GNK-ART':'ฝ่ายศิลปะและวัฒนธรรม','GNK-SDV':'ฝ่ายพัฒนาสังคมและบำเพ็ญประโยชน์','GNK-YR4':'หัวหน้านิสิตชั้นปีที่ 4','GNK-YR3':'หัวหน้านิสิตชั้นปีที่ 3','GNK-YR2':'หัวหน้านิสิตชั้นปีที่ 2','GNK-YR1':'หัวหน้านิสิตชั้นปีที่ 1','GNK-WEL':'สวัสดิการและพยาบาล','GNK-CER':'ปฏิคมและพิธีการ','GNK-REG':'ทะเบียนและประเมินผล','GNK-FAC':'สถานที่','GNK-AVT':'โสตทัศนูปกรณ์','GNK-SUP':'พัสดุ','GNK-COM':'สื่อและประชาสัมพันธ์','GNK-PHO':'ถ่ายภาพ','GNK-DES':'ศิลป์และออกแบบ','GNK-IT':'เทคโนโลยีและสารสนเทศ','GNK-FND':'หาทุน','GNK-CPR':'ประธานชมรม','GNK-CVP':'รองประธานชมรม','GNK-CSEC':'เลขานุการชมรม','GNK-CTRS':'เหรัญญิกชมรม'};
 var PR={'GNK-PRE':'ROLE-SGN','GNK-VPR':'ROLE-CRT','GNK-VPR2':'ROLE-CRT','GNK-SEC':'ROLE-CRT','GNK-TRS':'ROLE-CRT','GNK-ACA':'ROLE-CRT','GNK-STR':'ROLE-CRT','GNK-SPT':'ROLE-CRT','GNK-ART':'ROLE-CRT','GNK-SDV':'ROLE-CRT','GNK-YR4':'ROLE-CRT','GNK-YR3':'ROLE-CRT','GNK-YR2':'ROLE-CRT','GNK-YR1':'ROLE-CRT','GNK-WEL':'ROLE-CRT','GNK-CER':'ROLE-CRT','GNK-REG':'ROLE-CRT','GNK-FAC':'ROLE-CRT','GNK-AVT':'ROLE-CRT','GNK-SUP':'ROLE-CRT','GNK-COM':'ROLE-CRT','GNK-PHO':'ROLE-CRT','GNK-DES':'ROLE-CRT','GNK-IT':'ROLE-CRT','GNK-FND':'ROLE-CRT','GNK-CPR':'ROLE-CRT','GNK-CVP':'ROLE-CRT','GNK-CSEC':'ROLE-CRT','GNK-CTRS':'ROLE-CRT'};
@@ -148,11 +169,13 @@ var CLUBS={'01':'ชมรมต้นกล้าคณิตศาสตร์
 /* ภาคการศึกษา (หลักที่ 1) */
 var SEMS={'1':'ภาคการศึกษาต้น','2':'ภาคการศึกษาปลาย'};
 var UTH={gnk:'กนค.',advisor:'อาจารย์',staff:'เจ้าหน้าที่',admin:'ผู้ดูแลระบบ'};
-var _canAnyRole=function(r){return['ROLE-SYS','ROLE-SGN','ROLE-REV','ROLE-CRT','ROLE-STF','ROLE-ADV'].includes(r)};
+/* ROLE-DEV ใช้ฟีเจอร์ฝั่งผู้ใช้ได้ทุกอย่าง (สร้าง/ลงนาม/ตรวจทาน/อัปโหลด) เพื่อทดสอบระบบ
+   — สิทธิ์ DB ยังเป็น is_dev() แคบ ๆ เหมือนเดิม (เขียนเอกสารได้เฉพาะที่ตัวเองเกี่ยวข้อง เหมือน user ทั่วไป) */
+var _canAnyRole=function(r){return['ROLE-SYS','ROLE-SGN','ROLE-REV','ROLE-CRT','ROLE-STF','ROLE-ADV','ROLE-DEV'].includes(r)};
 var CAN={
   up:_canAnyRole,cr:_canAnyRole,ed:_canAnyRole,
-  sg:function(r){return['ROLE-SGN','ROLE-ADV','ROLE-SYS'].includes(r)},
-  rv:function(r){return['ROLE-REV','ROLE-SGN','ROLE-ADV','ROLE-SYS'].includes(r)}
+  sg:function(r){return['ROLE-SGN','ROLE-ADV','ROLE-SYS','ROLE-DEV'].includes(r)},
+  rv:function(r){return['ROLE-REV','ROLE-SGN','ROLE-ADV','ROLE-SYS','ROLE-DEV'].includes(r)}
 };
 
 /* ─── DOCUMENT TYPE FIELD CONFIG ─── */
@@ -275,11 +298,13 @@ async function loadAppSettings(){
     if(Array.isArray(SETT.can_sign_roles_json)&&SETT.can_sign_roles_json.length){
       var _sg=SETT.can_sign_roles_json.slice();
       if(!_sg.includes('ROLE-SYS')) _sg.push('ROLE-SYS');
+      if(!_sg.includes('ROLE-DEV')) _sg.push('ROLE-DEV'); // นักพัฒนาลงนามได้เสมอ — ไว้ทดสอบระบบ
       CAN.sg=function(r){return _sg.includes(r);};
     }
     if(Array.isArray(SETT.can_review_roles_json)&&SETT.can_review_roles_json.length){
       var _rv=SETT.can_review_roles_json.slice();
       if(!_rv.includes('ROLE-SYS')) _rv.push('ROLE-SYS');
+      if(!_rv.includes('ROLE-DEV')) _rv.push('ROLE-DEV');
       CAN.rv=function(r){return _rv.includes(r);};
     }
   }catch(e){}

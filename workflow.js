@@ -31,8 +31,8 @@ function rWfPeople(){
     var cardBd='#F0EBE0';
     var numBadge='<span style="width:32px;height:32px;border-radius:10px;background:#E83A00;color:#FFFCF8;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;flex-shrink:0;font-variant-numeric:tabular-nums">'+(i+1)+'</span>';
     if(s.locked){
-      // ขั้นตอนบังคับ: ชื่อขั้นฟิก ลบไม่ได้ — เปลี่ยนตัวบุคคลได้ (ยกเว้นขั้นของผู้รับผิดชอบโครงการเอง)
-      // ขั้นที่ผู้ใช้กดเพิ่มเอง (s.extra เช่น อาจารย์ที่ปรึกษาท่านที่ 2) ลบได้
+      // ขั้นตอนที่ระบบเติมให้ตามประเภทหนังสือ (default flow): เปลี่ยนตัวบุคคลได้ผ่าน dropdown
+      // และลบออกได้เหมือนขั้นตอนปกติ (ยกเว้นขั้นแรกของผู้จัดทำ ตาม guard ใน rmWfPerson)
       var body;
       if(s.fixSelf){
         body='<div style="display:flex;align-items:center;flex-wrap:wrap"><span style="font-size:13.5px;font-weight:600;color:#1A1612;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;letter-spacing:-.005em">'+nm+'</span></div>'+
@@ -42,9 +42,8 @@ function rWfPeople(){
           '<select class="fi" style="font-size:12.5px;padding:7px 10px" onchange="_setWfAssignee('+i+',this.value)">'+_wfPersonOptsHtml(s.assigned_to||'','— เลือก'+s.step_name+' —')+'</select>'+
           (!s.assigned_to?'<div style="font-size:11px;color:#C77A1A;margin-top:4px">'+svg('warn',11)+' ยังไม่ได้เลือกผู้ลงนาม</div>':'');
       }
-      var tail=s.extra?
-        '<button style="width:32px;height:32px;border-radius:10px;border:1px solid #EAE4D8;background:#FFFDFA;display:flex;align-items:center;justify-content:center;color:#9A8F84;cursor:pointer;flex-shrink:0" data-action="rmWfPerson" data-id="'+i+'" title="ลบ">'+svg('x',14)+'</button>':
-        '<span style="color:#C9C0B8;flex-shrink:0;margin-top:2px" title="ขั้นตอนบังคับ — ลบไม่ได้">'+svg('lock',13)+'</span>';
+      var tail=i===0?'':
+        '<button style="width:32px;height:32px;border-radius:10px;border:1px solid #EAE4D8;background:#FFFDFA;display:flex;align-items:center;justify-content:center;color:#9A8F84;cursor:pointer;flex-shrink:0;transition:color .15s ease,border-color .15s ease,background-color .15s ease" onmouseover="this.style.color=\'#D04444\';this.style.borderColor=\'#F2C3C3\';this.style.background=\'#FCEAEA\'" onmouseout="this.style.color=\'#9A8F84\';this.style.borderColor=\'#EAE4D8\';this.style.background=\'#FFFDFA\'" data-action="rmWfPerson" data-id="'+i+'" title="ลบ">'+svg('x',14)+'</button>';
       return '<div style="display:flex;align-items:flex-start;gap:12px;padding:14px 16px;border:1px solid '+cardBd+';background:'+cardBg+';border-radius:12px;margin-bottom:8px;box-shadow:0 1px 2px rgba(26,22,18,.03)">'+
         numBadge+
         '<div style="flex:1;min-width:0">'+body+'</div>'+
@@ -77,7 +76,7 @@ function _setWfAssignee(i,uid){
   calcDeadline()
 }
 
-/* เพิ่มขั้นอาจารย์ที่ปรึกษาอีกท่าน (ต่อท้าย flow) — ลบออกได้ ต่างจากขั้นบังคับ
+/* เพิ่มขั้นอาจารย์ที่ปรึกษาอีกท่าน (ต่อท้าย flow) — flag extra ทำให้รอดจากการ rebuild เมื่อสลับประเภทหนังสือ
    ค่าเริ่มต้น: อาจารย์ (ROLE-ADV) คนแรกที่ยังไม่อยู่ในรายการ */
 function addAdvisorStep(){
   var used={}; FS.forEach(function(s){if(s.assigned_to)used[s.assigned_to]=1});
@@ -88,7 +87,7 @@ function addAdvisorStep(){
 }
 
 function rmWfPerson(i){
-  if(i===0||!FS[i]||(FS[i].locked&&!FS[i].extra)) return; // ขั้นตอนบังคับลบไม่ได้ (ขั้น extra ที่ผู้ใช้เพิ่มเองลบได้)
+  if(i===0||!FS[i]) return; // ขั้นแรก (ผู้จัดทำ) ลบไม่ได้ นอกนั้นลบได้หมด รวมถึงขั้นที่ระบบเติมให้
   FS.splice(i,1);
   var w=$e('wfwrap'); if(w) w.innerHTML=rWfPeople();
   calcDeadline()
@@ -132,11 +131,19 @@ async function doUp(files){
     if(FDI) await dp('document_files',{document_id:FDI,file_name:fj.name,file_path:path,file_size:fj.size,file_type:fj.type,uploaded_by:CU.id,version:1});
     else PF.push({file_name:fj.name,file_path:path,file_size:fj.size,file_type:fj.type,uploaded_by:CU.id,version:1})
   }
-  if(pg) pg.innerHTML=alrtH('ok','อัปโหลด '+files.length+' ไฟล์เรียบร้อยแล้ว');
-  if(FDI){var df=await dg('document_files','?document_id=eq.'+FDI+'&order=uploaded_at');var fl=$e('fflist');if(fl)fl.innerHTML=buildFileList(df,FDI)}
+  if(pg) pg.innerHTML=alrtH('ok','อัปโหลด '+files.length+' ไฟล์เรียบร้อยแล้ว'+(!FDI&&PF.length>files.length?' (รวมทั้งหมด '+PF.length+' ไฟล์)':''));
+  var fl=$e('fflist');
+  if(FDI){var df=await dg('document_files','?document_id=eq.'+FDI+'&order=uploaded_at');if(fl)fl.innerHTML=buildFileList(df,FDI)}
+  else if(fl) fl.innerHTML=buildFileList(PF,'') // เอกสารใหม่: ไฟล์รอบันทึกอยู่ใน PF — ต้องแสดงรายการสะสม ไม่งั้นดูเหมือนแนบได้ไฟล์เดียว
 }
 
 async function delFF(fid,idx){
+  // ไฟล์ของเอกสารใหม่ (ยังไม่บันทึก) ไม่มีแถวใน DB — ลบออกจาก PF อย่างเดียว
+  if(!fid){
+    PF.splice(idx,1);
+    var fl0=$e('fflist'); if(fl0) fl0.innerHTML=buildFileList(PF,'');
+    return
+  }
   await dd('document_files',fid);
   var fl=$e('fflist');
   if(fl){

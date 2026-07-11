@@ -33,8 +33,8 @@ async function vForm(editId){
   ];
 
   // ── Step 1: เลือกประเภทเอกสาร — Dropdown ──
-  // SYS, STF, ADV เห็นทุกประเภท; ROLE-CRT เห็นเฉพาะ incoming/outgoing
-  var _extRoles=['ROLE-SYS','ROLE-STF','ROLE-ADV'];
+  // SYS, STF, ADV, DEV เห็นทุกประเภท; ROLE-CRT เห็นเฉพาะ incoming/outgoing
+  var _extRoles=['ROLE-SYS','ROLE-STF','ROLE-ADV','ROLE-DEV'];
   var _VISIBLE_TYPES=_extRoles.includes(CU.role_code)?Object.keys(DTYPES):['incoming','outgoing'];
   var _DTYPE_META={
     incoming:{ico:'dn',desc:'รับเอกสารจากภายนอก เข้าสู่ขั้นตอนตรวจทาน / ลงนาม'},
@@ -331,17 +331,15 @@ function selectDocType(type){
       var curDoc={from_department:gv('ffromdept'),addressed_to:gv('fto'),subject_line:gv('fsubject'),doc_date:gv('fdate'),due_date:gv('feventdate'),description:gv('fdsc')};
       tf.innerHTML=renderTypeFields(type,curDoc);
     }
-    // ขั้นตอนบังคับ (Fixed Flow) — หนังสือขาเข้าใช้ชุดขั้นตอนตามมติ กนค. (สายทั่วไป 4 ขั้น / สายงบประมาณ 7 ขั้น)
-    // ล็อกโครงลำดับ (ลบ/เพิ่ม/สลับไม่ได้) แต่เปลี่ยนตัวบุคคลในแต่ละขั้นได้ผ่าน dropdown
-    // ยกเว้น: ROLE-STF และ ROLE-SYS จัดขั้นตอนเองได้อิสระ (ออกเลขเองได้โดยไม่ต้องผ่านใคร)
+    // Default Flow — หนังสือขาเข้าเติมชุดขั้นตอนให้อัตโนมัติตามประเภทหนังสือ (สายทั่วไป 4 ขั้น / สายงบประมาณ 7 ขั้น)
+    // เป็นแค่ค่าเริ่มต้น ไม่ล็อก: ลบขั้นตอนออกได้ เพิ่มคนได้ตามปกติ และเปลี่ยนตัวบุคคลในแต่ละขั้นได้ผ่าน dropdown
+    // ROLE-STF และ ROLE-SYS ไม่เติมให้ (จัดขั้นตอนเองอิสระ + workflow template ทำงานเฉพาะกลุ่มนี้)
     var _staffBypass=CU.role_code==='ROLE-STF'||CU.role_code==='ROLE-SYS';
     var _fixedFlow=(type==='incoming'&&!_staffBypass);
     // เอา step ที่ระบบเคยเติมอัตโนมัติออกก่อน กันซ้ำเมื่อสลับประเภทเอกสาร (step ที่ user เพิ่มเองไม่มี locked จึงไม่โดน)
     FS=FS.filter(function(s){return !s.locked});
-    var _addRow=$e('wfadd-row');
-    if(_addRow) _addRow.style.display=_fixedFlow?'none':'flex';
     var _wfInfo=$e('wf-info');
-    if(_wfInfo) _wfInfo.innerHTML=_fixedFlow?'ขั้นตอนถูกกำหนดตามประเภทหนังสือ (ปรับอัตโนมัติเมื่อเลือกเรื่องเกี่ยวกับงบประมาณ) — เปลี่ยนตัวบุคคลในแต่ละขั้นได้':'เลือกผู้ที่ต้องอนุมัติ / ตรวจสอบเอกสารตามลำดับ';
+    if(_wfInfo) _wfInfo.innerHTML=_fixedFlow?'ระบบเติมขั้นตอนให้ตามประเภทหนังสือ (ปรับอัตโนมัติเมื่อเลือกเรื่องเกี่ยวกับงบประมาณ) — เพิ่ม ลบ หรือเปลี่ยนตัวบุคคลได้ตามต้องการ':'เลือกผู้ที่ต้องอนุมัติ / ตรวจสอบเอกสารตามลำดับ';
     if(_fixedFlow) _applyFixedFlow();
     var wfc=$e('wf-card');
     var fsub=$e('fsub');
@@ -388,8 +386,9 @@ async function _applyWfTemplate(docType){
   }catch(e){}
 }
 
-/* ขั้นตอนบังคับสำหรับหนังสือขาเข้า — เลือกชุดตามประเภทหนังสือที่เลือกในฟอร์ม
+/* ขั้นตอนเริ่มต้น (default flow) สำหรับหนังสือขาเข้า — เลือกชุดตามประเภทหนังสือที่เลือกในฟอร์ม
    (BUDGET_LTYPES → สายตรวจงบประมาณ 7 ขั้น, อื่น ๆ → สายทั่วไป 4 ขั้น — นิยามใน config.js)
+   ไม่ล็อก: ผู้ใช้ลบ/เพิ่มขั้นตอนได้อิสระ (flag locked ใช้แค่แยกว่าขั้นไหนระบบเติมให้ เพื่อการ rebuild/validation)
    เรียกซ้ำได้ทุกครั้งที่เปลี่ยนประเภทหนังสือ: จำตัวบุคคลที่เคยเลือกไว้ต่อชื่อขั้นตอนเดิม */
 function _applyFixedFlow(){
   if(FDI) return; // โหมดแก้ไขไม่มีการ์ด workflow และ step จริงถูกสร้างใน DB ไปแล้ว
@@ -397,8 +396,8 @@ function _applyFixedFlow(){
   var flow=isBudget?FLOW_STEPS_BUDGET:FLOW_STEPS_GENERAL;
   var creatorStep=FS.find(function(s){return s.step_name==='ผู้จัดทำ'&&s.assigned_to===CU.id})||{step_name:'ผู้จัดทำ',role_required:'ROLE-CRT',assigned_to:CU.id,deadline_days:1};
   // จำคนที่เคยเลือกไว้ เมื่อสลับสาย (เช่น เลือกประธานฝ่ายแล้ว ค่อยเปลี่ยนเป็นเรื่องงบประมาณ)
-  // ขั้น extra (อาจารย์ที่ปรึกษาท่านที่ 2 ที่ผู้ใช้กดเพิ่มเอง) เก็บทั้ง step ไว้ต่อท้ายเหมือนเดิม
-  var prevPick={}, extras=FS.filter(function(s){return s.extra});
+  // ขั้นที่ผู้ใช้เพิ่มเอง (extra หรือเพิ่มผ่าน picker หลัก — ไม่มี locked) เก็บทั้ง step ไว้ต่อท้ายเหมือนเดิม
+  var prevPick={}, kept=FS.filter(function(s){return s!==creatorStep&&(s.extra||!s.locked)});
   FS.forEach(function(s){if(s.locked&&!s.extra&&s.assigned_to)prevPick[s.step_name]=s.assigned_to});
   FS=[creatorStep];
   flow.forEach(function(f){
@@ -410,7 +409,7 @@ function _applyFixedFlow(){
     }
     FS.push({step_name:f.step_name,role_required:f.role_required,assigned_to:uid,deadline_days:2,locked:true,fixSelf:!!f.self});
   });
-  extras.forEach(function(s){FS.push(s)});
+  kept.forEach(function(s){FS.push(s)});
   var ww=$e('wfwrap'); if(ww) ww.innerHTML=rWfPeople();
   calcDeadline();
 }
@@ -513,14 +512,14 @@ function calcDeadline(){
 function buildFileList(files, docId){
   if(!files||!files.length) return '';
   return files.map(function(f,i){
-    var isImg=f.file_type&&f.file_type.includes('image');
+    var ft=fType(f);
     return '<div class="file-item">' +
-      '<span class="file-icon">'+(isImg?svg('img2',18):svg('doc',18))+'</span>' +
-      '<div class="file-info"><div class="file-name">'+esc(f.file_name)+'</div><div class="file-meta">'+fsz(f.file_size)+' · v'+f.version+'</div></div>' +
+      fChip(f,18) +
+      '<div class="file-info"><div class="file-name">'+esc(f.file_name)+'</div><div class="file-meta"><strong style="color:'+ft.cl+'">'+ft.label+'</strong> · '+fsz(f.file_size)+' · v'+f.version+'</div></div>' +
       '<div class="file-actions">' +
       '<button style="display:inline-flex;align-items:center;gap:4px;height:28px;padding:0 10px;border-radius:8px;border:2px solid #3b82f6;background:#eff6ff;color:#3b82f6;font-size:11px;font-weight:600;cursor:pointer" data-action="openViewer" data-url="'+furl(f.file_path)+'" data-name="'+esc(f.file_name)+'">'+svg('eye',12)+' ดู</button>' +
       (docId?'<button class="btn btn-soft xs" data-action="openEditor" data-url="'+furl(f.file_path)+'" data-name="'+esc(f.file_name)+'" data-fid="'+f.id+'" data-did="'+docId+'">'+svg('edit',12)+' แก้ไข</button>':'')+
-      '<button class="btn btn-danger xs btn-icon" data-action="delFF" data-id="'+f.id+'" data-idx="'+i+'">'+svg('trash',12)+'</button>' +
+      '<button class="btn btn-danger xs btn-icon" data-action="delFF" data-id="'+(f.id||'')+'" data-idx="'+i+'">'+svg('trash',12)+'</button>' +
       '</div></div>'
   }).join('')
 }
@@ -614,9 +613,10 @@ async function saveDoc(status){
     if(!(gv('fdsc')||'').trim()){a.innerHTML=alrtH('er','กรุณาเลือกประเภทหนังสือ');return}
     if(gv('fdsc')==='เรื่องอื่น ๆ'&&!(gv('fsubject')||'').trim()){a.innerHTML=alrtH('er','กรุณาระบุว่าเป็นเรื่องอะไร');return}
     if(!(gv('ffromdept')||'').trim()){a.innerHTML=alrtH('er','กรุณาระบุชื่อผู้ส่งเอกสาร');return}
-    // ขั้นตอนที่ล็อกต้องมีผู้รับผิดชอบครบทุกขั้นก่อนบันทึก — step แก้ไม่ได้อีกหลังสร้างเอกสาร (ฟอร์มแก้ไขไม่มีการ์ด workflow)
+    // ขั้นตอนที่ระบบเติมให้และยังอยู่ในรายการ ต้องมีผู้รับผิดชอบครบก่อนบันทึก (ไม่ต้องการก็ลบขั้นนั้นออกได้)
+    // — step แก้ไม่ได้อีกหลังสร้างเอกสาร (ฟอร์มแก้ไขไม่มีการ์ด workflow)
     var _missing=FS.filter(function(s){return s.locked&&!s.assigned_to}).map(function(s){return s.step_name});
-    if(!FDI&&_missing.length){a.innerHTML=alrtH('er','กรุณาเลือกผู้ลงนามให้ครบทุกขั้นตอน (ยังไม่ได้เลือก: '+_missing.join(', ')+')');return}
+    if(!FDI&&_missing.length){a.innerHTML=alrtH('er','กรุณาเลือกผู้ลงนามให้ครบทุกขั้นตอน หรือลบขั้นตอนที่ไม่ต้องการออก (ยังไม่ได้เลือก: '+_missing.join(', ')+')');return}
   }
   if(_dtype==='outgoing'&&status!=='draft'){
     if(!_getProjValue()){a.innerHTML=alrtH('er','กรุณาระบุชื่อโครงการ / กิจกรรม');return}

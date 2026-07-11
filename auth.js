@@ -95,6 +95,57 @@ function showAuth(){
     if(lu) lu.addEventListener('keydown',function(e){if(e.key==='Enter')doLogin()});
     if(lp) lp.addEventListener('keydown',function(e){if(e.key==='Enter')doLogin()});
   },50);
+
+  _showLoginAnnouncement(); // popup ประกาศ (ถ้ามีเปิดไว้) — fail-silent
+}
+
+/* ─── Popup ประกาศหน้า Login ───
+   ค่าอยู่ใน app_settings (key ขึ้นต้น login_announcement) — anon อ่านได้เฉพาะ key กลุ่มนี้
+   ผ่าน policy app_settings_login_announce (supabase/create_dev_role.sql)
+   จัดการเปิด/ปิด/แก้ข้อความได้ในแท็บ "ตั้งค่า & ประกาศ" ของ Dev Panel */
+async function _showLoginAnnouncement(){
+  try{
+    var rows=await dg('app_settings','?key=like.login_announcement*&select=key,value');
+    if(!Array.isArray(rows)||!rows.length) return;
+    var m={}; rows.forEach(function(r){m[r.key]=r.value});
+    if(m.login_announcement_active!=='true'||!(m.login_announcement||'').trim()) return;
+    // ปิดแล้วไม่เด้งซ้ำใน session เดิม — แต่ถ้าแก้ข้อความใหม่ ประกาศใหม่จะเด้งอีกครั้ง
+    var sig='la|'+(m.login_announcement_title||'')+'|'+m.login_announcement;
+    try{if(sessionStorage.getItem('_laDismiss')===sig) return;}catch(e){}
+    _renderLoginAnnouncePopup({
+      title:m.login_announcement_title||'ประกาศ',
+      msg:m.login_announcement,
+      type:m.login_announcement_type||'info'
+    },function(){try{sessionStorage.setItem('_laDismiss',sig);}catch(e){}});
+  }catch(e){}
+}
+
+/* วาด popup ประกาศ — แยกเป็นฟังก์ชันเพื่อให้ Dev Panel เรียกพรีวิวได้ด้วย (o:{title,msg,type}) */
+function _renderLoginAnnouncePopup(o,onClose){
+  var old=document.getElementById('login-announce'); if(old) old.remove();
+  var th={
+    info:   {bg:'#DBEAFE',cl:'#2563EB',ic:'info'},
+    warning:{bg:'#FEF3C7',cl:'#D97706',ic:'warn'},
+    error:  {bg:'#FEE2E2',cl:'#DC2626',ic:'warn'}
+  }[o.type]||{bg:'#DBEAFE',cl:'#2563EB',ic:'info'};
+  var el=document.createElement('div');
+  el.id='login-announce';
+  el.className='cpopup-overlay';
+  el.innerHTML=
+    '<div class="cpopup-box" style="max-width:420px;text-align:center">'+
+      '<div class="cpopup-body" style="padding:30px 26px 24px">'+
+        '<div style="width:56px;height:56px;border-radius:16px;background:'+th.bg+';display:flex;align-items:center;justify-content:center;margin:0 auto 16px;color:'+th.cl+'">'+svg(th.ic,26)+'</div>'+
+        '<div style="font-size:17px;font-weight:800;color:#18120E;margin-bottom:10px;line-height:1.5">'+esc(o.title||'ประกาศ')+'</div>'+
+        '<div style="font-size:13.5px;color:#6b6560;line-height:1.85;text-align:left;white-space:pre-wrap;word-break:break-word">'+esc(o.msg||'')+'</div>'+
+        '<button class="btn btn-primary fw" id="login-announce-ok" style="margin-top:22px">รับทราบ</button>'+
+      '</div>'+
+    '</div>';
+  var close=function(){el.remove();if(onClose)onClose();};
+  el.addEventListener('click',function(e){if(e.target===el)close();});
+  document.body.appendChild(el);
+  var ok=document.getElementById('login-announce-ok');
+  if(ok) ok.addEventListener('click',close);
+  _lcr();
 }
 
 function chkSid(){
@@ -136,6 +187,12 @@ async function doLogin(){
     }
     var _si=await sb.auth.signInWithPassword({email:email,password:p});
     if(_si.error||!_si.data||!_si.data.session){
+      // อีเมลยังไม่ยืนยัน — รหัสผ่านถูกแล้ว อย่าแสดงว่า "รหัสผิด" และอย่านับเป็นความพยายามล้มเหลว
+      var _ec=String((_si.error&&(_si.error.code||_si.error.message))||'').toLowerCase();
+      if(_ec.indexOf('email_not_confirmed')>=0||_ec.indexOf('email not confirmed')>=0){
+        a.innerHTML=alrtH('wa','บัญชีนี้ยังไม่ได้ยืนยันอีเมล — กรุณากดลิงก์ยืนยันในกล่องจดหมาย (เช็คถัง Spam ด้วย) แล้วลองใหม่');
+        return;
+      }
       _loginAttempts++;
       localStorage.setItem('_la',_loginAttempts);
       if(_loginAttempts>=5){
@@ -183,7 +240,8 @@ async function _enterAppAsUser(row,opts){
   await loadDocTypes();
   await loadAppSettings();
   await loadProjects();
-  await nav('dash');
+  // นักพัฒนา (ROLE-DEV) เข้าระบบแล้วไปหน้าเครื่องมือนักพัฒนาเลย — เป็นหน้าหลักของ role นี้
+  await nav(CU.role_code==='ROLE-DEV'?'dev':'dash');
   try{await sendOverdueNotifs();}catch(e){console.warn('Overdue check failed:',e)}
   return true
 }

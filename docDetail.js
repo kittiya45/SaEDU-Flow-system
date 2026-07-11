@@ -16,6 +16,73 @@ function _toggleDetMore(){
   }
 }
 
+/* ── จัดกลุ่มไฟล์แนบตามชื่อไฟล์ต้นฉบับ (ตัด tag [ลงนาม]/[ตีกลับ]/[แก้ไข] ออก) ──
+   ไฟล์ล่าสุดของแต่ละชื่อ = "ฉบับปัจจุบัน" (ไฟล์ที่เซ็นใหม่ทับฉบับเก่าของไฟล์เดียวกัน)
+   เวอร์ชันเก่าเห็นได้เฉพาะ admin/เจ้าหน้าที่ (_canSeeVerHist) */
+function _fileBaseName(f){
+  return f.file_name.replace(/^(\[(ลงนาม|ตีกลับ|แก้ไข)\]\s*)+/g,'').replace(/^(signed|reject|edited)_\d+_/,'');
+}
+function _fileGroups(files){
+  var m={},order=[];
+  files.forEach(function(f){
+    var k=_fileBaseName(f);
+    if(!m[k]){m[k]=[];order.push(k)}
+    m[k].push(f);
+  });
+  var cur=[],hist=[];
+  order.forEach(function(k){
+    // ใหม่สุดก่อน — เทียบเวลาอัปโหลดจริงเป็นหลัก (version เชื่อไม่ได้ ตัวแก้ไข PDF insert v1 เสมอ)
+    var g=m[k].slice().sort(function(a,b){
+      var ta=a.uploaded_at?new Date(a.uploaded_at).getTime():0, tb=b.uploaded_at?new Date(b.uploaded_at).getTime():0;
+      return (tb-ta)||((b.version||1)-(a.version||1));
+    });
+    cur.push(g[0]);
+    for(var i=1;i<g.length;i++) hist.push(g[i]);
+  });
+  return {cur:cur,hist:hist};
+}
+function _canSeeVerHist(){return ['ROLE-SYS','ROLE-STF'].includes(CU.role_code)}
+function _rCurFileRow(f,docId){
+  var ft=fType(f);
+  var isSigned=f.file_name.indexOf('[ลงนาม]')>=0||f.file_name.indexOf('signed_')>=0;
+  var isRejFile=f.file_name.indexOf('[ตีกลับ]')>=0;
+  var isEditFile=f.file_name.indexOf('[แก้ไข]')>=0||f.file_name.indexOf('edited_')>=0;
+  var _dispName=_fileBaseName(f);
+  var dtStr=f.uploaded_at?new Date(f.uploaded_at).toLocaleString('th-TH',{day:'numeric',month:'short',year:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
+  var h=['<div class="file-item">'];
+  h.push(fChip(f,19));
+  h.push('<div class="file-info">');
+  h.push('<div class="file-name">'+esc(_dispName)+'</div>');
+  h.push('<div class="flex gap-[5px] items-center mt-1.5 flex-wrap">');
+  h.push('<span class="badge b-completed text-[10px] px-[7px] py-0.5">v'+f.version+' ล่าสุด</span>');
+  if(isSigned) h.push('<span class="badge b-signed text-[10px] px-[7px] py-0.5">ลงนามแล้ว</span>');
+  if(isRejFile) h.push('<span class="badge b-rejected text-[10px] px-[7px] py-0.5">ตีกลับ</span>');
+  if(isEditFile) h.push('<span class="badge b-pending text-[10px] px-[7px] py-0.5">แก้ไข</span>');
+  h.push('<span class="file-meta">'+ft.label+' · '+fsz(f.file_size)+' · '+dtStr+'</span></div>');
+  h.push('</div><div class="file-actions">');
+  h.push('<button class="btn btn-ghost xs" data-action="openViewer" data-url="'+furl(f.file_path)+'" data-name="'+esc(_dispName)+'">'+svg('eye',12)+' ดู</button>');
+  h.push('<button class="btn btn-soft xs" data-action="openEditor" data-url="'+furl(f.file_path)+'" data-name="'+esc(_dispName)+'" data-fid="'+f.id+'" data-did="'+docId+'">'+svg('edit',12)+' แก้ไข</button>');
+  h.push('<button class="btn btn-soft xs" data-action="dlFile" data-url="'+furl(f.file_path)+'" data-name="'+esc(_dispName)+'">'+svg('dn',12)+' โหลด</button>');
+  h.push('</div></div>');
+  return h.join('');
+}
+function _rFilesBodyHtml(files,docId){
+  if(!files.length) return '<div class="card-empty py-6"><div class="card-empty-icon">'+svg('folder',40)+'</div><div class="card-empty-text">ยังไม่มีไฟล์แนบ</div></div>';
+  var fg=_fileGroups(files);
+  var h=['<div class="text-[11px] font-bold tracking-[.5px] uppercase text-[#16A34A] mb-2.5">ฉบับปัจจุบัน</div>'];
+  fg.cur.forEach(function(f){h.push(_rCurFileRow(f,docId))});
+  if(_canSeeVerHist()&&fg.hist.length){
+    h.push('<button class="cursor-pointer text-xs font-semibold text-[#2563EB] py-2 mt-2 border-t border-dashed border-[#EBEBEB] w-full text-left bg-transparent border-x-0 border-b-0 flex items-center gap-1.5" data-action="showVerHist" data-id="'+docId+'">'+svg('tri',10)+' ประวัติเวอร์ชันก่อนหน้า ('+fg.hist.length+' ไฟล์)</button>');
+  }
+  return h.join('');
+}
+function _rFileCountHtml(files){
+  var fg=_fileGroups(files);
+  var s=(_canSeeVerHist()?files.length:fg.cur.length)+' ไฟล์';
+  if(_canSeeVerHist()&&fg.hist.length) s+=' · <span class="text-[#2563EB] font-semibold">'+fg.hist.length+' เวอร์ชันแก้ไข</span>';
+  return s;
+}
+
 /* ─── DOC DETAIL ─── */
 async function vDet(docId){
   var _id=safeId(docId);
@@ -189,59 +256,20 @@ async function vDet(docId){
   }
   html.push('</div></div>');
 
-  // Files — grouped version history
+  // Files — จัดกลุ่มตามไฟล์ต้นฉบับ: ฉบับล่าสุดของแต่ละไฟล์ (Word/PDF/เอกสารเบิกเงิน) = ฉบับปัจจุบัน
+  // เวอร์ชันเก่าที่ถูกทับเห็นได้เฉพาะ admin/เจ้าหน้าที่ (ดู _fileGroups/_canSeeVerHist ด้านบน)
   var _signedFile=files.find(function(f){return f.file_name.indexOf('[ลงนาม]')>=0||f.file_name.indexOf('signed_')>=0});
-  var _maxVer=files.reduce(function(m,f){return Math.max(m,f.version||1)},0);
-  var _currentFiles=files.filter(function(f){return f.version===_maxVer});
-  var _histFiles=files.filter(function(f){return f.version<_maxVer});
-  var _verCount=files.filter(function(f){return f.version>1}).length;
 
   html.push('<div class="card"><div class="card-head">'+_ico('folder','#FFF3EE','#E83A00')+'<span class="card-head-title">ไฟล์แนบ</span>');
   html.push('<span class="ml-auto flex items-center gap-2">');
   if(_signedFile){
-    var _signedDispName=_signedFile.file_name.replace(/^(\[(ลงนาม|ตีกลับ|แก้ไข)\]\s*)+/g,'').replace(/^(signed|reject|edited)_\d+_/,'');
+    var _signedDispName=_fileBaseName(_signedFile);
     html.push('<button class="btn btn-ghost xs" data-action="openViewer" data-url="'+furl(_signedFile.file_path)+'" data-name="'+esc(_signedDispName)+'">'+svg('eye',12)+' ดูฉบับเซ็น</button>');
     html.push('<button class="btn btn-soft xs" data-action="dlFile" data-url="'+furl(_signedFile.file_path)+'" data-name="'+esc(_signedDispName)+'">'+svg('dn',12)+' โหลดฉบับเซ็น</button>');
   }
-  html.push('<span class="text-xs text-[#a89e99]">'+files.length+' ไฟล์');
-  if(_verCount>0) html.push(' · <span class="text-[#2563EB] font-semibold">'+_verCount+' เวอร์ชันแก้ไข</span>');
-  html.push('</span></span></div>');
-  html.push('<div class="card-body" id="dfiles">');
-  if(files.length){
-    // ── ไฟล์เวอร์ชันปัจจุบัน ──
-    html.push('<div class="text-[11px] font-bold tracking-[.5px] uppercase text-[#16A34A] mb-2.5">ฉบับปัจจุบัน</div>');
-    (_currentFiles.length?_currentFiles:[files[0]]).forEach(function(f){
-      var isImg=f.file_type&&f.file_type.includes('image');
-      var isSigned=f.file_name.indexOf('[ลงนาม]')>=0||f.file_name.indexOf('signed_')>=0;
-      var isRejFile=f.file_name.indexOf('[ตีกลับ]')>=0;
-      var isEditFile=f.file_name.indexOf('[แก้ไข]')>=0||f.file_name.indexOf('edited_')>=0;
-      var _dispName=f.file_name.replace(/^(\[(ลงนาม|ตีกลับ|แก้ไข)\]\s*)+/g,'').replace(/^(signed|reject|edited)_\d+_/,'');
-      var dtStr=f.uploaded_at?new Date(f.uploaded_at).toLocaleString('th-TH',{day:'numeric',month:'short',year:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
-      html.push('<div class="file-item">');
-      html.push('<div class="file-chip file-chip-cur">'+svg(isImg?'img2':'pdf_ico',19)+'</div>');
-      html.push('<div class="file-info">');
-      html.push('<div class="file-name">'+esc(_dispName)+'</div>');
-      html.push('<div class="flex gap-[5px] items-center mt-1.5 flex-wrap">');
-      html.push('<span class="badge b-completed text-[10px] px-[7px] py-0.5">v'+f.version+' ล่าสุด</span>');
-      if(isSigned) html.push('<span class="badge b-signed text-[10px] px-[7px] py-0.5">ลงนามแล้ว</span>');
-      if(isRejFile) html.push('<span class="badge b-rejected text-[10px] px-[7px] py-0.5">ตีกลับ</span>');
-      if(isEditFile) html.push('<span class="badge b-pending text-[10px] px-[7px] py-0.5">แก้ไข</span>');
-      html.push('<span class="file-meta">'+fsz(f.file_size)+' · '+dtStr+'</span></div>');
-      html.push('</div><div class="file-actions">');
-      html.push('<button class="btn btn-ghost xs" data-action="openViewer" data-url="'+furl(f.file_path)+'" data-name="'+esc(_dispName)+'">'+svg('eye',12)+' ดู</button>');
-      html.push('<button class="btn btn-soft xs" data-action="openEditor" data-url="'+furl(f.file_path)+'" data-name="'+esc(_dispName)+'" data-fid="'+f.id+'" data-did="'+docId+'">'+svg('edit',12)+' แก้ไข</button>');
-      html.push('<button class="btn btn-soft xs" data-action="dlFile" data-url="'+furl(f.file_path)+'" data-name="'+esc(_dispName)+'">'+svg('dn',12)+' โหลด</button>');
-      html.push('</div></div>');
-    });
-
-    // ── ประวัติเวอร์ชันก่อนหน้า ──
-    if(_histFiles.length){
-      html.push('<button class="cursor-pointer text-xs font-semibold text-[#2563EB] py-2 mt-2 border-t border-dashed border-[#EBEBEB] w-full text-left bg-transparent border-x-0 border-b-0 flex items-center gap-1.5" data-action="showVerHist" data-id="'+docId+'">'+svg('tri',10)+' ประวัติเวอร์ชันก่อนหน้า ('+_histFiles.length+' ไฟล์)</button>');
-    }
-  } else {
-    html.push('<div class="card-empty py-6"><div class="card-empty-icon">'+svg('folder',40)+'</div><div class="card-empty-text">ยังไม่มีไฟล์แนบ</div></div>')
-  }
-  html.push('</div></div>');
+  html.push('<span class="text-xs text-[#a89e99]" id="dfcount">'+_rFileCountHtml(files)+'</span>');
+  html.push('</span></div>');
+  html.push('<div class="card-body" id="dfiles">'+_rFilesBodyHtml(files,docId)+'</div></div>');
 
   // Notification log card — admin only
   if(CU.role_code==='ROLE-SYS'){
@@ -358,40 +386,29 @@ async function detUp(files,docId){
     await dp('document_history',{document_id:docId,action:'อัปโหลดไฟล์: '+f.name,performed_by:CU.id})
   }
   if(a) a.innerHTML=alrtH('ok','อัปโหลดเรียบร้อยแล้ว');
-  var nf=await dg('document_files','?document_id=eq.'+safeId(docId)+'&order=uploaded_at');
+  var nf=await dg('document_files','?document_id=eq.'+safeId(docId)+'&order=version.desc,uploaded_at.desc');
   var df=$e('dfiles');
-  if(df){
-    df.innerHTML='';
-    nf.forEach(function(f){
-      var isImg=f.file_type&&f.file_type.includes('image');
-      var div=document.createElement('div'); div.className='file-item';
-      div.innerHTML='<div class="file-chip">'+(isImg?svg('img2',19):svg('pdf_ico',19))+'</div>'+
-        '<div class="file-info"><div class="file-name">'+esc(f.file_name)+'</div><div class="file-meta mt-1.5">'+fsz(f.file_size)+' · v'+f.version+'</div></div>'+
-        '<div class="file-actions">'+
-        '<button class="btn btn-ghost xs" data-action="openViewer" data-url="'+furl(f.file_path)+'" data-name="'+esc(f.file_name)+'">'+svg('eye',12)+' ดู</button>'+
-        '<button class="btn btn-soft xs" data-action="openEditor" data-url="'+furl(f.file_path)+'" data-name="'+esc(f.file_name)+'" data-fid="'+f.id+'" data-did="'+docId+'">'+svg('edit',12)+' แก้ไข</button>'+
-        '<button class="btn btn-soft xs" data-action="dlFile" data-url="'+furl(f.file_path)+'" data-name="'+esc(f.file_name)+'">'+svg('dn',12)+'</button>'+
-        '</div>';
-      df.appendChild(div)
-    })
-  }
+  if(df) df.innerHTML=_rFilesBodyHtml(nf,docId);
+  var dc=$e('dfcount');
+  if(dc) dc.innerHTML=_rFileCountHtml(nf);
 }
 
 async function showVerHist(docId){
+  // ประวัติเวอร์ชันเห็นได้เฉพาะ admin/เจ้าหน้าที่ — คนอื่นเห็นแค่ฉบับปัจจุบัน
+  if(!_canSeeVerHist()) return;
   var w=$e('mwrap'); if(!w)return;
   var files=await dg('document_files','?document_id=eq.'+safeId(docId)+'&order=version.desc,uploaded_at.desc');
-  var _maxVer=files.reduce(function(m,f){return Math.max(m,f.version||1)},0);
-  var _histFiles=files.filter(function(f){return f.version<_maxVer});
+  var _histFiles=_fileGroups(files).hist;
   if(!_histFiles.length){w.innerHTML='';return}
   var rows=_histFiles.map(function(f){
-    var isImg=f.file_type&&f.file_type.includes('image');
+    var ft=fType(f);
     var isSigned=f.file_name.indexOf('[ลงนาม]')>=0||f.file_name.indexOf('signed_')>=0;
     var isEdited=f.file_name.indexOf('[แก้ไข]')>=0||f.file_name.indexOf('edited_')>=0;
     var isRejFile=f.file_name.indexOf('[ตีกลับ]')>=0;
     var dtStr=f.uploaded_at?new Date(f.uploaded_at).toLocaleString('th-TH',{day:'numeric',month:'short',year:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
-    var _dn=f.file_name.replace(/^(\[(ลงนาม|ตีกลับ|แก้ไข)\]\s*)+/g,'').replace(/^(signed|reject|edited)_\d+_/,'');
+    var _dn=_fileBaseName(f);
     return '<div class="file-item bg-[#FAFAF8]">'+
-      '<div class="file-chip">'+svg(isImg?'img2':'pdf_ico',18)+'</div>'+
+      fChip(f,18)+
       '<div class="file-info">'+
         '<div class="file-name text-[#6b6560] text-xs">'+esc(_dn)+'</div>'+
         '<div class="flex gap-[5px] items-center mt-[3px] flex-wrap">'+
@@ -399,7 +416,7 @@ async function showVerHist(docId){
           (isSigned?'<span class="badge b-signed text-[10px] px-1.5 py-px">ลงนาม</span>':'')+
           (isEdited?'<span class="badge text-[10px] px-1.5 py-px bg-[#f5f5f5] text-[#888]">แก้ไข</span>':'')+
           (isRejFile?'<span class="badge b-rejected text-[10px] px-1.5 py-px">ตีกลับ</span>':'')+
-          '<span class="file-meta">'+fsz(f.file_size)+' · '+dtStr+'</span>'+
+          '<span class="file-meta">'+ft.label+' · '+fsz(f.file_size)+' · '+dtStr+'</span>'+
         '</div>'+
       '</div>'+
       '<div class="file-actions">'+
@@ -713,9 +730,6 @@ async function doAct(action,docId){
         if(pdfResp.ok){
           var pdfBuf=await pdfResp.arrayBuffer();
           var pdfDoc=await PDFLib.PDFDocument.load(new Uint8Array(pdfBuf),{ignoreEncryption:true});
-          var _sigPageIdx=Math.min(Math.max((_actSigPage||pdfDoc.getPageCount()),1),pdfDoc.getPageCount())-1;
-          var lastPg=pdfDoc.getPage(_sigPageIdx);
-          var pw=lastPg.getWidth(),ph=lastPg.getHeight();
           var imgBytes=await fetch(sigSrc).then(function(r){return r.arrayBuffer()});
           var emb;
           if(sigSrc.startsWith('data:image/jpeg')||sigSrc.startsWith('data:image/jpg')){
@@ -725,14 +739,28 @@ async function doAct(action,docId){
           }else{
             throw new Error('รองรับเฉพาะไฟล์ PNG หรือ JPEG สำหรับลายเซ็น กรุณาแปลงไฟล์ก่อน');
           }
-          var _sx,_sy;
-          if(_actSigPos.xFrac!==null){
-            _sx=_actSigPos.xFrac*pw;
-            _sy=(1-_actSigPos.yFrac)*ph-60;
-          }else{_sx=pw-220;_sy=40}
-          _sx=Math.max(0,Math.min(pw-180,_sx));
-          _sy=Math.max(0,Math.min(ph-60,_sy));
-          lastPg.drawImage(emb,{x:_sx,y:_sy,width:180,height:60});
+          // วาดทุกจุดที่ผู้ใช้ลากวางไว้ (_actSigMarks จาก docSign.js — หลายจุด หลายหน้าได้)
+          // ไม่มีจุดเลย = fallback มุมขวาล่างหน้าสุดท้าย (พฤติกรรมเดิม)
+          var _marks=(window._actSigMarks&&_actSigMarks.length)?_actSigMarks:[null];
+          var _pgN=pdfDoc.getPageCount();
+          for(var _mi=0;_mi<_marks.length;_mi++){
+            var _mk=_marks[_mi];
+            var _pg=pdfDoc.getPage(Math.min(Math.max((_mk?_mk.page:_pgN),1),_pgN)-1);
+            var pw=_pg.getWidth(),ph=_pg.getHeight();
+            var _w=180,_h=60,_sx=pw-220,_sy=40;
+            if(_mk&&typeof _mk.xFrac==='number'){
+              _w=(_mk.wFrac||180/pw)*pw;_h=_w/3;
+              _sx=_mk.xFrac*pw;
+              _sy=(1-_mk.yFrac)*ph-_h;
+            }
+            _sx=Math.max(0,Math.min(pw-_w,_sx));
+            _sy=Math.max(0,Math.min(ph-_h,_sy));
+            // วางแบบ contain (คงสัดส่วนรูป จัดกึ่งกลางกรอบ) ให้ตรงกับ preview ใน docSign.js
+            // ห้าม stretch เต็มกรอบ — ขนาด/สัดส่วนลายเซ็นจริงจะไม่ตรงกับที่ผู้ใช้เห็นตอนวาง
+            var _fs=Math.min(_w/emb.width,_h/emb.height);
+            var _dw=emb.width*_fs,_dh=emb.height*_fs;
+            _pg.drawImage(emb,{x:_sx+(_w-_dw)/2,y:_sy+(_h-_dh)/2,width:_dw,height:_dh});
+          }
           var newBytes=await pdfDoc.save();
           var _baseName=latestFile.file_name.replace(/^(\[ลงนาม\]\s*)+/,'');
           var safeName=_baseName.replace(/[^a-zA-Z0-9._-]/g,'_');
@@ -740,7 +768,7 @@ async function doAct(action,docId){
           var newBlob=new Blob([newBytes],{type:'application/pdf'});
           await upFile(newPath,newBlob);
           await dp('document_files',{document_id:docId,file_name:'[ลงนาม] '+_baseName,file_path:newPath,file_size:newBlob.size,file_type:'application/pdf',uploaded_by:CU.id,version:(latestFile.version||1)+1});
-          await dp('document_history',{document_id:docId,action:'ฝังลายเซ็นในเอกสาร',performed_by:CU.id})
+          await dp('document_history',{document_id:docId,action:'ฝังลายเซ็นในเอกสาร'+(_marks.length>1?' ('+_marks.length+' จุด)':''),performed_by:CU.id})
         }
       }
     } catch(sigErr){

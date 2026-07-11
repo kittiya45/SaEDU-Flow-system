@@ -107,11 +107,13 @@ var _ROLE_GRAD = {
   'ROLE-REV': 'linear-gradient(135deg,#B45309,#D97706)',
   'ROLE-ADV': 'linear-gradient(135deg,#6D28D9,#7C3AED)',
   'ROLE-STF': 'linear-gradient(135deg,#0369A1,#0891B2)',
-  'ROLE-CRT': 'linear-gradient(135deg,#1D4ED8,#2563EB)'
+  'ROLE-CRT': 'linear-gradient(135deg,#1D4ED8,#2563EB)',
+  'ROLE-DEV': 'linear-gradient(135deg,#18120E,#3A332E)'
 };
 var _ROLE_DOT = {
   'ROLE-SYS':'#F59E0B','ROLE-SGN':'#E83A00','ROLE-REV':'#D97706',
-  'ROLE-CRT':'#3B82F6','ROLE-STF':'#06B6D4','ROLE-ADV':'#A855F7'
+  'ROLE-CRT':'#3B82F6','ROLE-STF':'#06B6D4','ROLE-ADV':'#A855F7',
+  'ROLE-DEV':'#10B981'
 };
 
 function _navItem(n, active) {
@@ -202,6 +204,7 @@ async function nav(view, id) {
     else if (view==='adm')                content = await vAdm();
     else if (view==='sys')                content = await vSys();
     else if (view==='stat')               content = await vStat();
+    else if (view==='dev')                content = await vDev();
   } catch(e) {
     content = '<div style="padding:32px;color:#DC2626;font-size:14px">เกิดข้อผิดพลาด: '+esc(String(e.message||e))+'</div>';
   }
@@ -211,7 +214,8 @@ async function nav(view, id) {
     dash:'ภาพรวม', docs:'เอกสารทั้งหมด', todo:'งานของฉัน',
     new:'สร้างเอกสารใหม่', edit:'แก้ไขเอกสาร', det:'รายละเอียดเอกสาร',
     tmpl:'แบบฟอร์มดาวน์โหลด',
-    adm:'จัดการผู้ใช้งาน', sys:'จัดการระบบ', stat:'สถิติ & รายงาน'
+    adm:'จัดการผู้ใช้งาน', sys:'จัดการระบบ', stat:'สถิติ & รายงาน',
+    dev:'เครื่องมือนักพัฒนา'
   };
 
   var ni = [
@@ -220,10 +224,14 @@ async function nav(view, id) {
     {k:'docs', i:'doc',  l:'เอกสาร',    b: PC || null},
     {k:'tmpl', i:'folder', l:'แบบฟอร์ม'}
   ];
+  // ระบบนักพัฒนาแยกจากแอดมิน: เมนู "จัดการระบบ" ของแอดมินเท่านั้น / เมนู "นักพัฒนา" ของ ROLE-DEV เท่านั้น
+  // (นักพัฒนาแก้ตั้งค่าระบบผ่านแท็บ "จัดการระบบ" ภายใน Dev Panel — เนื้อหาเดียวกัน คนละประตู)
+  var isDev = CU.role_code === 'ROLE-DEV';
   if (CAN.cr(CU.role_code))                  ni.push({k:'new',  i:'plus',  l:'สร้างเอกสาร'});
-  if (isAdm || CU.role_code==='ROLE-STF')    ni.push({k:'stat', i:'chart', l:'สถิติ'});
+  if (isAdm || CU.role_code==='ROLE-STF' || CU.role_code==='ROLE-DEV') ni.push({k:'stat', i:'chart', l:'สถิติ'});
   if (isAdm || CU.role_code==='ROLE-STF')    ni.push({k:'adm',  i:'users', l:'จัดการผู้ใช้'});
-  if (isAdm)                                  ni.push({k:'sys',  i:'gear',  l:'จัดการระบบ'});
+  if (isAdm)                                 ni.push({k:'sys',  i:'gear',  l:'จัดการระบบ'});
+  if (isDev)                                 ni.push({k:'dev',  i:'code',  l:'นักพัฒนา'});
 
   var sidebarItems = ni.map(function(n){ return _navItem(n, CV===n.k); }).join('');
 
