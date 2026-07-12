@@ -137,6 +137,49 @@ async function deleteStorage(path){
     await fetch(SU+'/storage/v1/object/documents/'+enc,{method:'DELETE',headers:{apikey:SK,Authorization:H.Authorization}});
   }catch(e){console.warn('deleteStorage failed',path,e)}
 }
+var USER_SIG_BUCKET='user-signatures';
+function userSigStoragePath(userId){
+  return String(userId||'')+'/signature.png';
+}
+var _userSigUrlCache={};
+async function resolveUserSigPath(path,expiresSec){
+  if(!path||!sb||!sb.storage) return null;
+  var exp=expiresSec||3600;
+  var cacheKey=path+'|'+exp;
+  var hit=_userSigUrlCache[cacheKey];
+  if(hit&&hit.exp>Date.now()) return hit.url;
+  try{
+    var r=await sb.storage.from(USER_SIG_BUCKET).createSignedUrl(path,exp);
+    if(r.data&&r.data.signedUrl){
+      _userSigUrlCache[cacheKey]={url:r.data.signedUrl,exp:Date.now()+(exp-300)*1000};
+      return r.data.signedUrl;
+    }
+  }catch(e){console.warn('resolveUserSigPath failed',path,e)}
+  return null;
+}
+async function upUserSig(file){
+  if(!CU||!CU.id) throw new Error('ไม่พบผู้ใช้');
+  var path=userSigStoragePath(CU.id);
+  var enc=path.split('/').map(encodeURIComponent).join('/');
+  var r=await fetch(SU+'/storage/v1/object/'+USER_SIG_BUCKET+'/'+enc,{
+    method:'POST',
+    headers:{apikey:SK,Authorization:H.Authorization,'x-upsert':'true','Content-Type':file.type||'image/png'},
+    body:file
+  });
+  if(!r.ok){
+    var e=await r.json().catch(function(){return{}});
+    throw new Error((e&&e.message)||('บันทึกลายเซ็นล้มเหลว ('+r.status+')'));
+  }
+  return path;
+}
+async function deleteUserSigStorage(path){
+  if(!path) return;
+  try{
+    var enc=String(path).split('/').map(encodeURIComponent).join('/');
+    await fetch(SU+'/storage/v1/object/'+USER_SIG_BUCKET+'/'+enc,{method:'DELETE',headers:{apikey:SK,Authorization:H.Authorization}});
+    Object.keys(_userSigUrlCache).forEach(function(k){if(k.indexOf(path)===0)delete _userSigUrlCache[k]});
+  }catch(e){console.warn('deleteUserSigStorage failed',path,e)}
+}
 async function dgCount(t,q){
   var qs=q||'';
   if(qs.indexOf('select=')<0) qs+=(qs.indexOf('?')>=0?'&':'?')+'select=id';
@@ -200,6 +243,19 @@ var FLOW_STEPS_BUDGET=[
   {step_name:'เจ้าหน้าที่กิจการนิสิต',role_required:'ROLE-STF',role:'ROLE-STF'},
   {step_name:'ผู้รับผิดชอบโครงการ',role_required:'ROLE-CRT',self:true}
 ].concat(FLOW_STEPS_GENERAL);
+function _normFlowStep(s){
+  if(!s||!s.step_name) return null;
+  var o={step_name:String(s.step_name),role_required:s.role_required||'ROLE-SGN'};
+  if(s.pos) o.pos=String(s.pos);
+  if(s.role) o.role=String(s.role);
+  if(s.self) o.self=true;
+  return o;
+}
+function _applyFlowStepsJson(jsonArr,targetArr){
+  if(!Array.isArray(jsonArr)||!jsonArr.length) return;
+  targetArr.length=0;
+  jsonArr.forEach(function(s){var o=_normFlowStep(s);if(o) targetArr.push(o);});
+}
 var SENDER_POS=[
   {name:'หัวหน้านิสิต',code:'01',isClub:false},
   {name:'ชมรมต้นกล้าคณิตศาสตร์',code:'01',isClub:true},
@@ -379,6 +435,15 @@ async function loadAppSettings(){
         GNK_NUM[p.code]=p.num;
         PR[p.code]=p.role||'ROLE-CRT';
       });
+    }
+    /* fixed workflow presets (หนังสือขาเข้า) — แก้ผ่าน จัดการระบบ → รายการอ้างอิง */
+    if(Array.isArray(SETT.budget_ltypes_json)&&SETT.budget_ltypes_json.length){
+      BUDGET_LTYPES.length=0;
+      SETT.budget_ltypes_json.forEach(function(x){if(x) BUDGET_LTYPES.push(String(x));});
+    }
+    _applyFlowStepsJson(SETT.flow_steps_general_json,FLOW_STEPS_GENERAL);
+    if(Array.isArray(SETT.flow_steps_budget_json)&&SETT.flow_steps_budget_json.length){
+      _applyFlowStepsJson(SETT.flow_steps_budget_json,FLOW_STEPS_BUDGET);
     }
     /* CAN permissions */
     if(Array.isArray(SETT.can_sign_roles_json)&&SETT.can_sign_roles_json.length){

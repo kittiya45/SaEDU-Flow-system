@@ -106,6 +106,33 @@ function fChip(f,s){
   var ft=fType(f);
   return '<div class="file-chip" style="background:'+ft.bg+';color:'+ft.cl+'">'+svg(ft.ic,s||19)+'</div>'
 }
+/* PDF หลักสำหรับลงนาม = ไฟล์ PDF แรกที่ผู้ใช้อัปโหลด (ไม่นับฉบับ [ลงนาม] ที่ระบบสร้าง)
+   working = เวอร์ชันล่าสุดของกลุ่มชื่อเดียวกัน (ฉบับเซ็นแล้วถ้ามี — ใช้ซ้อนลายเซ็นต่อ) */
+function _isSignedPdfRow(f){
+  return f.file_name.indexOf('[ลงนาม]')>=0||f.file_path.indexOf('signed/')===0||/^signed_/.test(f.file_path||'');
+}
+function _signFileBaseName(f){
+  return f.file_name.replace(/^(\[(ลงนาม|ตีกลับ|แก้ไข)\]\s*)+/g,'').replace(/^(signed|reject|edited)_\d+_/,'');
+}
+function _primarySignPdf(pdfs){
+  if(!pdfs||!pdfs.length) return null;
+  var sorted=pdfs.slice().sort(function(a,b){
+    var ta=a.uploaded_at?new Date(a.uploaded_at).getTime():0, tb=b.uploaded_at?new Date(b.uploaded_at).getTime():0;
+    return (ta-tb)||((a.version||1)-(b.version||1));
+  });
+  return sorted.find(function(f){return !_isSignedPdfRow(f)})||sorted[0];
+}
+function _signPdfWorkingCopy(pdfs){
+  var primary=_primarySignPdf(pdfs);
+  if(!primary) return null;
+  var bn=_signFileBaseName(primary);
+  var group=pdfs.filter(function(f){return _signFileBaseName(f)===bn});
+  group.sort(function(a,b){
+    var ta=a.uploaded_at?new Date(a.uploaded_at).getTime():0, tb=b.uploaded_at?new Date(b.uploaded_at).getTime():0;
+    return (tb-ta)||((b.version||1)-(a.version||1));
+  });
+  return {primary:primary,working:group[0],baseName:bn,signedRow:group.find(function(f){return _isSignedPdfRow(f)})||null};
+}
 function urgCls(u){if(u==='urgent')return'urg-urgent';if(u==='very_urgent')return'urg-vurgent';return'urg-normal'}
 /* ความเร่งด่วนแบบ badge แบ่งสี: เขียว=ปกติ, เหลือง=เร่งด่วน, แดง=ด่วนมาก */
 function uBadge(u){

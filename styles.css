@@ -45,6 +45,13 @@ button{cursor:pointer}a{color:var(--orange);text-decoration:none}
 .auth-sub{font-size:12px;color:rgba(255,255,255,.72);margin-top:6px;position:relative;z-index:1;animation:subFade .9s ease .25s both}
 @keyframes subFade{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
 .auth-body{padding:28px 30px}
+#lal:empty{display:none}
+.auth-al::before{display:none}
+.auth-body #lal .auth-al{padding:10px 12px;margin-bottom:14px;align-items:center;box-shadow:none}
+.auth-body #lal .auth-al .al-icon{width:28px;height:28px;margin-top:0;border-radius:8px}
+.auth-body #lal .auth-al .al-msg{padding-top:0;font-size:12.5px;line-height:1.65}
+#lp-eye svg{display:block}
+#btn-login:disabled{opacity:.88;cursor:wait}
 .auth-tabs{display:flex;gap:3px;background:#F6F2EE;border-radius:12px;padding:4px;margin-bottom:24px}
 .auth-tab{flex:1;padding:9px 6px;border:none;border-radius:9px;font-size:12px;font-weight:500;cursor:pointer;background:transparent;color:var(--text-3);transition:all .22s;font-family:inherit}
 .auth-tab.on{background:#fff;color:var(--orange);font-weight:700;box-shadow:0 2px 8px rgba(0,0,0,.1)}
@@ -109,13 +116,65 @@ textarea.fi{resize:vertical;min-height:80px}
 .fw{width:100%;justify-content:center}
 .btn-icon{width:32px;height:32px;padding:0;border-radius:8px}
 
-/* ── ALERTS ── */
-.al{padding:12px 15px;border-radius:10px;font-size:13px;margin-bottom:6px;display:flex;align-items:flex-start;gap:9px;line-height:1.55}
-.al-ok{background:var(--ok-bg);color:#15803D;border:1px solid #BBF7D0}
-.al-er{background:var(--er-bg);color:#B91C1C;border:1px solid #FECACA}
-.al-in{background:var(--in-bg);border:1px solid #BFDBFE;color:#1B4ED5}
-.al-wa{background:var(--wa-bg);color:#B45309;border:1px solid #FDE68A}
-.al-icon{font-size:15px;flex-shrink:0;margin-top:5px} /* ปรับเพิ่มเป็น 5px เพื่อดันไอคอนลงมา */
+/* ── ALERTS (ใช้ทั่วทั้งระบบ: alrtH, .al-ok/.al-in/.al-wa/.al-er) ── */
+.al{
+  position:relative;
+  padding:11px 14px 11px 16px;
+  border-radius:12px;
+  font-size:13px;
+  margin-bottom:8px;
+  display:flex;
+  align-items:flex-start;
+  gap:10px;
+  line-height:1.65;
+  border:1px solid transparent;
+  box-shadow:0 1px 3px rgba(0,0,0,.05);
+  overflow:hidden;
+}
+.al::before{
+  content:'';
+  position:absolute;
+  left:0;
+  top:0;
+  bottom:0;
+  width:4px;
+  border-radius:12px 0 0 12px;
+}
+.al-icon{
+  flex-shrink:0;
+  width:30px;
+  height:30px;
+  border-radius:9px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  margin-top:1px;
+  line-height:1;
+}
+.al-icon svg,.al-icon i{display:block}
+.al>span:not(.al-icon),.al>div{
+  flex:1;
+  min-width:0;
+  padding-top:5px;
+}
+.al strong{font-weight:700}
+.al code{font-size:.9em;background:rgba(0,0,0,.06);padding:1px 6px;border-radius:5px;font-family:ui-monospace,monospace}
+.al .sp{margin-top:7px}
+.al.text-xs,.al.al-sm{font-size:12px;padding:9px 12px 9px 14px;line-height:1.6}
+.al.text-xs .al-icon,.al.al-sm .al-icon{width:26px;height:26px;border-radius:8px}
+.al.text-xs>span:not(.al-icon),.al.text-xs>div,.al.al-sm>span:not(.al-icon),.al.al-sm>div{padding-top:3px}
+.al-ok{background:#ECFDF5;border-color:#86EFAC;color:#14532D}
+.al-ok::before{background:#22C55E}
+.al-ok .al-icon{background:#DCFCE7;color:#15803D}
+.al-er{background:#FEF2F2;border-color:#FCA5A5;color:#7F1D1D}
+.al-er::before{background:#EF4444}
+.al-er .al-icon{background:#FEE2E2;color:#DC2626}
+.al-in{background:#EFF6FF;border-color:#93C5FD;color:#1E3A8A}
+.al-in::before{background:#3B82F6}
+.al-in .al-icon{background:#DBEAFE;color:#2563EB}
+.al-wa{background:#FFFBEB;border-color:#FCD34D;color:#78350F}
+.al-wa::before{background:#F59E0B}
+.al-wa .al-icon{background:#FEF3C7;color:#D97706}
 
 /* ── SPINNER ── */
 .sp{width:16px;height:16px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .65s linear infinite;display:inline-block;vertical-align:middle;flex-shrink:0}
@@ -263,10 +322,53 @@ button.ptab{border:none;background:transparent;font-family:inherit}
 .file-actions{display:flex;align-items:center;gap:5px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end}
 .files-list-modal .files-list{gap:10px;padding:0}
 .badge-muted{background:#F5F3F0;color:#8c8279}
+.sig-prof-preview{min-height:130px;border:1px solid var(--border);border-radius:12px;padding:16px;background:#FAFAF8;display:flex;align-items:center;justify-content:center}
+.sig-prof-preview-empty{border-style:dashed}
+.sig-prof-empty-txt{font-size:12px;color:var(--text-3)}
+@media(max-width:640px){.sig-prof-grid{grid-template-columns:1fr!important}}
 
 /* ── กรอบวางลายเซ็นบน PDF preview (อนุมัติ) ── */
-.sig-stamp{overflow:hidden;z-index:2}
+.sig-act-modal{max-width:880px!important;width:95vw;max-height:90vh;display:flex;flex-direction:column;overflow:hidden}
+.sig-act-body{display:grid!important;grid-template-columns:280px 1fr;gap:18px;align-items:start;max-height:72vh;overflow:hidden;padding:0 24px!important;flex:unset}
+.sig-act-side{overflow-y:auto;max-height:72vh;padding-right:4px;padding-bottom:16px}
+.sig-place-card{border:1px solid #E0DBD5;border-radius:12px;padding:12px 14px;background:#fff;margin-bottom:10px}
+.sig-place-card .fl{color:#4A4541;margin-bottom:8px}
+.sig-mark-count{font-size:10px;font-weight:700;color:#C03200;background:#FFEDE6;border:1px solid #FFD4C4;border-radius:20px;padding:1px 8px}
+.sig-size-row{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.sig-size-lbl{font-size:11px;font-weight:600;color:#4A4541;flex-shrink:0}
+.sig-size-val{font-size:11px;font-weight:700;color:#4A4541;min-width:34px;text-align:right}
+.sig-mark-list{display:flex;flex-wrap:wrap;gap:6px}
+.sig-mark-empty{font-size:11px;color:#6B6560;line-height:1.7}
+.sig-mark-chip{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:#4A4541;background:#fff;border:1.5px solid #D8D2CC;border-radius:20px;padding:3px 6px 3px 10px}
+.sig-mark-chip a{color:#4A4541;text-decoration:none}
+.sig-mark-chip a:hover{color:#C03200}
+.sig-mark-chip-del{width:16px;height:16px;border-radius:50%;border:none;background:#E8E4DE;color:#4A4541;font-size:11px;line-height:1;cursor:pointer;padding:0;display:inline-flex;align-items:center;justify-content:center}
+.sig-mark-chip-del:hover{background:#FECACA;color:#DC2626}
+.sig-copy-btn{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;margin-top:8px;padding:9px 12px;border-radius:10px;border:1.5px solid #D8D2CC;background:#fff;color:#4A4541;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;transition:all .15s}
+.sig-copy-btn:hover{background:#FFF8F4;border-color:#FFC9A8;color:#C03200}
+.sig-act-hint{font-size:11px;color:#6B6560;line-height:1.7;display:flex;gap:6px;align-items:flex-start;margin-top:8px;padding:10px 12px;background:#F7F5F2;border-radius:10px;border:1px solid #E8E4DE}
+.sig-act-hint svg,.sig-act-hint i{flex-shrink:0;color:#6B6560;margin-top:2px}
+.sig-act-opt{font-size:10px;color:#6B6560;font-weight:500}
+.sig-act-preview{display:flex;flex-direction:column;gap:6px;min-width:0}
+.sig-page-ctrl{display:flex;align-items:center;gap:6px;padding:6px 10px;background:#3d3d3d;border-radius:8px;flex-shrink:0}
+.sig-tb-btn{width:26px;height:26px;border-radius:6px;border:none;background:rgba(255,255,255,.15);color:#fff;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
+.sig-tb-btn:hover{background:rgba(255,255,255,.25)}
+.sig-tb-btn:disabled{opacity:.35;cursor:default}
+.sig-tb-sel{background:rgba(255,255,255,.15);color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;padding:4px 8px;cursor:pointer;min-width:66px}
+.sig-tb-total{color:#fff;font-size:12px;font-weight:600;opacity:.75}
+.sig-tb-zoom{display:flex;align-items:center;gap:4px;margin-left:auto}
+.sig-tb-zoom-lbl{color:#fff;font-size:12px;font-weight:600;min-width:38px;text-align:center}
+.sig-scroll{background:#525659;border-radius:8px;overflow:auto;max-height:calc(72vh - 46px);min-height:320px;display:block;padding:8px}
+.sig-pos-wrap{position:relative;line-height:0;display:flex;flex-direction:column;align-items:stretch;gap:10px;width:100%}
+.sig-pg-cont{width:100%;box-shadow:0 2px 12px rgba(0,0,0,.35);border-radius:2px;background:#fff}
+.sig-pg-inner{line-height:0}
+.sig-pos-loading{color:rgba(255,255,255,.7);font-size:13px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;min-height:296px;padding:20px}
+.sig-stamp{overflow:visible;z-index:2}
+.sig-stamp-inner{overflow:hidden}
 .sig-stamp img.sig-stamp-img{max-width:100%;max-height:100%}
+.sig-stamp-del{position:absolute;top:-11px;right:-11px;width:22px;height:22px;border-radius:50%;border:1.5px solid #EBEBEB;background:#fff;color:#DC2626;font-size:15px;font-weight:700;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;box-shadow:0 2px 6px rgba(0,0,0,.2);z-index:3}
+.sig-stamp-del:hover{background:#FEF2F2;border-color:#FECACA}
+.sig-stamp-rz{position:absolute;right:-9px;bottom:-9px;width:18px;height:18px;border-radius:4px;background:#E83A00;border:2.5px solid #fff;cursor:nwse-resize;touch-action:none;box-shadow:0 1px 3px rgba(0,0,0,.25);z-index:3}
 
 /* ── UPLOAD ZONE ── */
 .files-stack .upload-zone{
@@ -395,6 +497,14 @@ button.ptab{border:none;background:transparent;font-family:inherit}
 .cpopup-close{margin-left:auto;background:rgba(255,255,255,.15);border:none;color:#fff;width:28px;height:28px;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;transition:background .15s}
 .cpopup-close:hover{background:rgba(255,255,255,.25)}
 
+/* ── Login announcement popup ── */
+.la-popup-box{max-width:500px;text-align:center}
+.la-popup-body{padding:36px 36px 32px}
+.la-popup-icon{width:60px;height:60px;border-radius:18px;display:flex;align-items:center;justify-content:center;margin:0 auto 22px}
+.la-popup-title{font-size:18px;font-weight:800;color:#18120E;margin-bottom:16px;line-height:1.55;padding:0 4px}
+.la-popup-msg{font-size:14px;color:#6b6560;line-height:1.9;text-align:left;white-space:pre-wrap;word-break:break-word;padding:18px 20px;background:#F9F8F7;border-radius:14px;border:1px solid #F0EEEB}
+.la-popup-btn{margin-top:28px;min-width:160px}
+
 /* ── TIMELINE ── */
 .timeline{display:flex;flex-direction:column}
 .tl-item{display:flex;gap:12px}
@@ -411,6 +521,36 @@ button.ptab{border:none;background:transparent;font-family:inherit}
 
 /* ── LAYOUT HELPERS ── */
 .two-col{display:grid;grid-template-columns:1fr 320px;gap:18px;align-items:start}
+
+/* ── หน้ารายละเอียดเอกสาร: แถบ action ด้านบน ── */
+.detail-toolbar{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:14px 18px;
+  margin-bottom:24px;
+  padding-bottom:2px;
+}
+.detail-toolbar-status{display:inline-flex;align-items:center}
+.detail-toolbar-actions{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:10px;
+  margin-left:auto;
+}
+.detail-toolbar-actions .btn{margin:0}
+.detail-banners{
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+  margin:-6px 0 22px;
+}
+.detail-banners .al{margin-bottom:0}
+@media(max-width:640px){
+  .detail-toolbar-actions{width:100%;margin-left:0;gap:8px}
+  .detail-toolbar{gap:12px;margin-bottom:20px}
+}
 /* ── INFO CARD (ข้อมูลเอกสาร) ── หัวเรื่อง → ผู้รับ/ผู้ส่ง → เมตาดาต้า → รายละเอียด */
 .detail-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding-bottom:18px;border-bottom:1px solid var(--border);flex-wrap:wrap}
 .detail-title{font-size:17px;font-weight:700;line-height:1.55;color:var(--text);letter-spacing:-.2px;flex:1;min-width:0}

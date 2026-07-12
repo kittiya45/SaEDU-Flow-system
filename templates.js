@@ -35,7 +35,7 @@ async function vTmpl(){
       '</div></div>';
   }
   var rows=result;
-  var isAdm=CU.role_code==='ROLE-SYS'||CU.role_code==='ROLE-STF'||CU.position_code==='GNK-SEC';
+  var isAdm=CU.role_code==='ROLE-SYS'||CU.role_code==='ROLE-STF'||CU.role_code==='ROLE-DEV'||CU.position_code==='GNK-SEC';
 
   // Batch-fetch ชื่อผู้อัปโหลด (แสดงแก่ทุกคน)
   var _uploaderMap={};

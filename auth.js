@@ -1,6 +1,7 @@
 /* ─── SESSION MANAGEMENT ─── */
 var _loginAttempts=+(localStorage.getItem('_la')||0);
 var _loginLockedUntil=+(localStorage.getItem('_llu')||0);
+var _loginBusy=false;
 /* [SECURITY] Supabase Auth — H.Authorization ต้องตามสถานะ session เสมอ (login/logout/auto refresh token)
    นี่คือจุดเดียวที่ต้องอัปเดต ทุกฟังก์ชัน dg/dp/dpa/dd และ fetch(headers:H) อื่นๆ ทั่วแอปจะเห็น token ปัจจุบันโดยอัตโนมัติ */
 sb.auth.onAuthStateChange(function(_event,session){
@@ -17,43 +18,71 @@ function _startSessionTimer(){
   _sesTmr=setInterval(function(){
     if(CU&&Date.now()-_lastAct>(SETT.session_timeout_min||30)*60*1000){
       try{dp('document_history',{action:'session_timeout',performed_by:CU.id,note:'Session หมดอายุอัตโนมัติ'});}catch(e){}
-      _cleanupSession();
-      showAuth();
-      showAlert('Session หมดอายุ กรุณาเข้าสู่ระบบใหม่','wa');
+      _cleanupSession().then(function(){
+        showAuth();
+        showAlert('Session หมดอายุ กรุณาเข้าสู่ระบบใหม่','wa');
+      });
     }
   },60000);
 }
-function _cleanupSession(){
+async function _cleanupSession(){
   if(_sesTmr){clearInterval(_sesTmr);_sesTmr=null;}
   document.removeEventListener('click',_actHandler,true);
   document.removeEventListener('keydown',_actHandler,true);
   CU=null;
-  // เคลียร์ JWT session ฝั่ง Supabase Auth ด้วยเสมอ — ไม่งั้น session_timeout จะแค่เด้งไปหน้า login
-  // แต่ session เดิมยังใช้งานได้จริงอยู่ (refresh หน้าแล้วจะ login กลับเข้ามาเองเงียบๆ)
-  sb.auth.signOut().catch(function(){});
+  // ต้อง await signOut — ไม่งั้นรีเฟรชหน้า login แล้ว boot.js ยังเจอ session เดิมและ login กลับเอง
+  try{await sb.auth.signOut();}catch(e){}
 }
 async function doLogout(){
   if(CU){try{await dp('document_history',{action:'logout',performed_by:CU.id,note:'ออกจากระบบ'});}catch(e){}}
-  _cleanupSession();
+  await _cleanupSession();
   showAuth();
 }
 
 /* ─── AUTH ─── */
+function _authSvgEye(sz){
+  sz=sz||16;
+  return '<svg width="'+sz+'" height="'+sz+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>';
+}
+function _authSvgEyeOff(sz){
+  sz=sz||16;
+  return '<svg width="'+sz+'" height="'+sz+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/></svg>';
+}
+function _authSvgInfo(sz){
+  sz=sz||26;
+  return '<svg width="'+sz+'" height="'+sz+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>';
+}
+function _authSvgWarn(sz){
+  sz=sz||26;
+  return '<svg width="'+sz+'" height="'+sz+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>';
+}
+function _authAlrtH(t,m){
+  var ic={
+    ok:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>',
+    er:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>',
+    in:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>',
+    wa:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>'
+  };
+  return '<div class="al al-'+t+' auth-al"><span class="al-icon">'+(ic[t]||ic.in)+'</span><span class="al-msg">'+esc(m)+'</span></div>';
+}
+
 function showAuth(){
+  var _luDraft='';
+  try{_luDraft=sessionStorage.getItem('_luDraft')||'';}catch(e){}
   var loginB = [
     '<div id="lal"></div>',
     '<div class="fg"><label class="fl">ชื่อผู้ใช้ / รหัสนิสิต / อีเมล</label>',
-    '<input id="lu" class="fi" placeholder="กนค.: รหัสนิสิต | อ./จนท.: อีเมล "></div>',
+    '<input id="lu" class="fi" autocomplete="username" placeholder="กนค.: รหัสนิสิต | อ./จนท.: อีเมล " value="'+esc(_luDraft)+'"></div>',
     '<div class="fg"><label class="fl">รหัสผ่าน</label>',
     '<div style="position:relative">',
-    '<input id="lp" class="fi" type="password" placeholder="••••••••" style="padding-right:44px">',
-    '<button type="button" id="lp-eye" onclick="_togglePwVis()" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;padding:4px;cursor:pointer;color:#a89e99;display:flex;align-items:center;line-height:1;border-radius:6px" title="แสดง/ซ่อนรหัสผ่าน">'+svg('eye',16)+'</button>',
+    '<input id="lp" class="fi" type="password" autocomplete="current-password" placeholder="••••••••" style="padding-right:44px">',
+    '<button type="button" id="lp-eye" onclick="_togglePwVis()" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;padding:4px;cursor:pointer;color:#a89e99;display:flex;align-items:center;line-height:1;border-radius:6px" title="แสดง/ซ่อนรหัสผ่าน">'+_authSvgEye(16)+'</button>',
     '</div>',
     '<div style="text-align:right;margin-top:6px">',
     /* [UX] เปลี่ยน label ให้ตรงกับ behavior จริง (ต้องใส่รหัสเดิม ไม่ใช่ reset) */
     '<button type="button" style="font-size:12px;background:transparent;color:#E83A00;border:none;padding:0;cursor:pointer;font-weight:600" data-action="showChangePwPopup">เปลี่ยนรหัสผ่าน</button>',
     '</div></div>',
-    '<button class="btn btn-primary fw py-[13px] mt-1" data-action="login">เข้าสู่ระบบ</button>',
+    '<button type="button" id="btn-login" class="btn btn-primary fw py-[13px] mt-1" data-action="login">เข้าสู่ระบบ</button>',
     '<div class="divider">ยังไม่มีบัญชี?</div>',
     /* [UX] เพิ่ม sub-caption ใต้ปุ่มสมัครเพื่อบอกว่าแต่ละปุ่มสำหรับใคร */
     '<div class="grid grid-cols-2 gap-[9px]">',
@@ -89,10 +118,15 @@ function showAuth(){
     '</div>'
   ].join(''));
 
-  // Bind enter key
+  // Bind enter key + จำชื่อผู้ใช้ชั่วคราว (รีเฟรชหน้าแล้วไม่หาย)
   setTimeout(function(){
     var lu=$e('lu'), lp=$e('lp');
-    if(lu) lu.addEventListener('keydown',function(e){if(e.key==='Enter')doLogin()});
+    if(lu){
+      lu.addEventListener('keydown',function(e){if(e.key==='Enter')doLogin()});
+      lu.addEventListener('input',function(){
+        try{sessionStorage.setItem('_luDraft',lu.value);}catch(ex){}
+      });
+    }
     if(lp) lp.addEventListener('keydown',function(e){if(e.key==='Enter')doLogin()});
   },50);
 
@@ -132,12 +166,12 @@ function _renderLoginAnnouncePopup(o,onClose){
   el.id='login-announce';
   el.className='cpopup-overlay';
   el.innerHTML=
-    '<div class="cpopup-box" style="max-width:420px;text-align:center">'+
-      '<div class="cpopup-body" style="padding:30px 26px 24px">'+
-        '<div style="width:56px;height:56px;border-radius:16px;background:'+th.bg+';display:flex;align-items:center;justify-content:center;margin:0 auto 16px;color:'+th.cl+'">'+svg(th.ic,26)+'</div>'+
-        '<div style="font-size:17px;font-weight:800;color:#18120E;margin-bottom:10px;line-height:1.5">'+esc(o.title||'ประกาศ')+'</div>'+
-        '<div style="font-size:13.5px;color:#6b6560;line-height:1.85;text-align:left;white-space:pre-wrap;word-break:break-word">'+esc(o.msg||'')+'</div>'+
-        '<button class="btn btn-primary fw" id="login-announce-ok" style="margin-top:22px">รับทราบ</button>'+
+    '<div class="cpopup-box la-popup-box">'+
+      '<div class="cpopup-body la-popup-body">'+
+        '<div class="la-popup-icon" style="background:'+th.bg+';color:'+th.cl+'">'+(o.type==='warning'||o.type==='error'?_authSvgWarn(26):_authSvgInfo(26))+'</div>'+
+        '<div class="la-popup-title">'+esc(o.title||'ประกาศ')+'</div>'+
+        '<div class="la-popup-msg">'+esc(o.msg||'')+'</div>'+
+        '<button class="btn btn-primary fw la-popup-btn" id="login-announce-ok">รับทราบ</button>'+
       '</div>'+
     '</div>';
   var close=function(){el.remove();if(onClose)onClose();};
@@ -159,9 +193,18 @@ function chkSid(){
   h.className='hint ok';h.innerHTML=svg('ok',12)+' รหัสนิสิตถูกต้อง'
 }
 
+function _setLoginBusy(busy){
+  _loginBusy=busy;
+  var btn=$e('btn-login');
+  if(!btn) return;
+  btn.disabled=busy;
+  btn.innerHTML=busy?'กำลังตรวจสอบ...':'เข้าสู่ระบบ';
+}
+
 async function doLogin(){
+  if(_loginBusy) return;
   var u=gv('lu').trim(),p=gv('lp'),a=$e('lal');if(!a)return;
-  if(!u||!p){a.innerHTML=alrtH('er','กรุณากรอกข้อมูลให้ครบ');return}
+  if(!u||!p){a.innerHTML=_authAlrtH('er','กรุณากรอกข้อมูลให้ครบ');return}
   if(Date.now()<_loginLockedUntil){
     // [UX] countdown timer อัปเดตทุก 1 วินาที แทนแสดงครั้งเดียว
     var _updateLockMsg=function(){
@@ -171,13 +214,14 @@ async function doLogin(){
       var mins=Math.floor(secs/60);
       var s2=secs%60;
       var timeStr=mins>0?(mins+' นาที '+(s2>0?s2+' วินาที':'')):(secs+' วินาที');
-      if(a)a.innerHTML=alrtH('er','พยายามเข้าสู่ระบบผิดพลาดหลายครั้ง กรุณารอ '+timeStr);
+      if(a)a.innerHTML=_authAlrtH('er','พยายามเข้าสู่ระบบผิดพลาดหลายครั้ง กรุณารอ '+timeStr);
       setTimeout(_updateLockMsg,1000);
     };
     _updateLockMsg();
     return;
   }
-  a.innerHTML='<div class="al al-in"><span class="sp sp-dark"></span><span> กำลังตรวจสอบ...</span></div>';
+  _setLoginBusy(true);
+  a.innerHTML='';
   try{
     var email=u;
     if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(u)){
@@ -190,7 +234,8 @@ async function doLogin(){
       // อีเมลยังไม่ยืนยัน — รหัสผ่านถูกแล้ว อย่าแสดงว่า "รหัสผิด" และอย่านับเป็นความพยายามล้มเหลว
       var _ec=String((_si.error&&(_si.error.code||_si.error.message))||'').toLowerCase();
       if(_ec.indexOf('email_not_confirmed')>=0||_ec.indexOf('email not confirmed')>=0){
-        a.innerHTML=alrtH('wa','บัญชีนี้ยังไม่ได้ยืนยันอีเมล — กรุณากดลิงก์ยืนยันในกล่องจดหมาย (เช็คถัง Spam ด้วย) แล้วลองใหม่');
+        a.innerHTML=_authAlrtH('wa','บัญชีนี้ยังไม่ได้ยืนยันอีเมล — กรุณากดลิงก์ยืนยันในกล่องจดหมาย (เช็คถัง Spam ด้วย) แล้วลองใหม่');
+        _setLoginBusy(false);
         return;
       }
       _loginAttempts++;
@@ -199,23 +244,26 @@ async function doLogin(){
         _loginLockedUntil=Date.now()+15*60*1000;_loginAttempts=0;
         localStorage.setItem('_llu',_loginLockedUntil);
         localStorage.setItem('_la','0');
-        a.innerHTML=alrtH('er','พยายามเข้าสู่ระบบผิดพลาดหลายครั้งเกินไป กรุณารอ 15 นาที');
+        a.innerHTML=_authAlrtH('er','พยายามเข้าสู่ระบบผิดพลาดหลายครั้งเกินไป กรุณารอ 15 นาที');
       } else {
-        a.innerHTML=alrtH('er','ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง');
+        a.innerHTML=_authAlrtH('er','ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง');
       }
+      _setLoginBusy(false);
       return;
     }
     H.Authorization='Bearer '+_si.data.session.access_token;
     var rows=await dg('users','?auth_uid=eq.'+_si.data.user.id);
     var row=rows&&rows[0];
-    var ok=await _enterAppAsUser(row,{logLogin:true,onError:function(msg){a.innerHTML=alrtH('er',msg)}});
-    if(!ok)return;
+    var ok=await _enterAppAsUser(row,{logLogin:true,onError:function(msg){a.innerHTML=_authAlrtH('er',msg);_setLoginBusy(false);}});
+    if(!ok){_setLoginBusy(false);return;}
     _loginAttempts=0;
     localStorage.setItem('_la','0');
     localStorage.removeItem('_llu');
+    try{sessionStorage.removeItem('_luDraft');}catch(e){}
   }catch(e){
     console.error('doLogin:',e);
-    a.innerHTML=alrtH('er','เกิดข้อผิดพลาด กรุณาลองใหม่')
+    a.innerHTML=_authAlrtH('er','เกิดข้อผิดพลาด กรุณาลองใหม่');
+    _setLoginBusy(false);
   }
 }
 
@@ -258,38 +306,38 @@ function showPend(){
 async function doRegG(){
   var fn=gv('gfn'),ln=gv('gln'),sid=gv('gsid'),pos=gv('gpos'),pw=gv('gpw'),pw2=gv('gpw2'),gemail=gv('gemail').trim();
   var a=$e('reg-alert'); if(!a)return;
-  if(!fn||!ln||!sid||!pos||!pw||!gemail){a.innerHTML=alrtH('er','กรุณากรอกข้อมูลให้ครบทุกช่อง');return}
-  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(gemail)){a.innerHTML=alrtH('er','รูปแบบอีเมลไม่ถูกต้อง');return}
+  if(!fn||!ln||!sid||!pos||!pw||!gemail){a.innerHTML=_authAlrtH('er','กรุณากรอกข้อมูลให้ครบทุกช่อง');return}
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(gemail)){a.innerHTML=_authAlrtH('er','รูปแบบอีเมลไม่ถูกต้อง');return}
   var _slen=+(SETT&&SETT.student_id_length)||10, _ssfx=(SETT&&SETT.student_id_suffix)||'27';
-  if(!(new RegExp('^\\d{'+_slen+'}$')).test(sid)||sid.slice(-_ssfx.length)!==_ssfx){a.innerHTML=alrtH('er','รหัสนิสิตไม่ถูกต้อง ('+_slen+' หลัก ลงท้ายด้วย '+_ssfx+')');return}
-  if(pw.length<6){a.innerHTML=alrtH('er','รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร');return}
-  if(pw!==pw2){a.innerHTML=alrtH('er','รหัสผ่านทั้งสองช่องไม่ตรงกัน');return}
-  a.innerHTML='<div class="al al-in"><span class="sp sp-dark"></span><span> กำลังบันทึก...</span></div>';
+  if(!(new RegExp('^\\d{'+_slen+'}$')).test(sid)||sid.slice(-_ssfx.length)!==_ssfx){a.innerHTML=_authAlrtH('er','รหัสนิสิตไม่ถูกต้อง ('+_slen+' หลัก ลงท้ายด้วย '+_ssfx+')');return}
+  if(pw.length<6){a.innerHTML=_authAlrtH('er','รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร');return}
+  if(pw!==pw2){a.innerHTML=_authAlrtH('er','รหัสผ่านทั้งสองช่องไม่ตรงกัน');return}
+  a.innerHTML=_authAlrtH('in','กำลังบันทึก...');
   var {data,error}=await sb.auth.signUp({email:gemail,password:pw,options:{data:{
     full_name:fn+' '+ln,student_id:sid,position_code:pos,role_code:PR[pos]||'ROLE-CRT',
     department:'กนค.',user_type:'gnk',contact_email:gemail
   }}});
-  if(error){a.innerHTML=alrtH('er',error.message==='User already registered'?'อีเมลนี้มีการสมัครแล้ว':error.message);return}
+  if(error){a.innerHTML=_authAlrtH('er',error.message==='User already registered'?'อีเมลนี้มีการสมัครแล้ว':error.message);return}
   try{await sb.auth.signOut();}catch(e){} // สมัครแล้วต้องรออนุมัติ ยังไม่ให้เข้าระบบทันที
-  a.innerHTML=alrtH('ok','สมัครสำเร็จ! กรุณารอผู้ดูแลระบบอนุมัติก่อนเข้าใช้งาน');
+  a.innerHTML=_authAlrtH('ok','สมัครสำเร็จ! กรุณารอผู้ดูแลระบบอนุมัติก่อนเข้าใช้งาน');
   setTimeout(function(){closeRegPopup()},2200)
 }
 
 async function doRegS(){
   var nm=gv('snm'),tp=gv('stp')||'advisor',em=gv('sem'),dp2=gv('sdp'),pw=gv('spw'),pw2=gv('spw2');
   var a=$e('reg-alert'); if(!a)return;
-  if(!nm||!em||!pw){a.innerHTML=alrtH('er','กรุณากรอกข้อมูลให้ครบ');return}
-  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)){a.innerHTML=alrtH('er','รูปแบบอีเมลไม่ถูกต้อง');return}
-  if(pw.length<6){a.innerHTML=alrtH('er','รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร');return}
-  if(pw!==pw2){a.innerHTML=alrtH('er','รหัสผ่านทั้งสองช่องไม่ตรงกัน');return}
-  a.innerHTML='<div class="al al-in"><span class="sp sp-dark"></span><span> กำลังบันทึก...</span></div>';
+  if(!nm||!em||!pw){a.innerHTML=_authAlrtH('er','กรุณากรอกข้อมูลให้ครบ');return}
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)){a.innerHTML=_authAlrtH('er','รูปแบบอีเมลไม่ถูกต้อง');return}
+  if(pw.length<6){a.innerHTML=_authAlrtH('er','รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร');return}
+  if(pw!==pw2){a.innerHTML=_authAlrtH('er','รหัสผ่านทั้งสองช่องไม่ตรงกัน');return}
+  a.innerHTML=_authAlrtH('in','กำลังบันทึก...');
   var {data,error}=await sb.auth.signUp({email:em,password:pw,options:{data:{
     full_name:nm,role_code:tp==='advisor'?'ROLE-ADV':'ROLE-STF',
     department:dp2||'สำนักกิจการนิสิต',user_type:tp,contact_email:em
   }}});
-  if(error){a.innerHTML=alrtH('er',error.message==='User already registered'?'อีเมลนี้มีการสมัครแล้ว':error.message);return}
+  if(error){a.innerHTML=_authAlrtH('er',error.message==='User already registered'?'อีเมลนี้มีการสมัครแล้ว':error.message);return}
   try{await sb.auth.signOut();}catch(e){}
-  a.innerHTML=alrtH('ok','สมัครสำเร็จ! กรุณารอผู้ดูแลระบบอนุมัติ');
+  a.innerHTML=_authAlrtH('ok','สมัครสำเร็จ! กรุณารอผู้ดูแลระบบอนุมัติ');
   setTimeout(function(){closeRegPopup()},2200)
 }
 
@@ -393,7 +441,7 @@ function showChangePwPopup(){
       '</div>'+
       '<div class="cpopup-body">'+
         '<div id="cpw-alert"></div>'+
-        '<div class="al al-in text-xs mb-3.5"><span class="al-icon">'+svg('info',13)+'</span><span>กรอกข้อมูลเพื่อตั้งรหัสผ่านใหม่ โดยต้องทราบรหัสผ่านเดิมก่อน</span></div>'+
+        '<div class="al al-in auth-al text-xs mb-3.5"><span class="al-icon">'+_authSvgInfo(13)+'</span><span class="al-msg">กรอกข้อมูลเพื่อตั้งรหัสผ่านใหม่ โดยต้องทราบรหัสผ่านเดิมก่อน</span></div>'+
         '<div class="fg"><label class="fl">ชื่อผู้ใช้ / รหัสนิสิต / อีเมล <span class="req">*</span></label>'+
         '<input id="cpuser" class="fi" placeholder="กนค.: รหัสนิสิต | อ./จนท.: อีเมล"></div>'+
         '<div class="fg"><label class="fl">รหัสผ่านเดิม <span class="req">*</span></label>'+
@@ -415,10 +463,10 @@ function closeChangePwPopup(){var e=document.getElementById('cpopup');if(e)e.rem
 async function doChangePwLogin(){
   var u=gv('cpuser').trim(), old=gv('cpold'), nw=gv('cpnew'), nw2=gv('cpnew2');
   var al=$e('cpw-alert'); if(!al) return;
-  if(!u||!old||!nw||!nw2){al.innerHTML=alrtH('er','กรุณากรอกข้อมูลให้ครบทุกช่อง');return}
-  if(nw.length<6){al.innerHTML=alrtH('er','รหัสผ่านใหม่ต้องมีอย่างน้อย 6 ตัวอักษร');return}
-  if(nw!==nw2){al.innerHTML=alrtH('er','รหัสผ่านใหม่ทั้งสองช่องไม่ตรงกัน');return}
-  al.innerHTML='<div class="al al-in"><span class="sp sp-dark"></span><span> กำลังตรวจสอบ...</span></div>';
+  if(!u||!old||!nw||!nw2){al.innerHTML=_authAlrtH('er','กรุณากรอกข้อมูลให้ครบทุกช่อง');return}
+  if(nw.length<6){al.innerHTML=_authAlrtH('er','รหัสผ่านใหม่ต้องมีอย่างน้อย 6 ตัวอักษร');return}
+  if(nw!==nw2){al.innerHTML=_authAlrtH('er','รหัสผ่านใหม่ทั้งสองช่องไม่ตรงกัน');return}
+  al.innerHTML=_authAlrtH('in','กำลังตรวจสอบ...');
   try{
     var email=u;
     if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(u)){
@@ -427,16 +475,16 @@ async function doChangePwLogin(){
     }
     // verify รหัสผ่านเดิมด้วยการลอง sign in จริง (Supabase Auth เป็นคนเช็คให้ ไม่ต้องเก็บ hash เองแล้ว)
     var _si=await sb.auth.signInWithPassword({email:email,password:old});
-    if(_si.error||!_si.data||!_si.data.session){al.innerHTML=alrtH('er','รหัสผ่านปัจจุบันไม่ถูกต้อง หรือไม่พบบัญชีผู้ใช้นี้');return}
+    if(_si.error||!_si.data||!_si.data.session){al.innerHTML=_authAlrtH('er','รหัสผ่านปัจจุบันไม่ถูกต้อง หรือไม่พบบัญชีผู้ใช้นี้');return}
     H.Authorization='Bearer '+_si.data.session.access_token;
     var {error}=await sb.auth.updateUser({password:nw});
     await sb.auth.signOut(); // หน้านี้แค่เปลี่ยนรหัส ไม่ใช่ login เข้าระบบ
-    if(error){al.innerHTML=alrtH('er',error.message);return}
-    al.innerHTML=alrtH('ok','เปลี่ยนรหัสผ่านสำเร็จ! กรุณาเข้าสู่ระบบด้วยรหัสผ่านใหม่');
+    if(error){al.innerHTML=_authAlrtH('er',error.message);return}
+    al.innerHTML=_authAlrtH('ok','เปลี่ยนรหัสผ่านสำเร็จ! กรุณาเข้าสู่ระบบด้วยรหัสผ่านใหม่');
     setTimeout(function(){closeChangePwPopup()},1800)
   }catch(e){
     console.error('doChangePwLogin:',e);
-    al.innerHTML=alrtH('er','เกิดข้อผิดพลาด กรุณาลองใหม่')
+    al.innerHTML=_authAlrtH('er','เกิดข้อผิดพลาด กรุณาลองใหม่')
   }
 }
 
@@ -464,21 +512,21 @@ function showChangePw(){
 async function doChangePw(){
   var old=gv('cpold'), nw=gv('cpnew'), nw2=gv('cpnew2');
   var al=$e('cpwal'); if(!al) return;
-  if(!old||!nw||!nw2){al.innerHTML=alrtH('er','กรุณากรอกข้อมูลให้ครบทุกช่อง');return}
-  if(nw.length<6){al.innerHTML=alrtH('er','รหัสผ่านใหม่ต้องมีอย่างน้อย 6 ตัวอักษร');return}
-  if(nw!==nw2){al.innerHTML=alrtH('er','รหัสผ่านใหม่ทั้งสองช่องไม่ตรงกัน');return}
-  al.innerHTML='<div class="al al-in"><span class="sp sp-dark"></span><span> กำลังตรวจสอบ...</span></div>';
+  if(!old||!nw||!nw2){al.innerHTML=_authAlrtH('er','กรุณากรอกข้อมูลให้ครบทุกช่อง');return}
+  if(nw.length<6){al.innerHTML=_authAlrtH('er','รหัสผ่านใหม่ต้องมีอย่างน้อย 6 ตัวอักษร');return}
+  if(nw!==nw2){al.innerHTML=_authAlrtH('er','รหัสผ่านใหม่ทั้งสองช่องไม่ตรงกัน');return}
+  al.innerHTML=_authAlrtH('in','กำลังตรวจสอบ...');
   try{
     var _si=await sb.auth.signInWithPassword({email:CU.email,password:old});
-    if(_si.error){al.innerHTML=alrtH('er','รหัสผ่านปัจจุบันไม่ถูกต้อง');return}
-    al.innerHTML='<div class="al al-in"><span class="sp sp-dark"></span><span> กำลังบันทึก...</span></div>';
+    if(_si.error){al.innerHTML=_authAlrtH('er','รหัสผ่านปัจจุบันไม่ถูกต้อง');return}
+    al.innerHTML=_authAlrtH('in','กำลังบันทึก...');
     var {error}=await sb.auth.updateUser({password:nw});
-    if(error){al.innerHTML=alrtH('er',error.message);return}
-    al.innerHTML=alrtH('ok','เปลี่ยนรหัสผ่านสำเร็จแล้ว!');
+    if(error){al.innerHTML=_authAlrtH('er',error.message);return}
+    al.innerHTML=_authAlrtH('ok','เปลี่ยนรหัสผ่านสำเร็จแล้ว!');
     setTimeout(function(){var mw=$e('mwrap');if(mw)mw.innerHTML=''},1500)
   }catch(e){
     console.error('doChangePw:',e);
-    al.innerHTML=alrtH('er','เกิดข้อผิดพลาด กรุณาลองใหม่')
+    al.innerHTML=_authAlrtH('er','เกิดข้อผิดพลาด กรุณาลองใหม่')
   }
 }
 
@@ -487,9 +535,7 @@ function _togglePwVis(inputId,btnId){
   if(!inp||!btn) return;
   var show=inp.type==='password';
   inp.type=show?'text':'password';
-  btn.innerHTML=show
-    ?'<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M1 8s3-5 7-5 7 5 7 5-3 5-7 5-7-5-7-5z"/><circle cx="8" cy="8" r="2"/><line x1="2" y1="2" x2="14" y2="14"/></svg>'
-    :svg('eye',16);
+  btn.innerHTML=show?_authSvgEyeOff(16):_authSvgEye(16);
   btn.style.color=show?'#E83A00':'#a89e99';
 }
 

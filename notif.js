@@ -322,12 +322,12 @@ function buildEmailHtml(o){
    — เงื่อนไขจริงถูกตรวจซ้ำฝั่งเซิร์ฟเวอร์ใน RPC (supabase/overdue_once_auto_approve.sql) */
 /* ── ตรวจเอกสารเลยกำหนด — ย้ายไป cron ฝั่งเซิร์ฟเวอร์ (check-overdue Edge Function)
    คงไว้เป็น fallback เฉพาะเจ้าหน้าที่ กรณี cron ล้มเหลว */
-async function sendOverdueNotifs(){
+async function sendOverdueNotifs(force){
   if(!CU||['ROLE-SYS','ROLE-STF','ROLE-DEV'].indexOf(CU.role_code)<0) return;
-  if(SETT.overdue_cron_enabled!==false) return;
+  if(!force&&SETT.overdue_cron_enabled!==false) return;
   var today=new Date().toISOString().substring(0,10);
-  if(localStorage.getItem('_overdueCk')===today) return;
-  localStorage.setItem('_overdueCk',today);
+  if(!force&&localStorage.getItem('_overdueCk')===today) return;
+  if(!force) localStorage.setItem('_overdueCk',today);
   // เอกสารค้าง workflow + เอกสารเสร็จสิ้นที่ส่งต่อแล้วแต่ผู้รับยังไม่กดรับ
   var rs=await Promise.all([
     dg('documents','?status=eq.pending&due_date=lt.'+today+'&notify_overdue=eq.true&select=id'),

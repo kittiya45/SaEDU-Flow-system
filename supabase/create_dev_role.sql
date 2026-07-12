@@ -11,9 +11,11 @@
 --     ✓ อ่าน/ลบ system_logs (error log)
 --     ✓ อ่าน notifications (ดู log การแจ้งเตือน)
 --     ✓ เขียนตาราง config ทั้งหมด (app_settings, email_templates, workflow_templates(+steps),
---       doc_types(+fields), doc_number_settings, projects) — งาน "แก้ระบบหลังบ้าน"
+--       doc_types(+fields), doc_number_settings, projects, form_templates) — งาน "แก้ระบบหลังบ้าน"
 --     ✓ UPDATE documents / workflow_steps (เครื่องมือซ่อมเอกสาร)
---     ✗ จัดการผู้ใช้ (users อ่านได้เฉพาะแถวตัวเอง เหมือน user ทั่วไป)
+--     ✓ DELETE documents / document_files / workflow_steps (ลบเอกสารถาวร — phase 2)
+--     ✗ จัดการผู้ใช้เต็มรูปแบบ (ลบ/สร้าง) — ดู phase3 สำหรับอนุมัติ/แก้ role แบบจำกัด
+--     ✓ อ่าน/อัปเดต users แบบจำกัด (phase3) — อนุมัติ เปิด-ปิด แก้ role (ห้าม ROLE-SYS)
 --     ✗ ลบเอกสาร/ไฟล์/ประวัติ, สร้างเอกสารแทนคนอื่น
 --
 -- หมายเหตุ: การสมัครสมาชิกไม่มีทางได้ ROLE-DEV — ต้องให้แอดมินแก้ role ผ่านหน้า
@@ -106,6 +108,10 @@ drop policy if exists projects_write_dev on public.projects;
 create policy projects_write_dev on public.projects
   for all using (public.is_dev()) with check (public.is_dev());
 
+drop policy if exists form_templates_write_dev on public.form_templates;
+create policy form_templates_write_dev on public.form_templates
+  for all using (public.is_dev()) with check (public.is_dev());
+
 -- 4.2 log การแจ้งเตือน — SELECT ปกติจำกัด recipient/is_admin (restrict_notifications_select.sql)
 drop policy if exists notifications_select_dev on public.notifications;
 create policy notifications_select_dev on public.notifications
@@ -120,6 +126,29 @@ create policy documents_update_dev on public.documents
 drop policy if exists workflow_steps_update_dev on public.workflow_steps;
 create policy workflow_steps_update_dev on public.workflow_steps
   for update using (public.is_dev()) with check (public.is_dev());
+
+drop policy if exists documents_delete_dev on public.documents;
+create policy documents_delete_dev on public.documents
+  for delete using (public.is_dev());
+
+drop policy if exists document_files_delete_dev on public.document_files;
+create policy document_files_delete_dev on public.document_files
+  for delete using (public.is_dev());
+
+drop policy if exists workflow_steps_delete_dev on public.workflow_steps;
+create policy workflow_steps_delete_dev on public.workflow_steps
+  for delete using (public.is_dev());
+
+-- 4.4 จัดการผู้ใช้แบบจำกัด (phase3_dev_users.sql)
+drop policy if exists users_select_dev on public.users;
+create policy users_select_dev on public.users
+  for select using (public.is_dev());
+
+drop policy if exists users_update_dev on public.users;
+create policy users_update_dev on public.users
+  for update
+  using (public.is_dev() and role_code <> 'ROLE-SYS')
+  with check (public.is_dev() and role_code <> 'ROLE-SYS');
 
 -- 5) ประกาศหน้า Login (popup ก่อนล็อกอิน)
 --    หน้า Login ยังไม่มี session — เปิดให้ anon อ่าน app_settings ได้ "เฉพาะ" key ประกาศหน้า login

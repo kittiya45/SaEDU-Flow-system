@@ -43,7 +43,8 @@ document.addEventListener('click', function(e){
   else if(a==='doLineLinkCode') doLineLinkCode();
   else if(a==='lineLinkRefresh') lineLinkRefresh();
   else if(a==='doLineUnlink') doLineUnlink();
-  else if(a==='doChangePwLogin') doChangePwLogin();
+  else if(a==='saveUserSig') saveUserSig();
+  else if(a==='deleteUserSig') deleteUserSig();
   else if(a==='showChangePwPopup') showChangePwPopup();
   else if(a==='closeChangePwPopup') closeChangePwPopup();
   else if(a==='showRegGnkPopup') showRegGnkPopup();

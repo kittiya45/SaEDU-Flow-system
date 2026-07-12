@@ -1074,7 +1074,7 @@ async function _doDeleteProject(id){
 /* ══════════════════════════════════════════════
    📋  REFERENCE DATA CARD — รายการอ้างอิง
    ══════════════════════════════════════════════ */
-var _rdLT=[], _rdOT=[], _rdCL=[], _rdSP=[], _rdPOS=[];
+var _rdLT=[], _rdOT=[], _rdCL=[], _rdSP=[], _rdPOS=[], _rdBLT=[], _rdFG=[], _rdFB=[];
 
 function rRefDataCard(){
   _rdLT=LETTER_TYPES.slice();
@@ -1082,6 +1082,9 @@ function rRefDataCard(){
   _rdCL=Object.keys(CLUBS).map(function(k){return{code:k,name:CLUBS[k]};});
   _rdSP=SENDER_POS.map(function(p){return{name:p.name,code:String(p.code),isClub:!!p.isClub};});
   _rdPOS=POSS.map(function(c){return{code:c,name:PTH[c]||'',num:GNK_NUM[c]||'',role:PR[c]||'ROLE-CRT'};});
+  _rdBLT=BUDGET_LTYPES.slice();
+  _rdFG=FLOW_STEPS_GENERAL.map(function(s){return{step_name:s.step_name,role_required:s.role_required||'ROLE-SGN',pos:s.pos||'',role:s.role||'',self:!!s.self};});
+  _rdFB=FLOW_STEPS_BUDGET.map(function(s){return{step_name:s.step_name,role_required:s.role_required||'ROLE-SGN',pos:s.pos||'',role:s.role||'',self:!!s.self};});
 
   function _rdCard(id,title,ico,subtitle,listHtml,noAdd){
     return '<div class="card" style="margin-bottom:0">'+
@@ -1131,10 +1134,59 @@ function rRefDataCard(){
     _grpHead('ตำแหน่งนิสิต (POSS)','รหัสตำแหน่งที่ใช้สมัคร + เลข 2 หลักในเลขขาออก + สิทธิ์เริ่มต้น','#D97706')+
     _rdCard('pos','ตำแหน่งในระบบ','pen','รหัส GNK-XXX · ชื่อ · เลข 2 หลัก · สิทธิ์เริ่มต้น',_renderRdPOS())+
 
-    /* ── หมวด 4: สิทธิ์ระบบ ── */
+    /* ── หมวด 4: Workflow เริ่มต้น (หนังสือขาเข้า) ── */
+    _grpHead('Workflow เริ่มต้น (หนังสือขาเข้า)','กำหนดสายงานอัตโนมัติเมื่อสร้างหนังสือขาเข้า — ไม่ต้องแก้โค้ด','#7C3AED')+
+    '<div class="al al-in" style="margin-bottom:12px"><span class="al-icon">'+svg('info',13)+'</span><span style="font-size:11.5px">ขั้นตอนที่ 1 (ผู้จัดทำ) ระบบใส่ให้อัตโนมัติเสมอ — รายการด้านล่างคือขั้นตอนที่ 2 เป็นต้นไป · <strong>pos:</strong> เติมจากตำแหน่ง · <strong>role:</strong> เติมจากสิทธิ์ · <strong>self:</strong> ผู้สร้างเอกสาร</span></div>'+
+    _rdCard('blt','ประเภทเรื่องสายงบประมาณ','chart','เลือกประเภทเรื่องเหล่านี้แล้วใช้สายตรวจงบ (แทนสายทั่วไป)',_renderRdBLT())+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'+
+      _rdCard('fg','สายทั่วไป','refresh','ขั้นตอน default สำหรับหนังสือขาเข้าทั่วไป',_renderRdFlow('fg',_rdFG))+
+      _rdCard('fb','สายตรวจงบประมาณ','tasks','ขั้นตอน default เมื่อเลือกประเภทเรื่องงบ',_renderRdFlow('fb',_rdFB))+
+    '</div>'+
+
+    /* ── หมวด 5: สิทธิ์ระบบ ── */
     _grpHead('สิทธิ์การใช้งาน','กำหนดว่า role ไหนลงนาม/ตรวจทานเอกสารได้','#16A34A')+
     _rdCanCard()+
 
+  '</div>';
+}
+
+function _renderRdBLT(){
+  if(!_rdBLT.length) return '<div style="padding:12px 0;text-align:center;color:#a89e99;font-size:12px">ยังไม่มีรายการ — กด "เพิ่ม" เพื่อเริ่มต้น</div>';
+  return '<div style="display:flex;flex-direction:column;gap:5px">'+
+    _rdBLT.map(function(v,i){
+      return '<div style="display:flex;align-items:center;gap:8px">'+
+        '<span style="font-size:11px;color:#c0b9b4;width:20px;text-align:right;flex-shrink:0">'+(i+1)+'</span>'+
+        '<input class="fi" style="flex:1;font-size:12px;padding:6px 10px" id="rd-blt-'+i+'" value="'+esc(v)+'" placeholder="ชื่อประเภทเรื่อง (ตรงกับหนังสือขาเข้า)">'+
+        '<button onclick="_rdRemove(\'blt\','+i+')" style="background:none;border:none;cursor:pointer;color:#c0b9b4;padding:5px;border-radius:6px;flex-shrink:0" title="ลบ">'+svg('x',14)+'</button>'+
+      '</div>';
+    }).join('')+
+  '</div>';
+}
+
+function _renderRdFlow(prefix,arr){
+  if(!arr.length) return '<div style="padding:12px 0;text-align:center;color:#a89e99;font-size:12px">ยังไม่มีขั้นตอน — กด "เพิ่ม" เพื่อเริ่มต้น</div>';
+  var roleOpts=['ROLE-SGN','ROLE-REV','ROLE-STF','ROLE-ADV','ROLE-CRT'];
+  return '<div style="overflow-x:auto">'+
+    '<div style="display:grid;grid-template-columns:20px 1fr 90px 80px 80px 36px 28px;gap:6px;align-items:center;padding:6px 0;border-bottom:1px solid #F5F3F0;margin-bottom:4px;min-width:620px">'+
+      '<span></span>'+
+      ['ชื่อขั้นตอน','สิทธิ์','pos','role','self',''].map(function(h){
+        return '<span style="font-size:9px;font-weight:700;color:#c0b9b4;text-transform:uppercase;letter-spacing:.4px">'+h+'</span>';
+      }).join('')+
+    '</div>'+
+    arr.map(function(s,i){
+      var roleSelect='<select id="rd-'+prefix+'-role-'+i+'" style="width:100%;height:30px;border:1.5px solid #EBEBEB;border-radius:7px;background:#fff;font-size:10px;padding:0 4px;color:#18120E">'+
+        roleOpts.map(function(r){return '<option value="'+r+'"'+(s.role_required===r?' selected':'')+'>'+r.replace('ROLE-','')+'</option>';}).join('')+
+      '</select>';
+      return '<div style="display:grid;grid-template-columns:20px 1fr 90px 80px 80px 36px 28px;gap:6px;align-items:center;padding:4px 0;min-width:620px">'+
+        '<span style="font-size:10px;color:#c0b9b4;text-align:right">'+(i+1)+'</span>'+
+        '<input class="fi" style="font-size:11px;padding:5px 8px" id="rd-'+prefix+'-name-'+i+'" value="'+esc(s.step_name)+'" placeholder="ชื่อขั้นตอน">'+
+        roleSelect+
+        '<input class="fi" style="font-size:10px;font-family:monospace;padding:5px 6px" id="rd-'+prefix+'-pos-'+i+'" value="'+esc(s.pos||'')+'" placeholder="GNK-TRS">'+
+        '<input class="fi" style="font-size:10px;font-family:monospace;padding:5px 6px" id="rd-'+prefix+'-rkey-'+i+'" value="'+esc(s.role||'')+'" placeholder="ROLE-STF">'+
+        '<label style="display:flex;align-items:center;justify-content:center;cursor:pointer" title="ผู้สร้างเอกสารเสมอ"><input type="checkbox" id="rd-'+prefix+'-self-'+i+'"'+(s.self?' checked':'')+' style="accent-color:#E83A00"></label>'+
+        '<button onclick="_rdRemove(\''+prefix+'\','+i+')" style="background:none;border:none;cursor:pointer;color:#c0b9b4;padding:4px;border-radius:6px" title="ลบ">'+svg('x',13)+'</button>'+
+      '</div>';
+    }).join('')+
   '</div>';
 }
 
@@ -1213,7 +1265,39 @@ function _rdSnapshot(type){
     _rdPOS=_rdPOS.map(function(p,i){
       return{code:($e('rd-pos-code-'+i)||{}).value||p.code, name:($e('rd-pos-name-'+i)||{}).value||p.name, num:($e('rd-pos-num-'+i)||{}).value||p.num, role:($e('rd-pos-role-'+i)||{}).value||p.role};
     });
+  } else if(type==='blt'){
+    _rdBLT=_rdBLT.map(function(v,i){var el=$e('rd-blt-'+i);return el?el.value:v;});
+  } else if(type==='fg'){
+    _rdFlowSnapshot('fg',_rdFG);
+  } else if(type==='fb'){
+    _rdFlowSnapshot('fb',_rdFB);
   }
+}
+
+function _rdFlowSnapshot(prefix,targetArr){
+  var out=[],i=0;
+  while($e('rd-'+prefix+'-name-'+i)){
+    out.push({
+      step_name:($e('rd-'+prefix+'-name-'+i)||{}).value||'',
+      role_required:($e('rd-'+prefix+'-role-'+i)||{}).value||'ROLE-SGN',
+      pos:($e('rd-'+prefix+'-pos-'+i)||{}).value||'',
+      role:($e('rd-'+prefix+'-rkey-'+i)||{}).value||'',
+      self:!!($e('rd-'+prefix+'-self-'+i)||{}).checked
+    });
+    i++;
+  }
+  targetArr.length=0;
+  out.forEach(function(s){targetArr.push(s);});
+}
+
+function _rdNormFlowArr(arr){
+  return arr.filter(function(s){return (s.step_name||'').trim();}).map(function(s){
+    var o={step_name:s.step_name.trim(),role_required:s.role_required||'ROLE-SGN'};
+    if((s.pos||'').trim()) o.pos=s.pos.trim();
+    if((s.role||'').trim()) o.role=s.role.trim();
+    if(s.self) o.self=true;
+    return o;
+  });
 }
 
 function _rdAdd(type){
@@ -1223,12 +1307,15 @@ function _rdAdd(type){
   else if(type==='cl') _rdCL.push({code:'',name:''});
   else if(type==='sp') _rdSP.push({name:'',code:'',isClub:false});
   else if(type==='pos') _rdPOS.push({code:'',name:'',num:'',role:'ROLE-CRT'});
+  else if(type==='blt') _rdBLT.push('');
+  else if(type==='fg') _rdFG.push({step_name:'',role_required:'ROLE-SGN',pos:'',role:'',self:false});
+  else if(type==='fb') _rdFB.push({step_name:'',role_required:'ROLE-SGN',pos:'',role:'',self:false});
   var el=$e('rd-'+type+'-list');
-  var fn={lt:_renderRdLT,ot:_renderRdOT,cl:_renderRdCL,sp:_renderRdSP,pos:_renderRdPOS};
+  var fn={lt:_renderRdLT,ot:_renderRdOT,cl:_renderRdCL,sp:_renderRdSP,pos:_renderRdPOS,blt:_renderRdBLT,fg:function(){return _renderRdFlow('fg',_rdFG);},fb:function(){return _renderRdFlow('fb',_rdFB);}};
   if(el) el.innerHTML=fn[type]();
-  var arr={lt:_rdLT,ot:_rdOT,cl:_rdCL,sp:_rdSP,pos:_rdPOS}[type];
+  var arr={lt:_rdLT,ot:_rdOT,cl:_rdCL,sp:_rdSP,pos:_rdPOS,blt:_rdBLT,fg:_rdFG,fb:_rdFB}[type];
   var lastIdx=arr.length-1;
-  var focusId=type==='lt'?'rd-lt-'+lastIdx:type==='ot'?'rd-ot-'+lastIdx:type==='cl'?'rd-cl-code-'+lastIdx:type==='pos'?'rd-pos-code-'+lastIdx:'rd-sp-code-'+lastIdx;
+  var focusId=type==='lt'?'rd-lt-'+lastIdx:type==='ot'?'rd-ot-'+lastIdx:type==='cl'?'rd-cl-code-'+lastIdx:type==='pos'?'rd-pos-code-'+lastIdx:type==='blt'?'rd-blt-'+lastIdx:type==='fg'?'rd-fg-name-'+lastIdx:type==='fb'?'rd-fb-name-'+lastIdx:'rd-sp-code-'+lastIdx;
   setTimeout(function(){var f=$e(focusId);if(f)f.focus();},40);
 }
 
@@ -1239,8 +1326,11 @@ function _rdRemove(type,idx){
   else if(type==='cl') _rdCL.splice(idx,1);
   else if(type==='sp') _rdSP.splice(idx,1);
   else if(type==='pos') _rdPOS.splice(idx,1);
+  else if(type==='blt') _rdBLT.splice(idx,1);
+  else if(type==='fg') _rdFG.splice(idx,1);
+  else if(type==='fb') _rdFB.splice(idx,1);
   var el=$e('rd-'+type+'-list');
-  var fn={lt:_renderRdLT,ot:_renderRdOT,cl:_renderRdCL,sp:_renderRdSP,pos:_renderRdPOS};
+  var fn={lt:_renderRdLT,ot:_renderRdOT,cl:_renderRdCL,sp:_renderRdSP,pos:_renderRdPOS,blt:_renderRdBLT,fg:function(){return _renderRdFlow('fg',_rdFG);},fb:function(){return _renderRdFlow('fb',_rdFB);}};
   if(el) el.innerHTML=fn[type]();
 }
 
@@ -1395,15 +1485,32 @@ async function _rdSave(type){
         PR[p.code.trim()]=p.role||'ROLE-CRT';
       });
       key='positions_json';
+    } else if(type==='blt'){
+      arr=_rdBLT.filter(function(v){return v.trim();});
+      _rdBLT=arr.slice();
+      BUDGET_LTYPES.length=0; arr.forEach(function(x){BUDGET_LTYPES.push(x);});
+      key='budget_ltypes_json';
+    } else if(type==='fg'){
+      arr=_rdNormFlowArr(_rdFG);
+      _rdFG=arr.map(function(s){return Object.assign({},s);});
+      _applyFlowStepsJson(arr,FLOW_STEPS_GENERAL);
+      key='flow_steps_general_json';
+    } else if(type==='fb'){
+      arr=_rdNormFlowArr(_rdFB);
+      _rdFB=arr.map(function(s){return Object.assign({},s);});
+      _applyFlowStepsJson(arr,FLOW_STEPS_BUDGET);
+      key='flow_steps_budget_json';
     }
+    if(!key) return;
     val=JSON.stringify(arr);
+    SETT[key]=arr;
     var ex=await dg('app_settings','?key=eq.'+encodeURIComponent(key)+'&select=key&limit=1');
     if(ex&&ex.length){
       await fetch(SU+'/rest/v1/app_settings?key=eq.'+encodeURIComponent(key),{method:'PATCH',headers:H,body:JSON.stringify({value:val,updated_by:CU.id,updated_at:new Date().toISOString()})});
     }else{
       await dp('app_settings',{key:key,value:val,label:key,value_type:'json',updated_by:CU.id,updated_at:new Date().toISOString()});
     }
-    var fn={lt:_renderRdLT,ot:_renderRdOT,cl:_renderRdCL,sp:_renderRdSP,pos:_renderRdPOS};
+    var fn={lt:_renderRdLT,ot:_renderRdOT,cl:_renderRdCL,sp:_renderRdSP,pos:_renderRdPOS,blt:_renderRdBLT,fg:function(){return _renderRdFlow('fg',_rdFG);},fb:function(){return _renderRdFlow('fb',_rdFB);}};
     var el=$e('rd-'+type+'-list'); if(el&&fn[type]) el.innerHTML=fn[type]();
     if(al) al.innerHTML='<div class="al al-ok" style="margin:0 16px 8px"><span class="al-icon">'+svg('ok',13)+'</span><span>บันทึกเรียบร้อย '+(arr.length)+' รายการ</span></div>';
     setTimeout(function(){if(al)al.innerHTML='';},3500);

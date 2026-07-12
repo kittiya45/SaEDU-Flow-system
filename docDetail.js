@@ -54,7 +54,7 @@ function _fileGroups(files){
   });
   return {cur:cur,hist:hist};
 }
-function _canSeeVerHist(){return ['ROLE-SYS','ROLE-STF'].includes(CU.role_code)}
+function _canSeeVerHist(){return ['ROLE-SYS','ROLE-STF','ROLE-DEV'].includes(CU.role_code)}
 function _rCurFileRow(f,docId){
   var ft=fType(f);
   var isSigned=_isSignedFile(f);
@@ -131,9 +131,9 @@ async function vDet(docId){
   // ตรวจสอบว่ามีการส่งคืนแก้ไขในอดีตหรือไม่
   var hasRejectedHistory=wf.some(function(s){return s.status==='rejected'});
 
-  var html=['<div class="flex items-center gap-2.5 mb-3 flex-wrap">'];
+  var html=['<div class="detail-toolbar">'];
   html.push('<button class="btn-back" data-action="nav" data-view="docs">'+svg('back',15)+' กลับรายการ</button>');
-  html.push(sBadge(doc.status));
+  html.push('<span class="detail-toolbar-status">'+sBadge(doc.status)+'</span>');
   // Status banners — เก็บแยกไว้ก่อน แสดงเป็นแถบเต็มความกว้างใต้ toolbar (ไม่ปนกับปุ่ม action)
   var banners=[];
   if(doc.status==='completed') banners.push('<div class="al al-ok"><span class="al-icon">'+svg('ok',13)+'</span><span><strong>อนุมัติครบทุกขั้นตอนแล้ว</strong> เอกสารเสร็จสมบูรณ์</span></div>');
@@ -170,7 +170,7 @@ async function vDet(docId){
      - Primary actions: อนุมัติ, ส่งคืน, ออกเลข, ส่งใหม่
      - Secondary actions: แก้ไข, อัปโหลด, ส่งต่อ, Export
      - Destructive actions: ลบ, เปลี่ยนสถานะ — ซ่อนใน dropdown ⋮ (admin เท่านั้น) */
-  html.push('<div class="ml-auto flex gap-2 flex-wrap items-center">');
+  html.push('<div class="detail-toolbar-actions">');
   // Primary — action ที่ user ต้องทำตอนนี้
   if(canAct){
     html.push('<button class="btn btn-success sm" data-action="showActModal" data-act="approve" data-id="'+docId+'">'+svg('ok',13)+' อนุมัติ / ลงนาม</button>');
@@ -233,7 +233,7 @@ async function vDet(docId){
     );
   }
   html.push('</div></div>');
-  if(banners.length) html.push('<div class="flex flex-col gap-2.5 mb-[18px]" style="margin-top:24px">'+banners.join('')+'</div>');
+  if(banners.length) html.push('<div class="detail-banners">'+banners.join('')+'</div>');
   html.push('<div id="dal"></div>');
   html.push('<div class="two-col"><div>');
 
@@ -734,13 +734,12 @@ async function doAct(action,docId){
   // Embed signature — ซ้อนลายเซ็นทับ PDF เดิม (อัปเดตไฟล์เดิม ไม่สร้างสำเนาใหม่ทุกขั้นตอน)
   if(sigSrc&&action==='approve'){
     try{
-      var allPdfs=await dg('document_files','?document_id=eq.'+safeId(docId)+'&file_type=like.application%2Fpdf&order=uploaded_at.desc');
-      if(allPdfs&&allPdfs.length){
-        var latestFile=allPdfs[0];
-        var baseName=_fileBaseName(latestFile);
-        var groupPdfs=allPdfs.filter(function(f){return _fileBaseName(f)===baseName});
-        var sourceFile=groupPdfs[0];
-        var signedRow=groupPdfs.find(function(f){return _isSignedFile(f)});
+      var allPdfs=await dg('document_files','?document_id=eq.'+safeId(docId)+'&file_type=like.application%2Fpdf');
+      var _sp=_signPdfWorkingCopy(allPdfs);
+      if(_sp&&_sp.working){
+        var sourceFile=_sp.working;
+        var baseName=_sp.baseName;
+        var signedRow=_sp.signedRow;
         if(!window.PDFLib) await loadSc('https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js');
         if(sourceFile.file_size&&sourceFile.file_size>20*1024*1024)
           throw new Error('ไฟล์ PDF ขนาด '+Math.round(sourceFile.file_size/1024/1024)+'MB ใหญ่เกินไป กรุณาใช้ตัวแก้ไข PDF แนบลายเซ็นด้วยตนเอง');

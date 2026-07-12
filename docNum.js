@@ -236,11 +236,10 @@ function _updateDateStamp(){
 }
 
 function _updateStampFontSize(){
-  var sz=parseInt(($e('num-fontsize')||{}).value)||10; // pt จริงใน PDF (1 pt = 1/72 นิ้ว)
+  var sz=parseInt(($e('num-fontsize')||{}).value)||10; // 1 px ใน preview = 1 PDF pt
   var lbl=$e('num-fontsize-val'); if(lbl) lbl.textContent=sz+' pt';
-  var pt=sz+'pt';
-  var ns=$e('num-stamp-num'); if(ns) ns.style.fontSize=pt;
-  var ds=$e('num-stamp-date'); if(ds) ds.style.fontSize=pt;
+  var ns=$e('num-stamp-num'); if(ns) ns.style.fontSize=sz+'px';
+  var ds=$e('num-stamp-date'); if(ds) ds.style.fontSize=sz+'px';
 }
 
 function _toggleStampLock(){
@@ -263,9 +262,26 @@ function _ensureSarabunPrevFont(){
   document.head.appendChild(st);
 }
 
-/* ตำแหน่ง stamp ใน PDF point (container ใช้ 1 CSS px = 1 pt) */
-function _stampPdfPos(el){
-  return {x:parseFloat(el.style.left)||0, y:parseFloat(el.style.top)||0};
+/* ตำแหน่ง stamp ใน PDF point — อ่านจาก DOM จริง (ไม่พึ่ง style.left/top อย่างเดียว) */
+function _stampPdfPos(el,container){
+  if(!el) return {x:0,y:0};
+  var sc=container?(parseFloat(container.dataset.scale)||1):1;
+  if(container){
+    var cr=container.getBoundingClientRect();
+    var er=el.getBoundingClientRect();
+    return {x:(er.left-cr.left)/sc,y:(er.top-cr.top)/sc};
+  }
+  return {x:parseFloat(el.style.left)||0,y:parseFloat(el.style.top)||0};
+}
+
+/* วัด ascent ในหน่วยเดียวกับ preview (1 CSS px = 1 PDF pt ใน container) */
+function _stampAscentPx(sz){
+  _ensureSarabunPrevFont();
+  var c=document.createElement('canvas');
+  var x=c.getContext('2d');
+  x.font=sz+'px THSarabunPrev, Sarabun, sans-serif';
+  var m=x.measureText('ก');
+  return m.actualBoundingBoxAscent||m.fontBoundingBoxAscent||sz*0.72;
 }
 
 /* ─── Drag handler สำหรับ stamp overlays ─── */
@@ -283,19 +299,23 @@ function _makeStampDraggable(el,container){
   el.addEventListener('pointermove',function(e){
     if(!drag) return;
     var s=_sc();
+    var cw=parseFloat(container.dataset.pdfW)||container.offsetWidth;
+    var ch=parseFloat(container.dataset.pdfH)||container.offsetHeight;
     // เคลื่อนเมาส์เป็นพิกเซลจอ แต่ left/top เป็น PDF pt — หาร scale ของ container
     var dx=(e.clientX-sx)/s, dy=(e.clientY-sy)/s;
-    var nl=Math.max(0,Math.min(container.offsetWidth-ew,ox+dx));
-    var nt=Math.max(0,Math.min(container.offsetHeight-eh,oy+dy));
+    var nl=Math.max(0,Math.min(cw-ew,ox+dx));
+    var nt=Math.max(0,Math.min(ch-eh,oy+dy));
     el.style.transform='translate3d('+(nl-ox)+'px,'+(nt-oy)+'px,0)';
   });
   el.addEventListener('pointerup',function(e){
     if(!drag) return;
     drag=false; el.releasePointerCapture(e.pointerId); el.style.cursor='grab';
     var s=_sc();
+    var cw=parseFloat(container.dataset.pdfW)||container.offsetWidth;
+    var ch=parseFloat(container.dataset.pdfH)||container.offsetHeight;
     var dx=(e.clientX-sx)/s, dy=(e.clientY-sy)/s;
-    var nl=Math.max(0,Math.min(container.offsetWidth-ew,ox+dx));
-    var nt=Math.max(0,Math.min(container.offsetHeight-eh,oy+dy));
+    var nl=Math.max(0,Math.min(cw-ew,ox+dx));
+    var nt=Math.max(0,Math.min(ch-eh,oy+dy));
     el.style.transform=''; el.style.willChange='';
     el.style.left=nl+'px'; el.style.top=nt+'px';
   });
@@ -329,7 +349,7 @@ async function _loadNumPDFPreview(docId){
     if(document.fonts&&document.fonts.load){
       try{
         var _fs=parseInt(($e('num-fontsize')||{}).value)||10;
-        await document.fonts.load(_fs+'pt THSarabunPrev');
+        await document.fonts.load(_fs+'px THSarabunPrev');
       }catch(_fl){}
     }
 
@@ -416,11 +436,12 @@ function doSetDocNumber(docId){
   if(!docDate){showAlert('กรุณาเลือกวันที่หนังสือ','wa');return}
   // จับค่าฟอร์มทั้งหมดก่อน showConfirm เพราะ showConfirm จะ replace mwrap แล้วทำให้ elements หาย
   var _ns=$e('num-stamp-num'), _ds=$e('num-stamp-date');
-  // left/top ของ stamp = PDF point โดยตรง (container 1px = 1pt)
+  var _cont=$e('num-stamp-container');
+  // ตำแหน่งจาก DOM จริง (สัดส่วนเดียวกับ PDF ที่จะฝัง)
   var _numPdfX,_numTopPdf,_datPdfX,_datTopPdf;
-  if(_ns){var _no=_stampPdfPos(_ns); _numPdfX=_no.x; _numTopPdf=_no.y;}
+  if(_ns){var _no=_stampPdfPos(_ns,_cont); _numPdfX=_no.x; _numTopPdf=_no.y;}
   else    {_numPdfX=42; _numTopPdf=256;}
-  if(_ds){var _do2=_stampPdfPos(_ds); _datPdfX=_do2.x; _datTopPdf=_do2.y;}
+  if(_ds){var _do2=_stampPdfPos(_ds,_cont); _datPdfX=_do2.x; _datTopPdf=_do2.y;}
   else    {_datPdfX=42; _datTopPdf=276;}
   var _cap={
     docDate:docDate,
@@ -554,13 +575,7 @@ async function _doSetDocNumberConfirmed(docId,cap){
             if(_stampFont){
               var _clr=PDFLib.rgb(0.07,0.38,0.67);
               var _stampSz=cap.fontsize||10;
-              // top ของ stamp (PDF pt จากขอบบน) → baseline: ใช้ ascent ของฟอนต์เดียวกับ preview
-              var _ascentAt=(function(sz,fnt){
-                try{
-                  var fk=fnt.embedder.font;
-                  return fk.ascent/fk.unitsPerEm*sz;
-                }catch(_me){return sz*0.88;}
-              })(_stampSz,_stampFont);
+              var _ascentAt=_stampAscentPx(_stampSz);
               if(docNum) _pg.drawText(docNum,{x:_numPdfX,y:_ph-_numTopPdf-_ascentAt,size:_stampSz,font:_stampFont,color:_clr});
               if(_dateText) _pg.drawText(_dateText,{x:_datPdfX,y:_ph-_datTopPdf-_ascentAt,size:_stampSz,font:_stampFont,color:_clr});
               var _stampBytes=await _pdfDoc.save();

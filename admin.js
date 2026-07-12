@@ -1,5 +1,18 @@
 /* ─── ADMIN ─── */
+var _ADM_DEV_MODE=false;
+
+function _admNavBack(){
+  if(_ADM_DEV_MODE||CV==='dev'){_devTab='users';nav('dev');}
+  else nav('adm');
+}
+
 async function vAdm(){
+  return rAdmUsersPage(false);
+}
+
+/** หน้าจัดการผู้ใช้ — forDev=true เมื่อฝังใน Dev Panel (ระยะ 3) */
+async function rAdmUsersPage(forDev){
+  _ADM_DEV_MODE=!!forDev;
   AUSERS=(await dg('users','?order=created_at.desc')).filter(function(u){return u.role_code!=='ROLE-SYS'});
   var cnt={
     total:AUSERS.length,
@@ -10,6 +23,13 @@ async function vAdm(){
   AUSERS.forEach(function(u){if(tc[u.user_type]!==undefined)tc[u.user_type]++});
 
   var html=[];
+
+  if(forDev){
+    html.push(
+      '<div class="al al-in" style="margin-bottom:16px"><span class="al-icon">'+svg('info',13)+'</span>'+
+      '<span><strong>โหมดนักพัฒนา</strong> — อนุมัติ/ปฏิเสธ/เปิด-ปิดบัญชี/แก้ role/รีเซ็ตรหัสผ่านได้ (ห้ามตั้ง <code>ROLE-SYS</code>) · ลบผู้ใช้และเพิ่มอาจารย์ต้องใช้แอดมินหลัก</span></div>'
+    );
+  }
 
   /* ── User stat cards ── */
   html.push(rStatCards([
@@ -35,7 +55,7 @@ async function vAdm(){
   }
 
   /* ── Toolbar: search + buttons ── */
-  var _canAddAdv=CU.role_code==='ROLE-SYS'||CU.role_code==='ROLE-STF';
+  var _canAddAdv=!forDev&&(CU.role_code==='ROLE-SYS'||CU.role_code==='ROLE-STF');
   _admTab='all';
   html.push(
     '<div class="page-toolbar">'+
@@ -148,9 +168,11 @@ function rAdmTbl(users){
         dropItems.push('<button class="am-item am-ok" data-action="admToggle" data-id="'+u.id+'" data-active="0">'+svg('unlock',13)+' เปิดบัญชี</button>');
       }
       dropItems.push('<button class="am-item" data-action="admResetPw" data-id="'+u.id+'">'+svg('key',13)+' รีเซ็ตรหัสผ่าน</button>');
-      dropItems.push('<div class="am-divider"></div>');
-      dropItems.push('<button class="am-item am-danger" data-action="admDel" data-id="'+u.id+'">'+svg('trash',13)+' ลบผู้ใช้งาน</button>');
-    } else {
+      if(!_ADM_DEV_MODE){
+        dropItems.push('<div class="am-divider"></div>');
+        dropItems.push('<button class="am-item am-danger" data-action="admDel" data-id="'+u.id+'">'+svg('trash',13)+' ลบผู้ใช้งาน</button>');
+      }
+    } else if(!_ADM_DEV_MODE){
       dropItems.push('<button class="am-item am-danger" data-action="admDel" data-id="'+u.id+'">'+svg('trash',13)+' ลบผู้ใช้งาน</button>');
     }
     var actB=dropItems.length
@@ -214,7 +236,7 @@ async function _admApvConfirmed(uid){
   try{
     await dpa('users',uid,_patch);
     try{await dp('document_history',{action:'อนุมัติบัญชีผู้ใช้',performed_by:CU.id,note:'อนุมัติ: '+(u?u.full_name:uid)+(_exp?' (หมดอายุ '+new Date(_exp).toLocaleDateString('th-TH')+')':'')});}catch(e){}
-    nav('adm')
+    _admNavBack()
   }catch(e){
     showAlert('อนุมัติบัญชีไม่สำเร็จ — '+(e.message||''),'er');
   }
@@ -235,7 +257,7 @@ async function _admRenewConfirmed(uid){
   try{
     await dpa('users',uid,{expires_at:_exp,is_active:true});
     try{await dp('document_history',{action:'ต่ออายุบัญชีผู้ใช้',performed_by:CU.id,note:'ต่ออายุ: '+(u?u.full_name:uid)+' จนถึง '+new Date(_exp).toLocaleDateString('th-TH')});}catch(e){}
-    nav('adm')
+    _admNavBack()
   }catch(e){
     showAlert('ต่ออายุบัญชีไม่สำเร็จ — '+(e.message||''),'er');
   }
@@ -265,13 +287,14 @@ async function _admRejConfirmed(uid){
     await dpa('users',uid,{approval_status:'rejected',is_active:false,reject_reason:r||''});
     try{await dp('document_history',{action:'ปฏิเสธบัญชีผู้ใช้',performed_by:CU.id,note:'ปฏิเสธ: '+(u?u.full_name:uid)+(r?' — เหตุผล: '+r:'')});}catch(e){}
     var mw=$e('mwrap');if(mw)mw.innerHTML='';
-    nav('adm')
+    _admNavBack()
   }catch(e){
     showAlert('ปฏิเสธบัญชีไม่สำเร็จ — '+(e.message||''),'er');
   }
 }
 /* [UX] admDel: แทน confirm() ด้วย showConfirm — destructive action ต้องชัดเจน */
 async function admDel(uid){
+  if(_ADM_DEV_MODE){showAlert('การลบผู้ใช้ต้องทำโดยแอดมินหลัก (ROLE-SYS/ROLE-STF) เท่านั้น','wa');return;}
   var u=(AUSERS||[]).filter(function(x){return x.id===uid})[0];
   var wf=[],dcCreated=[];
   try{
@@ -330,7 +353,7 @@ async function _admDelConfirmed(uid,dcCreated,wf){
       if(!_dr.ok){var _de=await _dr.json().catch(function(){return{}});throw new Error(_de.error||'ลบบัญชีเข้าสู่ระบบไม่สำเร็จ')}
     }
     await dd('users',uid);
-    nav('adm');
+    _admNavBack();
   }catch(e){
     showAlert('ไม่สามารถลบผู้ใช้ได้ — '+(e.message||''),'er');
   }
@@ -340,7 +363,8 @@ function showEU(uid){
   var u=AUSERS.filter(function(u){return u.id===uid})[0]; if(!u)return;
   var w=$e('mwrap'); if(!w)return;
   var po='<option value="">— ไม่มีตำแหน่ง —</option>'+POSS.map(function(p){return '<option value="'+p+'"'+(u.position_code===p?' selected':'')+'>'+p+' — '+PTH[p]+'</option>'}).join('');
-  var ro=Object.entries(RTH).map(function(e){return '<option value="'+e[0]+'"'+(u.role_code===e[0]?' selected':'')+'>'+e[1]+' ('+e[0]+')</option>'}).join('');
+  var roleEntries=Object.entries(RTH).filter(function(e){return _ADM_DEV_MODE?e[0]!=='ROLE-SYS':true;});
+  var ro=roleEntries.map(function(e){return '<option value="'+e[0]+'"'+(u.role_code===e[0]?' selected':'')+'>'+e[1]+' ('+e[0]+')</option>'}).join('');
   var html=[
     '<div class="mo"><div class="modal">',
     '<div class="modal-head"><span class="modal-title">'+svg('edit',14)+' แก้ไขข้อมูลผู้ใช้</span><button class="btn btn-soft sm btn-icon" data-action="closeModal">'+svg('x',14)+'</button></div>',
@@ -360,11 +384,12 @@ function showEU(uid){
 async function saveEU(uid,ut){
   var u=(AUSERS||[]).filter(function(x){return x.id===uid})[0];
   var b={full_name:gv('enm'),role_code:gv('erl'),department:gv('edp')};
+  if(_ADM_DEV_MODE&&b.role_code==='ROLE-SYS'){showAlert('นักพัฒนาไม่สามารถตั้งบทบาทผู้ดูแลระบบ (ROLE-SYS) ได้','er');return;}
   if(ut==='gnk') b.position_code=gv('epos')||null;
   try{
     await dpa('users',uid,b);
     try{await dp('document_history',{action:'แก้ไขข้อมูลผู้ใช้',performed_by:CU.id,note:'แก้ไข: '+(u?u.full_name:uid)+' → role='+b.role_code});}catch(e){}
-    $e('mwrap').innerHTML=''; nav('adm')
+    $e('mwrap').innerHTML=''; _admNavBack()
   }catch(e){
     showAlert('บันทึกการเปลี่ยนแปลงไม่สำเร็จ — '+(e.message||''),'er');
   }
@@ -386,7 +411,7 @@ async function _admToggleConfirmed(uid,isActive,label){
   try{
     await dpa('users',uid,{is_active:!isActive});
     try{await dp('document_history',{action:label+'บัญชี',performed_by:CU.id,note:label+': '+(u?u.full_name:uid)});}catch(e){}
-    nav('adm');
+    _admNavBack();
   }catch(e){
     showAlert(label+'บัญชีไม่สำเร็จ — '+(e.message||''),'er');
   }
@@ -486,6 +511,7 @@ async function _doAdmChgStatusConfirmed(docId,status){
 }
 
 function showAddAdvisor(){
+  if(_ADM_DEV_MODE){showAlert('การเพิ่มอาจารย์ต้องทำโดยแอดมินหลัก (ROLE-SYS/ROLE-STF) เท่านั้น','wa');return;}
   _gnkOpen('add-advisor',
     '<div class="gnk-box" style="max-width:480px">'+
       '<div class="gnk-pop-head">'+
@@ -535,7 +561,7 @@ async function saveAddAdvisor(){
   }catch(e){
     if(_aaAlert)_aaAlert.innerHTML=alrtH('er',e.message||'สร้างบัญชีไม่สำเร็จ');return;
   }
-  $e('mwrap').innerHTML=''; nav('adm')
+  $e('mwrap').innerHTML=''; _admNavBack()
 }
 
 /* ─── ADMIN FILTER + SEARCH ─── */

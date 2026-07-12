@@ -4,7 +4,9 @@
   "private": true,
   "description": "Tailwind CSS build tooling for the SAEDU Flow static site — no app code is installed/bundled via npm.",
   "scripts": {
-    "build": "postcss tailwind.css -o styles.tailwind.css",
+    "build": "postcss tailwind.css -o styles.tailwind.css && node scripts/bundle-dev-sql.mjs",
+    "build:css": "postcss tailwind.css -o styles.tailwind.css",
+    "build:sql": "node scripts/bundle-dev-sql.mjs",
     "watch": "postcss tailwind.css -o styles.tailwind.css --watch"
   },
   "devDependencies": {

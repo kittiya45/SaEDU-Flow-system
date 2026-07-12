@@ -25,12 +25,12 @@ async function _devCount(t,q){
 async function vDev(){
   if(CU.role_code!=='ROLE-DEV') return '<div class="card-empty"><div class="card-empty-text">ไม่มีสิทธิ์เข้าถึง — หน้านี้สำหรับบัญชีนักพัฒนา (ROLE-DEV) เท่านั้น</div></div>';
 
-  // ตรวจว่ารัน create_dev_role.sql แล้วหรือยัง (ตาราง system_logs ต้องมีอยู่)
-  var _sqlReady=true;
-  try{
-    var _probe=await dg('system_logs','?select=id&limit=1');
-    if(!Array.isArray(_probe)) _sqlReady=false;
-  }catch(e){_sqlReady=false;}
+  // ตรวจ migration + สิทธิ์ dev (system_logs)
+  var _migResults=await _devRunMigrationProbes();
+  var _devRoleRow=_migResults.find(function(r){return r.file==='create_dev_role.sql';});
+  var _sqlReady=!!(_devRoleRow&&_devRoleRow.ok);
+  var _migPending=_migResults.filter(function(r){return r.ok===false&&!r.optional;}).length;
+  var _sqlWarn=_migPending?'<div class="al al-wa" style="margin-bottom:16px"><span class="al-icon">'+svg('warn',13)+'</span><span><strong>พบ SQL migration ค้าง '+_migPending+' รายการ</strong> — ดูรายละเอียดและคัดลอก SQL ได้ที่แท็บ <strong>สุขภาพระบบ</strong></span></div>':'';
 
   var _pageHeader=
     '<div style="display:flex;align-items:center;gap:14px;margin-bottom:20px;flex-wrap:wrap">'+
@@ -41,11 +41,10 @@ async function vDev(){
       '</div>'+
     '</div>';
 
-  var _sqlWarn=_sqlReady?'':'<div class="al al-wa" style="margin-bottom:16px"><span class="al-icon">'+svg('warn',13)+'</span><span><strong>ยังไม่ได้รัน supabase/create_dev_role.sql</strong> — ตาราง system_logs ยังไม่ถูกสร้าง และบัญชี ROLE-DEV จะยังไม่มีสิทธิ์ฝั่งฐานข้อมูล ให้รันไฟล์นี้ใน Supabase SQL Editor ก่อน (ดูแท็บ "คู่มือ & ลิงก์")</span></div>';
-
   var _tabs=[
     {k:'health',  ico:'activity',    label:'สุขภาพระบบ'},
     {k:'logs',    ico:'scroll-text', label:'บันทึกระบบ'},
+    {k:'users',   ico:'users',       label:'จัดการผู้ใช้'},
     {k:'doctool', ico:'wrench',      label:'ซ่อมเอกสาร'},
     {k:'sandbox', ico:'flask-conical',label:'ทดสอบระบบ'},
     {k:'sysadmin',ico:'gear',        label:'จัดการระบบ'},
@@ -60,8 +59,9 @@ async function vDev(){
   tabNav+='</div>';
 
   var _panels={
-    health:  await _devHealthPanel(_sqlReady),
+    health:  await _devHealthPanel(_sqlReady,_migResults),
     logs:    await _devLogsPanel(),
+    users:   await rAdmUsersPage(true),
     doctool: _devDocToolPanel(),
     sandbox: _sbxPanel(),
     sysadmin:await _vSysContent({embed:true}),   // เนื้อหาเดียวกับหน้า "จัดการระบบ" ของแอดมิน (ตัด header ใหญ่ออก ไม่ให้หัวข้อซ้อนกัน)
@@ -78,7 +78,7 @@ async function vDev(){
 
 function setDevTab(tab){
   _devTab=tab;
-  ['health','logs','doctool','sandbox','sysadmin','info'].forEach(function(t){
+  ['health','logs','users','doctool','sandbox','sysadmin','info'].forEach(function(t){
     var el=$e('dev-tab-'+t); if(el) el.style.display=t===tab?'block':'none';
   });
   document.querySelectorAll('[data-devtab]').forEach(function(btn){
@@ -90,8 +90,224 @@ function setDevTab(tab){
   });
 }
 
+/* ═══ ศูนย์ Migration + สถานะ Integration (ระยะ 1) ═══ */
+
+var _FAKE_DOC='00000000-0000-0000-0000-000000000001';
+
+function _devDgOk(r){return Array.isArray(r);}
+
+async function _devRpcExists(name,args){
+  try{
+    await sb.rpc(name,args||{});
+    return true;
+  }catch(e){
+    return !rpcFnMissing(e);
+  }
+}
+
+async function _devColExists(table,col){
+  try{
+    var r=await dg(table,'?select='+col+'&limit=1');
+    return _devDgOk(r);
+  }catch(e){return false;}
+}
+
+/* รายการ SQL ที่ต้องรัน — เรียงตามลำดับที่แนะนำ */
+var DEV_MIGRATIONS=[
+  {file:'migration_auth_rls.sql',order:1,title:'Auth + RLS พื้นฐาน',desc:'Supabase Auth, ตารางหลัก, policy เริ่มต้น — โปรเจกต์ใหม่ต้องรันก่อนทุกอย่าง',
+   probe:async function(){return _devDgOk(await dg('documents','?select=id&limit=1'))&&_devDgOk(await dg('users','?select=id&limit=1'));}},
+  {file:'create_dev_role.sql',order:2,title:'บทบาทนักพัฒนา + system_logs',desc:'is_dev(), สิทธิ์ config, เครื่องมือซ่อมเอกสาร, form_templates สำหรับ DEV',
+   probe:async function(){return _devDgOk(await dg('system_logs','?select=id&limit=1'));}},
+  {file:'create_admin_config_tables.sql',order:3,title:'ตารางตั้งค่าระบบ',desc:'app_settings, email_templates, workflow_templates, doc_types',
+   probe:async function(){return _devDgOk(await dg('app_settings','?select=key&limit=1'));}},
+  {file:'create_announcements.sql',order:4,title:'บอร์ดประกาศหน้า Home',desc:'ตาราง announcements — ต้องรันหลัง create_dev_role.sql',
+   probe:async function(){return _devDgOk(await dg('announcements','?select=id&limit=1'));}},
+  {file:'user_signatures.sql',order:5,title:'ลายเซ็นส่วนตัว',desc:'คอลัมน์ signature_path + bucket user-signatures',
+   probe:async function(){return _devColExists('users','signature_path');}},
+  {file:'line_notifications.sql',order:6,title:'แจ้งเตือน LINE',desc:'คอลัมน์ line_user_id / line_link_code บนตาราง users',
+   probe:async function(){return _devColExists('users','line_link_code');}},
+  {file:'workflow_ops_rpc.sql',order:7,title:'RPC ดึงกลับ / ปฏิเสธส่งต่อ',desc:'recall_document, forward_decline + schema_version',
+   probe:async function(){return _devRpcExists('recall_document',{p_doc:_FAKE_DOC});}},
+  {file:'overdue_once_auto_approve.sql',order:8,title:'นโยบายเกินกำหนด + auto-approve',desc:'overdue_notif_sent_at, auto_approve_overdue',
+   probe:async function(){return _devRpcExists('overdue_notif_sent_at',{p_doc:_FAKE_DOC});}},
+  {file:'scale_hardening.sql',order:9,title:'workflow_action + hardening',desc:'อนุมัติ/ตีกลับแบบ atomic, log_notification, schema v'+REQUIRED_SCHEMA_VERSION,
+   probe:async function(){return _devRpcExists('workflow_action',{p_doc:_FAKE_DOC,p_action:'approve',p_note:''});}},
+  {file:'private_storage_bucket.sql',order:10,title:'Storage ส่วนตัว (documents)',desc:'ปิด public bucket + RLS — รันพร้อม frontend ที่ใช้ signed URL',
+   manual:true,desc2:'ตรวจด้วยการเปิดไฟล์แนบในเอกสาร — ถ้าเปิดได้ปกติถือว่าพร้อม'},
+  {file:'phase2_dev_ops.sql',order:12,title:'สิทธิ์ลบเอกสาร (DEV)',desc:'ให้นักพัฒนาลบเอกสาร/ไฟล์/ขั้นตอนได้จากเครื่องมือซ่อมเอกสาร',
+   optional:true,manual:true,desc2:'รันแล้วทดสอบด้วยปุ่ม "ลบเอกสารถาวร" ในแท็บซ่อมเอกสาร'},
+  {file:'phase3_dev_users.sql',order:13,title:'จัดการผู้ใช้แบบจำกัด (DEV)',desc:'SELECT/UPDATE users — อนุมัติ เปิด-ปิด แก้ role (ห้าม ROLE-SYS)',
+   probe:async function(){
+     try{
+       var dir=await dg('user_directory','?select=id');
+       var me=await dg('users','?select=id');
+       if(!_devDgOk(dir)||!_devDgOk(me)) return false;
+       if(dir.length<=1) return true;
+       return me.length>1||me.length===dir.length;
+     }catch(e){return false;}
+   },
+   desc2:'รันแล้วเปิดแท็บจัดการผู้ใช้ — ควรเห็นรายชื่อทั้งหมด (ไม่ใช่แค่บัญชีตัวเอง)'},
+  {file:'cron_overdue.sql',order:14,title:'Cron ตรวจเลยกำหนด (pg_cron)',desc:'ตั้ง job เรียก check-overdue รายวัน 01:00 น. — ต้อง deploy Edge Function + ตั้ง OVERDUE_CRON_SECRET ก่อน',
+   optional:true,manual:true,desc2:'ทางเลือก: ใช้ Supabase Dashboard → Edge Functions → Schedule แทน pg_cron'}
+];
+
+async function _devRunMigrationProbes(){
+  var out=[];
+  for(var i=0;i<DEV_MIGRATIONS.length;i++){
+    var m=DEV_MIGRATIONS[i];
+    var st={file:m.file,order:m.order,title:m.title,desc:m.desc,desc2:m.desc2,manual:!!m.manual,optional:!!m.optional,ok:false,checking:false};
+    if(m.manual){st.ok=null;st.manualNote='ตรวจด้วยมือ — ลองเปิดไฟล์แนบในเอกสาร';}
+    else if(m.probe){
+      try{st.ok=await m.probe();}catch(e){st.ok=false;}
+    }
+    out.push(st);
+  }
+  return out;
+}
+
+function _devMigrationCard(results){
+  var pending=results.filter(function(r){return r.ok===false;}).length;
+  var done=results.filter(function(r){return r.ok===true;}).length;
+  var rows=results.map(function(r){
+    var dot=r.ok===true?'#16A34A':(r.ok===false?'#DC2626':'#D97706');
+    var ico=r.ok===true?'ok':(r.ok===false?'x':'info');
+    var statusTxt=r.ok===true?'พร้อมแล้ว':(r.ok===false?'ยังไม่ได้รัน':(r.manualNote||'ตรวจด้วยมือ'));
+    return '<div style="display:flex;align-items:flex-start;gap:10px;padding:10px 16px;border-top:1px solid #F9F8F7;flex-wrap:wrap">'+
+      '<div style="width:22px;height:22px;border-radius:50%;background:'+(r.ok===true?'#ECFDF5':(r.ok===false?'#FEF2F2':'#FFFBEB'))+';display:flex;align-items:center;justify-content:center;color:'+dot+';flex-shrink:0;margin-top:1px">'+svg(ico,12)+'</div>'+
+      '<div style="flex:1;min-width:200px">'+
+        '<div style="font-size:12.5px;font-weight:700;color:#18120E">'+r.order+'. '+esc(r.title)+(r.optional?' <span style="font-size:10px;color:#a89e99;font-weight:600">(เสริม)</span>':'')+'</div>'+
+        '<div style="font-size:10.5px;color:#a89e99;margin-top:2px;line-height:1.6">'+esc(r.desc)+(r.desc2?'<br>'+esc(r.desc2):'')+'</div>'+
+        '<div class="mono" style="font-size:10px;color:#6b6560;margin-top:4px">supabase/'+esc(r.file)+'</div>'+
+      '</div>'+
+      '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0">'+
+        '<span style="font-size:10px;font-weight:700;color:'+dot+'">'+statusTxt+'</span>'+
+        '<button class="btn btn-soft sm" onclick="_devCopyMigrationSql(\''+esc(r.file)+'\')">'+svg('copy',11)+' คัดลอก SQL</button>'+
+      '</div>'+
+    '</div>';
+  }).join('');
+  return '<div class="card"><div class="card-head">'+
+    '<div style="width:26px;height:26px;border-radius:7px;background:'+(pending?'#FEF3C7':'#ECFDF5')+';display:flex;align-items:center;justify-content:center;color:'+(pending?'#D97706':'#16A34A')+'">'+svg('list',13)+'</div>'+
+    '<div><div class="card-head-title">เช็กลิสต์ SQL Migration'+(pending?' — ค้าง '+pending+' รายการ':' — ครบแล้ว')+'</div>'+
+    '<div style="font-size:10px;color:#a89e99;margin-top:1px">ตรวจอัตโนมัติจากฐานข้อมูล · รันใน Supabase Dashboard → SQL Editor · schema เป้าหมาย v'+REQUIRED_SCHEMA_VERSION+' (ปัจจุบัน: '+esc(String(SETT.schema_version||'—'))+')</div></div>'+
+    '<button class="btn btn-soft sm ml-auto" onclick="nav(\'dev\')">'+svg('refresh',12)+' สแกนใหม่</button>'+
+  '</div>'+
+  '<div style="padding:8px 16px 10px;font-size:11px;color:#3A332E;display:flex;gap:16px;flex-wrap:wrap;border-bottom:1px solid #F9F8F7">'+
+    '<span>'+svg('ok',11)+' พร้อม <strong>'+done+'</strong></span>'+
+    '<span style="color:#DC2626">'+svg('x',11)+' ค้าง <strong>'+pending+'</strong></span>'+
+    '<span style="color:#D97706">'+svg('info',11)+' ตรวจด้วยมือ <strong>'+results.filter(function(r){return r.ok===null;}).length+'</strong></span>'+
+  '</div>'+
+  rows+
+  '<div class="al al-in" style="margin:12px 16px 16px"><span class="al-icon">'+svg('info',13)+'</span><span style="font-size:11.5px">กด <strong>คัดลอก SQL</strong> แล้ววางใน SQL Editor → Run ทีละไฟล์ตามลำดับ · ไฟล์ idempotent รันซ้ำได้ปลอดภัย</span></div>'+
+  '</div>';
+}
+
+async function _devCopyMigrationSql(file){
+  var text='';
+  if(typeof DEV_SQL_BUNDLE!=='undefined'&&DEV_SQL_BUNDLE&&DEV_SQL_BUNDLE[file]) text=DEV_SQL_BUNDLE[file];
+  if(!text){
+    try{
+      var r=await fetch('supabase/'+file);
+      if(r.ok) text=await r.text();
+      else throw new Error('โหลดไฟล์ไม่ได้ ('+r.status+')');
+    }catch(e){
+      if(/failed to fetch/i.test(e.message||'')){
+        showAlert('ไม่พบไฟล์ '+file+' ในชุด bundle — รัน npm run build:sql หรือเปิดจากโฟลเดอร์ supabase/ ใน repo','er');
+      }else{
+        showAlert('คัดลอกไม่สำเร็จ: '+(e.message||e),'er');
+      }
+      return;
+    }
+  }
+  try{
+    if(navigator.clipboard&&navigator.clipboard.writeText){
+      await navigator.clipboard.writeText(text);
+      showAlert('คัดลอก '+file+' แล้ว — วางใน Supabase SQL Editor แล้วกด Run','ok');
+    }else{
+      _devShowSqlModal(file,text);
+    }
+  }catch(e){
+    _devShowSqlModal(file,text);
+  }
+}
+
+function _devShowSqlModal(file,text){
+  var w=$e('mwrap'); if(!w)return;
+  w.innerHTML=
+    '<div class="mo"><div class="modal" style="max-width:720px">'+
+    '<div class="modal-head"><span class="modal-title">'+svg('copy',14)+' '+esc(file)+'</span>'+
+    '<button class="btn btn-soft sm btn-icon" data-action="closeModal">'+svg('x',14)+'</button></div>'+
+    '<div class="modal-body">'+
+    '<div class="al al-in" style="margin-bottom:12px"><span class="al-icon">'+svg('info',13)+'</span><span style="font-size:12px">เลือกข้อความทั้งหมดแล้วคัดลอก (Ctrl/Cmd+C) ไปวางใน Supabase SQL Editor</span></div>'+
+    '<textarea class="fi" id="dev-sql-ta" readonly style="min-height:320px;font-family:monospace;font-size:11px;line-height:1.5;resize:vertical">'+esc(text)+'</textarea>'+
+    '</div>'+
+    '<div class="modal-foot">'+
+    '<button class="btn btn-soft" data-action="closeModal">ปิด</button>'+
+    '<button class="btn btn-primary" onclick="(function(){var t=$e(\'dev-sql-ta\');if(t){t.focus();t.select();try{document.execCommand(\'copy\');showAlert(\'คัดลอกแล้ว\',\'ok\');}catch(e){showAlert(\'เลือกข้อความแล้วกด Cmd/Ctrl+C\',\'wa\');}}})()">'+svg('copy',13)+' เลือกทั้งหมด & คัดลอก</button>'+
+    '</div></div></div>';
+}
+
+async function _devFetchIntegrationStatus(){
+  try{
+    var r=await fetch(SU+'/functions/v1/integration-status',{method:'GET',headers:{apikey:SK,Authorization:H.Authorization}});
+    if(r.status===404) return {missing:true};
+    if(!r.ok){
+      var err=await r.json().catch(function(){return{};});
+      return {error:err.error||('HTTP '+r.status)};
+    }
+    return await r.json();
+  }catch(e){
+    var msg=e.message||String(e);
+    // ฟังก์ชันยังไม่ deploy: preflight OPTIONS ได้ 404 → เบราว์เซอร์มักโยน Failed to fetch (ไม่ใช่ HTTP 404 จริง)
+    if(/failed to fetch/i.test(msg)) return {missing:true};
+    return {error:msg};
+  }
+}
+
+function _devIntegrationCard(data){
+  if(data.missing){
+    return '<div class="card"><div class="card-head">'+
+      '<div style="width:26px;height:26px;border-radius:7px;background:#FEF3C7;display:flex;align-items:center;justify-content:center;color:#D97706">'+svg('plug',13)+'</div>'+
+      '<div><div class="card-head-title">สถานะบริการภายนอก</div>'+
+      '<div style="font-size:10px;color:#a89e99;margin-top:1px">Edge Function integration-status ยังไม่ได้ deploy</div></div>'+
+    '</div><div class="card-body">'+
+      '<div class="al al-wa"><span class="al-icon">'+svg('warn',13)+'</span><span>ยังไม่ได้ deploy ฟังก์ชันนี้ (หรือเบราว์เซอร์แสดง <code class="mono">Failed to fetch</code> แทน 404) — รัน <code class="mono">npx supabase functions deploy integration-status</code> แล้วรีเฟรชหน้านี้</span></div>'+
+    '</div></div>';
+  }
+  if(data.error){
+    return '<div class="card"><div class="card-body"><div class="al al-er"><span class="al-icon">'+svg('warn',13)+'</span><span>อ่านสถานะไม่ได้: '+esc(data.error)+'</span></div></div></div>';
+  }
+  var items=Object.keys(data.integrations||{}).map(function(k){
+    var it=data.integrations[k];
+    var ok=!!it.configured;
+    var parts=it.parts?Object.keys(it.parts).map(function(pk){
+      return '<span class="mono" style="font-size:9.5px;padding:2px 6px;border-radius:5px;background:'+(it.parts[pk]?'#ECFDF5':'#FEF2F2')+';color:'+(it.parts[pk]?'#16A34A':'#DC2626')+'">'+esc(pk)+'</span>';
+    }).join(' '):'';
+    return '<div style="display:flex;align-items:center;gap:10px;padding:10px 16px;border-top:1px solid #F9F8F7;flex-wrap:wrap">'+
+      '<div style="width:8px;height:8px;border-radius:50%;background:'+(ok?'#16A34A':'#DC2626')+';flex-shrink:0"></div>'+
+      '<div style="flex:1;min-width:180px">'+
+        '<div style="font-size:12.5px;font-weight:700;color:#18120E">'+esc(it.label||k)+(it.optional?' <span style="font-size:10px;color:#a89e99">(ไม่บังคับ)</span>':'')+'</div>'+
+        '<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:5px">'+parts+'</div>'+
+      '</div>'+
+      '<span style="font-size:10px;font-weight:700;color:'+(ok?'#16A34A':'#DC2626')+'">'+(ok?'ตั้งค่าแล้ว':'ยังไม่ตั้งค่า')+'</span>'+
+    '</div>';
+  }).join('');
+  return '<div class="card"><div class="card-head">'+
+    '<div style="width:26px;height:26px;border-radius:7px;background:#EFF6FF;display:flex;align-items:center;justify-content:center;color:#2563EB">'+svg('plug',13)+'</div>'+
+    '<div><div class="card-head-title">สถานะบริการภายนอก</div>'+
+    '<div style="font-size:10px;color:#a89e99;margin-top:1px">ตรวจ secret ใน Supabase (ไม่แสดงค่าจริง) · อัปเดตล่าสุด '+esc(data.checked_at?fdTime(data.checked_at):'—')+'</div></div>'+
+    '<button class="btn btn-soft sm ml-auto" onclick="setDevTab(\'sandbox\')">'+svg('flask-conical',12)+' ทดสอบส่ง</button>'+
+  '</div>'+items+
+  '<div class="al al-in" style="margin:12px 16px 16px"><span class="al-icon">'+svg('info',13)+'</span><span style="font-size:11.5px">ตั้ง secret ที่ Supabase Dashboard → Project Settings → Edge Functions → Secrets · ทดสอบส่งจริงได้ที่แท็บ <strong>ทดสอบระบบ</strong></span></div>'+
+  '</div>';
+}
+
 /* ═══ แท็บ 1: สุขภาพระบบ ═══ */
-async function _devHealthPanel(sqlReady){
+async function _devHealthPanel(sqlReady,migResults){
+  migResults=migResults||await _devRunMigrationProbes();
+  var migCard=_devMigrationCard(migResults);
+  var integData=await _devFetchIntegrationStatus();
+  var integCard=_devIntegrationCard(integData);
+
   var tables=['documents','users','workflow_steps','document_files','document_history','notifications','system_logs'];
   var labels={documents:'เอกสาร',users:'ผู้ใช้',workflow_steps:'ขั้นตอน',document_files:'ไฟล์แนบ',document_history:'ประวัติ',notifications:'การแจ้งเตือน',system_logs:'Error log'};
   var counts=await Promise.all(tables.map(function(t){return _devCount(t);}));
@@ -172,7 +388,15 @@ async function _devHealthPanel(sqlReady){
     '</div>'+errRows+'</div>';
   }
 
-  return countCard+issueCard+
+  return migCard+integCard+countCard+issueCard+
+    '<div class="card"><div class="card-head">'+
+      '<div style="width:26px;height:26px;border-radius:7px;background:#F0FDF4;display:flex;align-items:center;justify-content:center;color:#16A34A">'+svg('bell',13)+'</div>'+
+      '<div><div class="card-head-title">ตรวจเอกสารเกินกำหนด (overdue)</div>'+
+      '<div style="font-size:10px;color:#a89e99;margin-top:1px">รันทันทีโดยไม่รอ cron / localStorage — ส่งอีเมลเตือนและ auto-approve ตามนโยบาย</div></div>'+
+    '</div><div class="card-body">'+
+      '<div id="dev-overdue-al"></div>'+
+      '<button class="btn btn-primary sm" onclick="_devRunOverdue()">'+svg('play',12)+' รัน overdue check ตอนนี้</button>'+
+    '</div></div>'+
     '<div class="card"><div class="card-head">'+
       '<div style="width:26px;height:26px;border-radius:7px;background:#FFF7ED;display:flex;align-items:center;justify-content:center;color:#EA580C">'+svg('folder',13)+'</div>'+
       '<div><div class="card-head-title">ล้างไฟล์ลงนามซ้ำ / orphan</div>'+
@@ -182,6 +406,18 @@ async function _devHealthPanel(sqlReady){
     '<div class="card-body">'+
       '<div id="dev-storage-cleanup-result" style="font-size:12px;color:#a89e99">กด "สแกน" เพื่อตรวจหาไฟล์ที่ลบได้</div>'+
     '</div></div>'+errCard;
+}
+
+/* รัน overdue check ทันทีจาก Dev Panel (ข้าม cron flag + localStorage รายวัน) */
+async function _devRunOverdue(){
+  var al=$e('dev-overdue-al');
+  if(al) al.innerHTML=alrtH('in','กำลังตรวจสอบเอกสารเกินกำหนด...');
+  try{
+    await sendOverdueNotifs(true);
+    if(al) al.innerHTML=alrtH('ok','รันเสร็จแล้ว — ตรวจผลในอีเมล / แท็บบันทึก (notifications)');
+  }catch(e){
+    if(al) al.innerHTML=alrtH('er',e.message||String(e));
+  }
 }
 
 /* ซ่อมสถานะเอกสารจากแท็บสุขภาพ — ใช้ _reconcileDocState (docDetail.js) แล้วโหลดหน้าใหม่ */
@@ -461,10 +697,12 @@ async function _devDocInspect(docId){
   var box=$e('dev-doc-inspector');
   if(!box) return;
   box.innerHTML='<div style="padding:24px;text-align:center"><span class="sp sp-dark"></span></div>';
-  var doc,steps;
+  var doc,steps,files=[];
   try{
     doc=(await dg('documents','?id=eq.'+safeId(docId)))[0];
     steps=await dg('workflow_steps','?document_id=eq.'+safeId(docId)+'&order=step_number');
+    var fr=await dg('document_files','?document_id=eq.'+safeId(docId)+'&order=version.desc,uploaded_at.desc');
+    if(Array.isArray(fr)) files=fr;
   }catch(e){}
   if(!doc){box.innerHTML=alrtH('er','โหลดเอกสารไม่สำเร็จ');return;}
   if(!Array.isArray(steps)) steps=[];
@@ -473,6 +711,11 @@ async function _devDocInspect(docId){
       var us=await dg('user_directory','?select=id,full_name,role_code,position_code&order=full_name&limit=500');
       _devUsers=Array.isArray(us)?us:[];
     }catch(e){_devUsers=[];}
+  }
+  var fwdName='';
+  if(doc.forwarded_to_id){
+    var fu=_devUsers.find(function(u){return u.id===doc.forwarded_to_id;});
+    fwdName=fu?fu.full_name:doc.forwarded_to_id;
   }
 
   var stOpts=['draft','pending','rejected','numbering','completed'].map(function(s){
@@ -495,6 +738,18 @@ async function _devDocInspect(docId){
     '</div>';
   }).join(''):'<div style="padding:20px;text-align:center;color:#a89e99;font-size:12px">เอกสารนี้ไม่มีขั้นตอน workflow</div>';
 
+  var fileRows=files.length?files.map(function(f){
+    return '<div style="display:flex;align-items:center;gap:8px;padding:6px 16px;border-top:1px solid #F9F8F7;font-size:11px">'+
+      '<span class="badge b-draft">v'+f.version+'</span>'+
+      '<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(f.file_name||'—')+'</span>'+
+      '<span class="mono" style="font-size:10px;color:#a89e99">'+fdTime(f.uploaded_at||f.created_at)+'</span>'+
+      '<button class="btn btn-soft sm" data-action="tmplPreview" data-path="'+esc(f.file_path)+'" data-name="'+esc(f.file_name||'')+'" data-ext="'+esc((f.file_name||'').split('.').pop().toLowerCase())+'">'+svg('eye',11)+'</button>'+
+    '</div>';
+  }).join(''):'<div style="padding:14px 16px;color:#a89e99;font-size:12px">ไม่มีไฟล์แนบ</div>';
+
+  var fwdBlock=doc.forwarded_to_id?
+    '<div class="al al-wa" style="margin:10px 16px 0"><span class="al-icon">'+svg('info',13)+'</span><span>ส่งต่อถึง: <strong>'+esc(fwdName)+'</strong>'+(doc.forwarded_at?' · '+fdTime(doc.forwarded_at):'')+'</span></div>':'';
+
   box.innerHTML=
     '<div class="card" style="margin-top:14px"><div class="card-head">'+
       '<div style="width:26px;height:26px;border-radius:7px;background:#FFF3EE;display:flex;align-items:center;justify-content:center;color:#E83A00">'+svg('wrench',13)+'</div>'+
@@ -502,19 +757,31 @@ async function _devDocInspect(docId){
       '<div class="mono" style="font-size:10px;color:#a89e99;margin-top:1px">'+esc(doc.doc_number||'ยังไม่มีเลขที่')+' · id: '+esc(doc.id)+'</div></div>'+
       '<button class="btn btn-soft sm ml-auto" data-action="nav" data-view="det" data-id="'+doc.id+'">'+svg('eye',12)+' เปิดหน้าเอกสาร</button>'+
     '</div>'+
-    '<div id="dev-insp-al"></div>'+
+    '<div id="dev-insp-al"></div>'+fwdBlock+
     '<div class="card-body" style="border-bottom:1px solid #F5F3F0">'+
-      '<div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">'+
-        '<div class="fg" style="flex:1;min-width:200px;margin:0"><label class="fl">สถานะเอกสาร</label>'+
-        '<select class="fi" id="dev-doc-status">'+stOpts+'</select></div>'+
-        '<button class="btn btn-primary sm" onclick="_devSaveDocStatus()">'+svg('save',12)+' บันทึกสถานะ</button>'+
-        '<button class="btn btn-soft sm" onclick="_devFixDocInspect()">'+svg('wrench',12)+' ซ่อมสถานะอัตโนมัติ</button>'+
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">'+
+        '<div class="fg" style="margin:0"><label class="fl">สถานะเอกสาร</label><select class="fi" id="dev-doc-status">'+stOpts+'</select></div>'+
+        '<div class="fg" style="margin:0"><label class="fl">เลขที่เอกสาร (แก้ตรง)</label><input class="fi mono" id="dev-doc-num" value="'+esc(doc.doc_number||'')+'" placeholder="กนค. ..."></div>'+
       '</div>'+
-      '<div style="font-size:10.5px;color:#a89e99;margin-top:8px;line-height:1.7">"ซ่อมสถานะอัตโนมัติ" คำนวณสถานะที่ถูกต้องจากขั้นตอนด้านล่างให้เอง (เฉพาะเอกสารที่ยังอยู่ระหว่าง workflow) — แนะนำให้ใช้ก่อนแก้มือ</div>'+
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">'+
+        '<button class="btn btn-primary sm" onclick="_devSaveDocStatus()">'+svg('save',12)+' บันทึกสถานะ</button>'+
+        '<button class="btn btn-soft sm" onclick="_devSaveDocNumber()">'+svg('pen',12)+' บันทึกเลขที่</button>'+
+        '<button class="btn btn-soft sm" onclick="_devFixDocInspect()">'+svg('wrench',12)+' ซ่อมอัตโนมัติ</button>'+
+        (doc.status==='numbering'?'<button class="btn btn-soft sm" data-action="showNumModal" data-id="'+doc.id+'">'+svg('pen',12)+' ออกเลขหนังสือ</button>':'')+
+      '</div>'+
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;padding-top:8px;border-top:1px dashed #EBEBEB">'+
+        (doc.status==='pending'?'<button class="btn btn-soft sm" onclick="_devRecallDoc()">'+svg('undo',12)+' ดึงกลับเป็นฉบับร่าง</button>':'')+
+        (doc.forwarded_to_id?'<button class="btn btn-soft sm" onclick="_devForwardDecline()">'+svg('x',12)+' ปฏิเสธส่งต่อ</button><button class="btn btn-soft sm" onclick="_devClearForward()">ล้างผู้รับส่งต่อ</button>':'')+
+        '<button class="btn btn-danger sm" onclick="_devDeleteDoc()">'+svg('trash',12)+' ลบเอกสารถาวร</button>'+
+      '</div>'+
+      '<div style="font-size:10.5px;color:#a89e99;margin-top:10px;line-height:1.7">การแก้ตรง ๆ ไม่ยิงแจ้งเตือนอัตโนมัติ — ทุกการกระทำบันทึกลงประวัติพร้อม (dev)</div>'+
     '</div>'+
     '<div style="display:grid;grid-template-columns:34px 1fr 120px 1fr 70px;gap:8px;padding:8px 16px 4px">'+
       ['#','ขั้นตอน','สถานะ','ผู้รับผิดชอบ',''].map(function(h){return '<span style="font-size:9.5px;font-weight:700;color:#c0b9b4;text-transform:uppercase;letter-spacing:.4px">'+h+'</span>';}).join('')+
-    '</div>'+stepRows+'</div>';
+    '</div>'+stepRows+
+    '<div class="card-head" style="border-top:1px solid #F5F3F0;margin-top:4px">'+
+      '<span class="card-head-title" style="font-size:12px">ไฟล์แนบ ('+files.length+' รายการ)</span>'+
+    '</div>'+fileRows+'</div>';
 }
 
 async function _devSaveDocStatus(){
@@ -560,6 +827,186 @@ async function _devFixDocInspect(){
   }catch(e){showAlert('ซ่อมไม่สำเร็จ: '+(e.message||e),'er');}
 }
 
+async function _devFixDocInspect(){
+  var docId=_devCurDocId;
+  if(!docId) return;
+  try{
+    await _reconcileDocState(docId);
+    try{await dp('document_history',{document_id:docId,action:'ซ่อมสถานะเอกสาร (dev)',performed_by:CU.id,note:'ปรับสถานะให้สอดคล้องกับขั้นตอนโดยเครื่องมือนักพัฒนา'});}catch(e){}
+    _devDocInspect(docId);
+  }catch(e){showAlert('ซ่อมไม่สำเร็จ: '+(e.message||e),'er');}
+}
+
+async function _devSaveDocNumber(){
+  var docId=_devCurDocId;
+  var num=(gv('dev-doc-num')||'').trim();
+  if(!docId) return;
+  showConfirm('บันทึกเลขที่เอกสาร?','ตั้งเลขเป็น "'+num+'" — ไม่ประทับ PDF อัตโนมัติ',async function(){
+    try{
+      await dpa('documents',docId,{doc_number:num||null,updated_at:new Date().toISOString()});
+      await dp('document_history',{document_id:docId,action:'แก้เลขที่เอกสาร (dev)',performed_by:CU.id,note:'ตั้งเลขที่เป็น: '+num});
+      _devDocInspect(docId);
+      showAlert('บันทึกเลขที่แล้ว','ok');
+    }catch(e){showAlert('บันทึกไม่สำเร็จ: '+(e.message||e),'er');}
+  },{confirmLabel:'บันทึกเลขที่'});
+}
+
+async function _devRecallDoc(){
+  var docId=_devCurDocId;
+  if(!docId) return;
+  showConfirm('ดึงกลับเป็นฉบับร่าง?','เรียก RPC recall_document — รีเซ็ตขั้นตอนเหมือนฉบับร่าง',async function(){
+    try{
+      await sb.rpc('recall_document',{p_doc:docId});
+      await dp('document_history',{document_id:docId,action:'ดึงเอกสารกลับ (dev)',performed_by:CU.id,note:'ดึงกลับผ่านเครื่องมือนักพัฒนา'});
+      _devDocInspect(docId);
+      showAlert('ดึงกลับแล้ว','ok');
+    }catch(e){showAlert('ดึงกลับไม่สำเร็จ: '+(e.message||e),'er');}
+  },{confirmLabel:'ดึงกลับ'});
+}
+
+async function _devForwardDecline(){
+  var docId=_devCurDocId;
+  if(!docId) return;
+  var note=prompt('เหตุผลการปฏิเสธส่งต่อ (ไม่บังคับ):','')||'';
+  showConfirm('ปฏิเสธการส่งต่อ?','เอกสารจะกลับเป็น rejected และล้างผู้รับส่งต่อ',async function(){
+    try{
+      await sb.rpc('forward_decline',{p_doc:docId,p_note:note});
+      await dp('document_history',{document_id:docId,action:'ไม่อนุมัติ — ส่งคืนให้ดำเนินการใหม่ (dev)',performed_by:CU.id,note:note||'ปฏิเสธส่งต่อผ่านเครื่องมือนักพัฒนา'});
+      _devDocInspect(docId);
+      showAlert('ปฏิเสธส่งต่อแล้ว','ok');
+    }catch(e){showAlert('ดำเนินการไม่สำเร็จ: '+(e.message||e),'er');}
+  },{confirmLabel:'ปฏิเสธ',confirmClass:'btn-danger'});
+}
+
+async function _devClearForward(){
+  var docId=_devCurDocId;
+  if(!docId) return;
+  showConfirm('ล้างผู้รับส่งต่อ?','ตั้ง forwarded_to_id เป็น null — ไม่แตะสถานะอื่น',async function(){
+    try{
+      await dpa('documents',docId,{forwarded_to_id:null,forwarded_at:null,updated_at:new Date().toISOString()});
+      await dp('document_history',{document_id:docId,action:'ล้างผู้รับส่งต่อ (dev)',performed_by:CU.id,note:'ล้าง forwarded_to_id ผ่านเครื่องมือนักพัฒนา'});
+      _devDocInspect(docId);
+    }catch(e){showAlert('ล้างไม่สำเร็จ: '+(e.message||e),'er');}
+  },{confirmLabel:'ล้าง'});
+}
+
+function _devDeleteDoc(){
+  var docId=_devCurDocId;
+  if(!docId) return;
+  showConfirm('ลบเอกสารถาวร?','ลบเอกสาร ขั้นตอน และไฟล์แนบออกจากระบบ — กู้คืนไม่ได้',function(){_devDeleteDocConfirmed();},{confirmLabel:'ลบถาวร',confirmClass:'btn-danger'});
+}
+
+async function _devDeleteDocConfirmed(){
+  var docId=_devCurDocId;
+  if(!docId) return;
+  try{
+    var doc=(await dg('documents','?id=eq.'+safeId(docId)))[0];
+    var files=await dg('document_files','?document_id=eq.'+safeId(docId));
+    try{await dp('document_history',{document_id:docId,action:'ลบเอกสาร (dev)',performed_by:CU.id,note:'ลบเอกสาร: '+((doc&&doc.doc_number)||'')+' — '+((doc&&doc.title)||docId)});}catch(e){}
+    await fetch(SU+'/rest/v1/workflow_steps?document_id=eq.'+safeId(docId),{method:'DELETE',headers:{apikey:SK,Authorization:H.Authorization}});
+    if(Array.isArray(files)){
+      for(var i=0;i<files.length;i++){
+        try{await deleteStorage(files[i].file_path);}catch(e){}
+        await fetch(SU+'/rest/v1/document_files?id=eq.'+safeId(files[i].id),{method:'DELETE',headers:{apikey:SK,Authorization:H.Authorization}});
+      }
+    }
+    await dd('documents',docId);
+    _devCurDocId=null;
+    var box=$e('dev-doc-inspector'); if(box) box.innerHTML='';
+    showAlert('ลบเอกสารแล้ว','ok');
+  }catch(e){showAlert('ลบไม่สำเร็จ: '+(e.message||e)+' — รัน supabase/phase2_dev_ops.sql หากยังไม่มีสิทธิ์ลบ','er');}
+}
+
+async function _devExportConfig(){
+  try{
+    var settings=await dg('app_settings','?order=key');
+    var email=await dg('email_templates','?order=key');
+    var pack={
+      exported_at:new Date().toISOString(),
+      exported_by:CU&&CU.id,
+      app_settings:Array.isArray(settings)?settings:[],
+      email_templates:Array.isArray(email)?email:[],
+      workflow_presets:{
+        budget_ltypes_json:BUDGET_LTYPES.slice(),
+        flow_steps_general_json:FLOW_STEPS_GENERAL.map(function(s){return Object.assign({},s);}),
+        flow_steps_budget_json:FLOW_STEPS_BUDGET.map(function(s){return Object.assign({},s);})
+      }
+    };
+    var blob=new Blob([JSON.stringify(pack,null,2)],{type:'application/json'});
+    var a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download='saedu-config-'+new Date().toISOString().slice(0,10)+'.json';
+    document.body.appendChild(a); a.click(); a.remove();
+    showAlert('ส่งออกการตั้งค่าแล้ว ('+pack.app_settings.length+' keys)','ok');
+  }catch(e){showAlert('ส่งออกไม่สำเร็จ: '+(e.message||e),'er');}
+}
+
+function _devTriggerImport(){
+  var inp=$e('dev-config-import');
+  if(inp) inp.click();
+}
+
+async function _devImportConfig(ev){
+  var file=ev.target&&ev.target.files&&ev.target.files[0];
+  ev.target.value='';
+  if(!file) return;
+  try{
+    var text=await file.text();
+    var pack=JSON.parse(text);
+    if(!pack||!Array.isArray(pack.app_settings)) throw new Error('รูปแบบไฟล์ไม่ถูกต้อง');
+    showConfirm('นำเข้าการตั้งค่า?','จะเขียนทับ app_settings '+pack.app_settings.length+' รายการ'+(pack.email_templates?' + email_templates '+pack.email_templates.length:'')+' — ดำเนินการต่อ?',async function(){
+      var ok=0,fail=0;
+      for(var i=0;i<pack.app_settings.length;i++){
+        var row=pack.app_settings[i];
+        if(!row||!row.key) continue;
+        try{
+          await _devUpsertSetting(row.key,String(row.value!=null?row.value:''),row.value_type||'text');
+          ok++;
+        }catch(e){fail++;}
+      }
+      if(Array.isArray(pack.email_templates)){
+        for(var j=0;j<pack.email_templates.length;j++){
+          var et=pack.email_templates[j];
+          if(!et||!et.key) continue;
+          try{
+            var ex=await dg('email_templates','?key=eq.'+encodeURIComponent(et.key)+'&select=key&limit=1');
+            var body={subject_suffix:et.subject_suffix||'',extra_note:et.extra_note||''};
+            if(Array.isArray(ex)&&ex.length){
+              await fetch(SU+'/rest/v1/email_templates?key=eq.'+encodeURIComponent(et.key),{method:'PATCH',headers:H,body:JSON.stringify(body)});
+            }else{
+              await dp('email_templates',{key:et.key,subject_suffix:body.subject_suffix,extra_note:body.extra_note});
+            }
+          }catch(e){fail++;}
+        }
+      }
+      if(pack.workflow_presets){
+        var wp=pack.workflow_presets;
+        if(Array.isArray(wp.budget_ltypes_json)) await _devUpsertSetting('budget_ltypes_json',JSON.stringify(wp.budget_ltypes_json),'json');
+        if(Array.isArray(wp.flow_steps_general_json)) await _devUpsertSetting('flow_steps_general_json',JSON.stringify(wp.flow_steps_general_json),'json');
+        if(Array.isArray(wp.flow_steps_budget_json)) await _devUpsertSetting('flow_steps_budget_json',JSON.stringify(wp.flow_steps_budget_json),'json');
+      }
+      await loadAppSettings();
+      showAlert('นำเข้าเสร็จ — สำเร็จ '+ok+' รายการ'+(fail?(' ล้มเหลว '+fail):'')+' — รีเฟรชหน้าเพื่อให้ครบ','ok');
+      _devRefreshSettingsView();
+    },{confirmLabel:'นำเข้า',confirmClass:'btn-danger'});
+  }catch(e){showAlert('อ่านไฟล์ไม่สำเร็จ: '+(e.message||e),'er');}
+}
+
+function _rDevConfigBackupCard(){
+  return '<div class="card"><div class="card-head">'+
+    '<div style="width:26px;height:26px;border-radius:7px;background:#EFF6FF;display:flex;align-items:center;justify-content:center;color:#2563EB">'+svg('dn',13)+'</div>'+
+    '<div><div class="card-head-title">สำรอง / กู้คืนการตั้งค่า</div>'+
+    '<div style="font-size:10px;color:#a89e99;margin-top:1px">ส่งออก app_settings + แม่แบบอีเมล + workflow presets เป็น JSON — นำเข้ากลับได้เมื่อย้ายระบบหรือแก้พลาด</div></div>'+
+  '</div><div class="card-body">'+
+    '<div style="display:flex;gap:8px;flex-wrap:wrap">'+
+      '<button class="btn btn-primary sm" onclick="_devExportConfig()">'+svg('dn',12)+' ส่งออก JSON</button>'+
+      '<button class="btn btn-soft sm" onclick="_devTriggerImport()">'+svg('up',12)+' นำเข้า JSON</button>'+
+      '<input type="file" id="dev-config-import" accept="application/json,.json" style="display:none" onchange="_devImportConfig(event)">'+
+    '</div>'+
+    '<div style="font-size:10.5px;color:#a89e99;margin-top:10px;line-height:1.7">นำเข้าจะเขียนทับค่าเดิมใน app_settings และ email_templates — แนะนำส่งออกสำรองก่อนทุกครั้ง</div>'+
+  '</div></div>';
+}
+
 /* ═══ การ์ดเสริมท้ายแท็บ "ตั้งค่าระบบ" (ฝังใน _vSysContent — เห็นทั้งแอดมินใน vSys และ dev ในแท็บจัดการระบบ) ═══ */
 
 /* upsert หนึ่ง key ลง app_settings — ใช้ header H (JWT จริง) เสมอ + เช็ค r.ok (ดู Key Constraints ใน CLAUDE.md) */
@@ -589,18 +1036,19 @@ function _rDevExtraSettingsCards(rows,anns){
   var laActive=m.login_announcement_active==='true';
   var laType=m.login_announcement_type||'info';
   var loginCard=
-    '<div class="card"><div class="card-head">'+
+    '<div class="card" style="margin-top:22px">'+
+    '<div class="card-head" style="padding:20px 22px 18px;align-items:flex-start;gap:12px">'+
       '<div style="width:26px;height:26px;border-radius:7px;background:#FFF3EE;display:flex;align-items:center;justify-content:center;color:#E83A00">'+svg('megaphone',13)+'</div>'+
       '<div><div class="card-head-title">Popup ประกาศหน้า Login</div>'+
       '<div style="font-size:10px;color:#a89e99;margin-top:1px">เด้งขึ้นก่อนเข้าระบบ — ใช้แจ้งปิดปรับปรุง เปิดรับสมัคร หรือข่าวด่วน (ผู้ใช้กด "รับทราบ" แล้วจะไม่เด้งซ้ำจนกว่าจะแก้ข้อความใหม่)</div></div>'+
-      '<label style="margin-left:auto;display:flex;align-items:center;gap:7px;cursor:pointer;flex-shrink:0">'+
+      '<label style="margin-left:auto;align-self:center;display:flex;align-items:center;gap:7px;cursor:pointer;flex-shrink:0">'+
         '<input type="checkbox" id="dev-la-active"'+(laActive?' checked':'')+' style="width:16px;height:16px;accent-color:#E83A00;cursor:pointer">'+
         '<span style="font-size:12px;font-weight:700;color:'+(laActive?'#16A34A':'#a89e99')+'" id="dev-la-active-lb">'+(laActive?'เปิดแสดงอยู่':'ปิดอยู่')+'</span>'+
       '</label>'+
     '</div>'+
     '<div id="dev-la-al"></div>'+
-    '<div class="card-body">'+
-      '<div style="display:grid;grid-template-columns:1fr 160px;gap:10px;margin-bottom:10px">'+
+    '<div class="card-body" style="padding:24px 22px 22px">'+
+      '<div style="display:grid;grid-template-columns:1fr 180px;gap:16px;margin-bottom:16px">'+
         '<div class="fg" style="margin:0"><label class="fl">หัวข้อประกาศ</label>'+
         '<input class="fi" id="dev-la-title" value="'+esc(m.login_announcement_title||'')+'" placeholder="เช่น ปิดปรับปรุงระบบชั่วคราว"></div>'+
         '<div class="fg" style="margin:0"><label class="fl">รูปแบบ</label>'+
@@ -610,13 +1058,13 @@ function _rDevExtraSettingsCards(rows,anns){
           '<option value="error"'+(laType==='error'?' selected':'')+'>⛔ สำคัญมาก (แดง)</option>'+
         '</select></div>'+
       '</div>'+
-      '<div class="fg" style="margin-bottom:12px"><label class="fl">ข้อความประกาศ (เว้นบรรทัดได้)</label>'+
-      '<textarea class="fi" id="dev-la-msg" rows="4" placeholder="รายละเอียดประกาศ...">'+esc(m.login_announcement||'')+'</textarea></div>'+
-      '<div style="display:flex;gap:8px;flex-wrap:wrap">'+
+      '<div class="fg" style="margin-bottom:16px"><label class="fl">ข้อความประกาศ (เว้นบรรทัดได้)</label>'+
+      '<textarea class="fi" id="dev-la-msg" rows="5" placeholder="รายละเอียดประกาศ..." style="min-height:120px;line-height:1.7">'+esc(m.login_announcement||'')+'</textarea></div>'+
+      '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:4px">'+
         '<button class="btn btn-primary sm" onclick="_devSaveLoginAnnounce()">'+svg('save',12)+' บันทึกประกาศ</button>'+
         '<button class="btn btn-soft sm" onclick="_devPreviewLoginAnnounce()">'+svg('eye',12)+' ดูตัวอย่าง</button>'+
       '</div>'+
-      '<div style="font-size:10.5px;color:#a89e99;margin-top:10px;line-height:1.7">ต้องรัน supabase/create_dev_role.sql ก่อน popup ถึงจะแสดงบนหน้า Login ได้ (เปิดสิทธิ์ให้คนที่ยังไม่ล็อกอินอ่านประกาศ)</div>'+
+      '<div style="font-size:10.5px;color:#a89e99;margin-top:14px;line-height:1.7">ต้องรัน supabase/create_dev_role.sql ก่อน popup ถึงจะแสดงบนหน้า Login ได้ (เปิดสิทธิ์ให้คนที่ยังไม่ล็อกอินอ่านประกาศ)</div>'+
     '</div></div>';
 
   // ── Card 2: app_settings ทั้งหมด (raw editor) ──
@@ -651,7 +1099,7 @@ function _rDevExtraSettingsCards(rows,anns){
       '<button class="btn btn-primary sm" onclick="_devAddSetting()">'+svg('plus',12)+'</button>'+
     '</div></div>';
 
-  return loginCard+_rAnnbManageCard(anns)+rawCard;
+  return loginCard+_rAnnbManageCard(anns)+_rDevConfigBackupCard()+rawCard;
 }
 
 /* ═══ การ์ดจัดการบอร์ดประกาศหน้า Home (ตาราง announcements) ═══ */
@@ -838,7 +1286,7 @@ async function _devDeleteSetting(key){
 /* ═══ แท็บ 5: คู่มือ & ลิงก์ ═══ */
 function _devInfoPanel(sqlReady){
   var links=[
-    {label:'คู่มือนักพัฒนา (Handover)',desc:'สถาปัตยกรรม วิธี deploy และปัญหาที่พบบ่อย — อ่านก่อนเริ่มแก้ระบบ',url:'dev-manual.html',ico:'book-open',color:'#E83A00',bg:'#FFF3EE'},
+    {label:'คู่มือนักพัฒนา (Handover)',desc:'สถาปัตยกรรม Deploy กับดัก Dev Panel ระยะ 1–3 และ checklist รับช่วง — อ่านก่อนแก้ระบบ',url:'dev-manual.html',ico:'book-open',color:'#E83A00',bg:'#FFF3EE'},
     {label:'GitHub Repository',desc:'kittiya45/SaEDU-Flow-system — push ขึ้น main แล้ว Vercel deploy ให้อัตโนมัติ',url:'https://github.com/kittiya45/SaEDU-Flow-system',ico:'code',color:'#18120E',bg:'#F5F3F0'},
     {label:'Supabase Dashboard',desc:'ฐานข้อมูล, Auth, Storage, Edge Functions และ SQL Editor (project: jrubupvzltxqstzcpoov)',url:'https://supabase.com/dashboard/project/jrubupvzltxqstzcpoov',ico:'database',color:'#16A34A',bg:'#ECFDF5'},
     {label:'Vercel Dashboard',desc:'สถานะ deploy และ log ของเว็บ',url:'https://vercel.com/dashboard',ico:'activity',color:'#2563EB',bg:'#EFF6FF'}
@@ -857,9 +1305,11 @@ function _devInfoPanel(sqlReady){
       '<div style="width:26px;height:26px;border-radius:7px;background:#FEF3C7;display:flex;align-items:center;justify-content:center;color:#D97706">'+svg('list',13)+'</div>'+
       '<div><div class="card-head-title">เช็กลิสต์เปิดใช้ระบบนักพัฒนา</div></div>'+
     '</div><div class="card-body" style="font-size:12.5px;color:#3A332E;line-height:2">'+
-      '<div>'+(sqlReady?svg('ok',13)+' <strong>รัน supabase/create_dev_role.sql แล้ว</strong> — ตาราง system_logs พร้อมใช้':svg('x',13)+' <strong style="color:#DC2626">ยังไม่ได้รัน supabase/create_dev_role.sql</strong> — เปิด Supabase Dashboard → SQL Editor → วางเนื้อหาไฟล์แล้วรัน')+'</div>'+
-      '<div>'+svg('info',13)+' <strong>มอบสิทธิ์นักพัฒนา:</strong> ให้คนนั้นสมัครสมาชิกตามปกติก่อน → แอดมินอนุมัติบัญชี → หน้า "จัดการผู้ใช้" → เมนู ⋮ → แก้ไขข้อมูล → เปลี่ยนสิทธิ์เป็น "นักพัฒนา (ROLE-DEV)"</div>'+
-      '<div>'+svg('info',13)+' ระบบนักพัฒนา<strong>แยกจากแอดมิน</strong>: บัญชีนักพัฒนาเห็นเมนู "นักพัฒนา" เมนูเดียว (การตั้งค่าระบบอยู่ในแท็บ "จัดการระบบ" ด้านใน) ส่วนแอดมินไม่เห็น/ไม่เข้าหน้านี้ — สิทธิ์ฐานข้อมูลก็แยกกัน: นักพัฒนาแก้ config + ซ่อมเอกสารได้ แต่จัดการผู้ใช้·ลบเอกสาร·อ่านอีเมลผู้ใช้ไม่ได้</div>'+
+      '<div>'+(sqlReady?svg('ok',13)+' <strong>รัน supabase/create_dev_role.sql แล้ว</strong> — ดูเช็กลิสต์ SQL ครบถ้วนที่แท็บ "สุขภาพระบบ"':svg('x',13)+' <strong style="color:#DC2626">ยังไม่ได้รัน supabase/create_dev_role.sql</strong> — ไปที่แท็บ "สุขภาพระบบ" แล้วกด "คัดลอก SQL"')+'</div>'+
+      '<div>'+svg('info',13)+' <strong>บริการภายนอก:</strong> ตรวจสถานะ Brevo / LINE / CloudConvert ได้ที่แท็บ "สุขภาพระบบ" (ต้อง deploy Edge Function <code class="mono">integration-status</code>)</div>'+
+      '<div>'+svg('info',13)+' <strong>มอบสิทธิ์นักพัฒนา:</strong> แอดมินอนุมัติบัญชี → แก้ role เป็น ROLE-DEV · หลังจากนั้นนักพัฒนาคนอื่นมอบ ROLE-DEV ให้กันได้ที่แท็บ "จัดการผู้ใช้"</div>'+
+      '<div>'+svg('info',13)+' <strong>จัดการผู้ใช้ (ระยะ 3):</strong> แท็บ "จัดการผู้ใช้" — อนุมัติ/ปฏิเสธ/เปิด-ปิด/แก้ role/รีเซ็ตรหัสผ่าน (ห้าม ROLE-SYS) · ต้องรัน <code class="mono">phase3_dev_users.sql</code> และ deploy <code class="mono">admin-set-password</code> ใหม่</div>'+
+      '<div>'+svg('info',13)+' ระบบนักพัฒนา<strong>แยกจากแอดมิน</strong>: เห็นเมนู "นักพัฒนา" เมนูเดียว — config, ซ่อมเอกสาร, จัดการผู้ใช้แบบจำกัด, ทดสอบระบบ · ลบผู้ใช้/นำเข้า/เพิ่มอาจารย์ยังต้องใช้แอดมินหลัก</div>'+
     '</div></div>';
 
   return '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px">'+linkCards+'</div>'+setup;

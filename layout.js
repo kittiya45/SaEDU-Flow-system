@@ -186,7 +186,7 @@ async function nav(view, id) {
     _annHtml='<div class="al '+_annCls+' mb-4" style="margin-bottom:16px"><span class="al-icon">'+svg(_annIco,14)+'</span><span>'+esc(SETT.system_announcement)+'</span></div>';
   }
   if(window._schemaWarning){
-    _annHtml+='<div class="al al-wa mb-4" style="margin-bottom:16px"><span class="al-icon">'+svg('warn',14)+'</span><span>ระบบยังไม่ได้รัน SQL ล่าสุด (schema v'+REQUIRED_SCHEMA_VERSION+') — รัน <code>scale_hardening.sql</code>, <code>workflow_ops_rpc.sql</code>, <code>cron_overdue.sql</code>, <code>private_storage_bucket.sql</code> ใน Supabase Dashboard</span></div>';
+    _annHtml+='<div class="al al-wa mb-4" style="margin-bottom:16px"><span class="al-icon">'+svg('warn',14)+'</span><span>ระบบยังไม่ได้รัน SQL ล่าสุด (schema v'+REQUIRED_SCHEMA_VERSION+') — รัน <code>user_signatures.sql</code> (ลายเซ็นส่วนตัว), <code>scale_hardening.sql</code>, <code>workflow_ops_rpc.sql</code>, <code>private_storage_bucket.sql</code> ใน Supabase Dashboard</span></div>';
   }
 
   // แสดง loading state ทันทีก่อนดึงข้อมูล
@@ -213,6 +213,7 @@ async function nav(view, id) {
     else if (view==='sys')                content = await vSys();
     else if (view==='stat')               content = await vStat();
     else if (view==='dev')                content = await vDev();
+    else if (view==='prof')               content = await vProf();
   } catch(e) {
     content = '<div style="padding:32px;color:#DC2626;font-size:14px">เกิดข้อผิดพลาด: '+esc(String(e.message||e))+'</div>';
   }
@@ -223,7 +224,7 @@ async function nav(view, id) {
     new:'สร้างเอกสารใหม่', edit:'แก้ไขเอกสาร', det:'รายละเอียดเอกสาร',
     tmpl:'แบบฟอร์มดาวน์โหลด',
     adm:'จัดการผู้ใช้งาน', sys:'จัดการระบบ', stat:'สถิติ & รายงาน',
-    dev:'เครื่องมือนักพัฒนา'
+    dev:'เครื่องมือนักพัฒนา', prof:'ลายเซ็นของฉัน'
   };
 
   var ni = [
@@ -240,6 +241,7 @@ async function nav(view, id) {
   if (isAdm || CU.role_code==='ROLE-STF')    ni.push({k:'adm',  i:'users', l:'จัดการผู้ใช้'});
   if (isAdm)                                 ni.push({k:'sys',  i:'gear',  l:'จัดการระบบ'});
   if (isDev)                                 ni.push({k:'dev',  i:'code',  l:'นักพัฒนา'});
+  ni.push({k:'prof', i:'pen', l:'ลายเซ็นของฉัน'});
 
   var sidebarItems = ni.map(function(n){ return _navItem(n, CV===n.k); }).join('');
 
@@ -286,4 +288,5 @@ async function nav(view, id) {
 
     '</div>'
   );
+  if(view==='prof') setTimeout(function(){if(typeof initProfSig==='function')initProfSig()},60);
 } 
