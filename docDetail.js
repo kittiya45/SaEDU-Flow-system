@@ -61,6 +61,7 @@ function _rCurFileRow(f,docId){
   var isRejFile=f.file_name.indexOf('[ตีกลับ]')>=0;
   var isEditFile=f.file_name.indexOf('[แก้ไข]')>=0||f.file_name.indexOf('edited_')>=0;
   var _dispName=_fileBaseName(f);
+  var _ext=(f.file_name||'').split('.').pop().toLowerCase();
   var dtStr=f.uploaded_at?new Date(f.uploaded_at).toLocaleString('th-TH',{day:'numeric',month:'short',year:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
   var h=['<div class="file-item file-item-detail">'];
   h.push('<div class="file-chip-wrap">'+fChip(f,18)+'</div>');
@@ -73,7 +74,7 @@ function _rCurFileRow(f,docId){
   if(isEditFile) h.push('<span class="badge b-pending">แก้ไข</span>');
   h.push('<span class="file-meta">'+ft.label+' · '+fsz(f.file_size)+(dtStr?' · '+dtStr:'')+'</span>');
   h.push('</div></div><div class="file-actions">');
-  h.push('<button class="btn btn-ghost xs" data-action="openViewer" data-path="'+esc(f.file_path)+'" data-name="'+esc(_dispName)+'">'+svg('eye',11)+' ดู</button>');
+  h.push('<button class="btn btn-ghost xs" data-action="openViewer" data-path="'+esc(f.file_path)+'" data-name="'+esc(_dispName)+'" data-ext="'+esc(_ext)+'">'+svg('eye',11)+' ดู</button>');
   h.push('<button class="btn btn-soft xs" data-action="openEditor" data-path="'+esc(f.file_path)+'" data-name="'+esc(_dispName)+'" data-fid="'+f.id+'" data-did="'+docId+'">'+svg('edit',11)+' แก้ไข</button>');
   h.push('<button class="btn btn-soft xs" data-action="dlFile" data-path="'+esc(f.file_path)+'" data-name="'+esc(_dispName)+'">'+svg('dn',11)+' โหลด</button>');
   h.push('</div></div>');
@@ -82,19 +83,13 @@ function _rCurFileRow(f,docId){
 function _rFilesBodyHtml(files,docId){
   if(!files.length) return '<div class="card-empty py-6"><div class="card-empty-icon">'+svg('folder',40)+'</div><div class="card-empty-text">ยังไม่มีไฟล์แนบ</div></div>';
   var fg=_fileGroups(files);
-  var h=['<div class="files-list-label">ฉบับปัจจุบัน</div>','<div class="files-list">'];
+  var h=['<div class="files-list">'];
   fg.cur.forEach(function(f){h.push(_rCurFileRow(f,docId))});
   h.push('</div>');
   if(_canSeeVerHist()&&fg.hist.length){
-    h.push('<button class="files-hist-toggle" data-action="showVerHist" data-id="'+docId+'">'+svg('tri',10)+' ประวัติเวอร์ชันก่อนหน้า ('+fg.hist.length+' ไฟล์)</button>');
+    h.push('<button class="files-hist-toggle" data-action="showVerHist" data-id="'+docId+'">'+svg('tri',10)+' เวอร์ชันก่อนหน้า ('+fg.hist.length+')</button>');
   }
   return h.join('');
-}
-function _rFileCountHtml(files){
-  var fg=_fileGroups(files);
-  var s=(_canSeeVerHist()?files.length:fg.cur.length)+' ไฟล์';
-  if(_canSeeVerHist()&&fg.hist.length) s+=' · <span class="text-[#2563EB] font-semibold">'+fg.hist.length+' เวอร์ชันแก้ไข</span>';
-  return s;
 }
 
 /* ─── DOC DETAIL ─── */
@@ -131,12 +126,16 @@ async function vDet(docId){
   // ตรวจสอบว่ามีการส่งคืนแก้ไขในอดีตหรือไม่
   var hasRejectedHistory=wf.some(function(s){return s.status==='rejected'});
 
+  var _fwdAcceptedEarly=hist.some(function(h){return h.action&&h.action.indexOf('เจ้าหน้าที่รับเอกสาร')>=0});
+  var _fwdPendingEarly=doc.status==='completed'&&!_fwdAcceptedEarly&&(!!doc.forwarded_to_id||!!doc.forwarded_to_staff);
   var html=['<div class="detail-toolbar">'];
   html.push('<button class="btn-back" data-action="nav" data-view="docs">'+svg('back',15)+' กลับรายการ</button>');
-  html.push('<span class="detail-toolbar-status">'+sBadge(doc.status)+'</span>');
+  html.push('<span class="detail-toolbar-status">'+(_fwdPendingEarly?sBadgeFwd(true):sBadge(doc.status))+'</span>');
   // Status banners — เก็บแยกไว้ก่อน แสดงเป็นแถบเต็มความกว้างใต้ toolbar (ไม่ปนกับปุ่ม action)
   var banners=[];
-  if(doc.status==='completed') banners.push('<div class="al al-ok"><span class="al-icon">'+svg('ok',13)+'</span><span><strong>อนุมัติครบทุกขั้นตอนแล้ว</strong> เอกสารเสร็จสมบูรณ์</span></div>');
+  if(doc.status==='completed'&&_fwdPendingEarly) banners.push('<div class="al al-wa"><span class="al-icon">'+svg('inbox',13)+'</span><span><strong>'+FWD_STATUS_LABEL+'</strong> — รอเจ้าหน้าที่รับเอกสาร</span></div>');
+  else if(doc.status==='awaiting_submit') banners.push('<div class="al al-wa"><span class="al-icon">'+svg('clock',13)+'</span><span><strong>รอเจ้าหน้าที่ยื่นในระบบ</strong> — หลังยื่นในระบบมหาวิทยาลัยแล้ว ให้อัปโหลดฉบับประทับกลับมา สถานะจะเป็นเสร็จสมบูรณ์</span></div>');
+  else if(doc.status==='completed') banners.push('<div class="al al-ok"><span class="al-icon">'+svg('ok',13)+'</span><span><strong>เสร็จสมบูรณ์</strong> — เอกสารดำเนินการครบแล้ว</span></div>');
   var _canNum=doc.status==='numbering'&&(doc.created_by===CU.id||['ROLE-SYS','ROLE-STF'].includes(CU.role_code));
   if(doc.status==='numbering') banners.push('<div class="al al-wa"><span class="al-icon">'+svg('pen',13)+'</span><span>'+(_canNum?'<strong>ลายเซ็นครบทุกขั้นตอนแล้ว</strong> กดปุ่ม “ออกเลขหนังสือ” ด้านบนเพื่อกำหนดเลขที่และวันที่':'<strong>รอผู้จัดทำออกเลขที่หนังสือ</strong> เอกสารผ่านการลงนามครบแล้ว')+'</span></div>');
   // Banner: cascade — แสดงเมื่อ step ที่ active ถูก re-activate เพราะ step ถัดไปตีกลับ
@@ -190,34 +189,31 @@ async function vDet(docId){
   }
   // Secondary
   if(CAN.up(CU.role_code)){
-    html.push('<button class="btn btn-soft sm" data-action="detUp">'+svg('up',13)+' อัปโหลด</button>');
+    var _upLbl=doc.status==='awaiting_submit'?'อัปโหลดฉบับประทับ':'อัปโหลด';
+    html.push('<button class="btn '+(doc.status==='awaiting_submit'?'btn-primary':'btn-soft')+' sm" data-action="detUp">'+svg('up',13)+' '+_upLbl+'</button>');
     html.push('<input type="file" id="dup" class="hidden" multiple accept=".pdf,.doc,.docx,.png,.jpg">');
   }
   if(CAN.ed(CU.role_code)&&(doc.status==='draft'||(doc.status==='rejected'&&doc.created_by===CU.id))){
     html.push('<button class="btn btn-soft sm" data-action="nav" data-view="edit" data-id="'+docId+'">'+svg('edit',13)+' แก้ไข</button>');
   }
   if(doc.status==='completed'){
-    // ซ่อนปุ่มส่งต่อเมื่อรอการรับเอกสารอยู่แล้ว
-    var _fwdPending=doc.forwarded_to_id&&!hist.some(function(h){return h.action&&h.action.indexOf('เจ้าหน้าที่รับเอกสาร')>=0});
-    // ผู้ที่ส่งต่อได้ต้องเป็นผู้ถือเอกสารอยู่ตอนนี้ (ผู้จัดทำถ้ายังไม่ส่งต่อ หรือผู้ที่ถูกส่งต่อล่าสุด) หรือแอดมิน/เจ้าหน้าที่
-    // — ต้องตรงกับสิทธิ์ที่ DB เช็คจริงใน documents_update RLS policy ไม่งั้นปุ่มจะกดได้แต่ขึ้น error
-    var _holdsDoc=doc.forwarded_to_id?doc.forwarded_to_id===CU.id:doc.created_by===CU.id;
-    var _canFwd=_holdsDoc||['ROLE-SYS','ROLE-STF'].includes(CU.role_code);
-    if(!_fwdPending&&_canFwd){
+    var _fwdPending=_fwdPendingEarly;
+    var _holdsDoc=doc.forwarded_to_staff?_canActStaffPool():(doc.forwarded_to_id?doc.forwarded_to_id===CU.id:doc.created_by===CU.id);
+    var _canFwd=(!_fwdPending)&&(_holdsDoc||['ROLE-SYS','ROLE-STF'].includes(CU.role_code));
+    if(_canFwd){
       html.push('<button class="btn btn-soft sm" data-action="showFwdModal" data-id="'+docId+'">'+svg('sign',13)+' ส่งต่อ</button>');
     } else if(_fwdPending){
-      html.push('<span style="font-size:12px;color:#D97706;display:flex;align-items:center;gap:4px">'+svg('clock',13)+' รอเจ้าหน้าที่รับเอกสาร</span>');
+      html.push('<span style="font-size:12px;color:#D97706;display:flex;align-items:center;gap:4px">'+svg('clock',13)+' '+(doc.forwarded_to_staff?'รอเจ้าหน้าที่กิจการรับเอกสาร (คิวกลุ่ม)':'รอเจ้าหน้าที่รับเอกสาร')+'</span>');
     }
   }
-  // Accept / Decline buttons — แสดงเฉพาะ forwarded_to_id คนนั้น และยังไม่ได้รับ
-  if(doc.status==='completed'&&doc.forwarded_to_id&&doc.forwarded_to_id===CU.id){
-    var _fwdAccepted=hist.some(function(h){return h.action&&h.action.indexOf('เจ้าหน้าที่รับเอกสาร')>=0});
-    if(!_fwdAccepted){
-      html.push('<button class="btn btn-success sm" data-action="acceptFwd" data-id="'+docId+'">'+svg('ok',13)+' รับเอกสาร / อนุมัติ</button>');
-      html.push('<button class="btn btn-danger sm" data-action="showDeclineFwdModal" data-id="'+docId+'">'+svg('x',13)+' ไม่อนุมัติ / ส่งคืน</button>');
-    } else {
-      html.push('<span class="badge b-completed" style="padding:6px 12px;display:flex;align-items:center;gap:4px">'+svg('ok',12)+' รับเอกสารแล้ว</span>');
-    }
+  // Accept / Decline — คนที่ถูกส่งต่อ หรือ จนท.ใดก็ได้เมื่อเป็นคิวกลุ่ม
+  var _canAcceptFwd=doc.status==='completed'&&!_fwdAcceptedEarly&&(
+    (doc.forwarded_to_id&&doc.forwarded_to_id===CU.id)||
+    (doc.forwarded_to_staff&&CU.role_code==='ROLE-STF')
+  );
+  if(_canAcceptFwd){
+    html.push('<button class="btn btn-success sm" data-action="acceptFwd" data-id="'+docId+'">'+svg('ok',13)+' รับเอกสาร / อนุมัติ</button>');
+    html.push('<button class="btn btn-danger sm" data-action="showDeclineFwdModal" data-id="'+docId+'">'+svg('x',13)+' ไม่อนุมัติ / ส่งคืน</button>');
   }
   html.push('<button class="btn btn-soft sm" data-action="exportDocPDF" data-id="'+docId+'">'+svg('pdf_ico',13)+' PDF</button>');
   // Destructive — ซ่อนใน ⋮ dropdown สำหรับ admin เท่านั้น
@@ -240,8 +236,8 @@ async function vDet(docId){
   // Info
   var _ico=function(i,bg,cl){return '<div style="width:26px;height:26px;border-radius:7px;background:'+bg+';display:flex;align-items:center;justify-content:center;color:'+cl+'">'+svg(i,13)+'</div>'};
   html.push('<div class="card"><div class="card-head">'+_ico('doc','#FFF3EE','#E83A00')+'<span class="card-head-title">ข้อมูลเอกสาร</span></div><div class="card-body">');
-  var _addrDisplay=doc.doc_type==='outgoing'?(PTH[doc.addressed_to]||doc.addressed_to||'—'):(doc.addressed_to||'—');
-  var _fromDisplay=doc.doc_type==='outgoing'&&doc.description?'โครงการ: '+doc.description:(doc.from_department||'—');
+  var _addrDisplay=doc.doc_type==='incoming'?(PTH[doc.addressed_to]||doc.addressed_to||'—'):(doc.addressed_to||'—');
+  var _fromDisplay=doc.doc_type==='incoming'&&doc.description?'โครงการ: '+doc.description:(doc.from_department||'—');
   // หัวเรื่อง + เลขที่เอกสาร
   html.push('<div class="detail-head"><span class="detail-title">'+esc(doc.title)+'</span><span class="detail-num">'+esc(doc.doc_number||'—')+'</span></div>');
   var _scell=function(label,val){return '<div class="stat-cell"><span class="stat-label">'+label+'</span><span class="stat-value">'+val+'</span></div>'};
@@ -264,28 +260,18 @@ async function vDet(docId){
   // โซน 3: รายละเอียดเพิ่มเติม — ข้อความยาว แยกเป็นบล็อกอ่านง่าย line-height สูง
   var _descBoxText=doc.description?((doc.description==='เรื่องอื่น ๆ'&&doc.subject_line)?'เรื่องอื่น ๆ: '+doc.subject_line:doc.description):'';
   if(_descBoxText) html.push('<div class="detail-desc"><div class="detail-desc-label">'+svg('doc',13)+' รายละเอียดเพิ่มเติม</div><div class="detail-desc-text">'+esc(_descBoxText)+'</div></div>');
-  // Show forwarded_to info
-  if(doc.forwarded_to_id&&doc.status==='completed'){
+  // Show forwarded_to / staff-pool info
+  if(doc.status==='completed'&&doc.forwarded_to_staff&&_fwdPendingEarly){
+    html.push('<div class="al al-wa detail-fwd"><span class="al-icon">'+svg('inbox',15)+'</span><div style="line-height:1.65"><strong>ส่งเข้ากิจการทั้งหมด</strong> — เจ้าหน้าที่กิจการนิสิตทุกคนเปิดดูไฟล์ได้ คนใดคนหนึ่งกดรับได้'+(doc.forwarded_at?'<div style="font-size:11px;margin-top:4px;opacity:.85">เมื่อ '+new Date(doc.forwarded_at).toLocaleString('th-TH',{dateStyle:'medium',timeStyle:'short'})+'</div>':'')+'</div></div>');
+  } else if(doc.forwarded_to_id&&doc.status==='completed'){
     var _fwdUser=_aMap[doc.forwarded_to_id];
     if(_fwdUser) html.push('<div class="al al-ok detail-fwd"><span class="al-icon">'+svg('sign',15)+'</span><div style="line-height:1.65"><strong>ส่งเอกสารถึง: '+esc(_fwdUser.full_name)+'</strong>'+(doc.forwarded_at?'<div style="font-size:11px;margin-top:4px;opacity:.85">เมื่อ '+new Date(doc.forwarded_at).toLocaleString('th-TH',{dateStyle:'medium',timeStyle:'short'})+'</div>':'')+'</div></div>')
   }
   html.push('</div></div>');
 
-  // Files — จัดกลุ่มตามไฟล์ต้นฉบับ: ฉบับล่าสุดของแต่ละไฟล์ (Word/PDF/เอกสารเบิกเงิน) = ฉบับปัจจุบัน
+  // Files — หัวการ์ดเหลือแค่ "ไฟล์แนบ" (ไม่ใส่ปุ่มฉบับเซ็น/ตัวนับเวอร์ชัน — กันสับสน)
   // เวอร์ชันเก่าที่ถูกทับเห็นได้เฉพาะ admin/เจ้าหน้าที่ (ดู _fileGroups/_canSeeVerHist ด้านบน)
-  var _signedFile=files.find(function(f){return _isSignedFile(f)});
-
-  html.push('<div class="card files-card"><div class="card-head files-card-head">'+_ico('folder','#FFF3EE','#E83A00')+'<span class="card-head-title">ไฟล์แนบ</span>');
-  html.push('<span class="file-head-actions ml-auto">');
-  if(_signedFile){
-    var _signedDispName=_fileBaseName(_signedFile);
-    html.push('<span class="file-head-btns">');
-    html.push('<button class="btn btn-ghost xs" data-action="openViewer" data-path="'+esc(_signedFile.file_path)+'" data-name="'+esc(_signedDispName)+'">'+svg('eye',12)+' ดูฉบับเซ็น</button>');
-    html.push('<button class="btn btn-soft xs" data-action="dlFile" data-path="'+esc(_signedFile.file_path)+'" data-name="'+esc(_signedDispName)+'">'+svg('dn',12)+' โหลดฉบับเซ็น</button>');
-    html.push('</span>');
-  }
-  html.push('<span class="files-count-chip" id="dfcount">'+_rFileCountHtml(files)+'</span>');
-  html.push('</span></div>');
+  html.push('<div class="card files-card"><div class="card-head files-card-head">'+_ico('folder','#FFF3EE','#E83A00')+'<span class="card-head-title">ไฟล์แนบ</span></div>');
   html.push('<div class="card-body" id="dfiles">'+_rFilesBodyHtml(files,docId)+'</div></div>');
 
   // Notification log card — admin only
@@ -337,7 +323,7 @@ async function vDet(docId){
     if(a.indexOf('ออกเลขหนังสือ')>=0)                   return {ic:'pen', bg:'#FFF3EE',cl:'#E83A00'};
     if(a.indexOf('ส่งคืน')>=0)                          return {ic:'x',   bg:'#FEE2E2',cl:'#DC2626'};
     if(a.indexOf('ส่งใหม่')>=0||a.indexOf('ส่งอีกครั้ง')>=0) return {ic:'undo',bg:'#DBEAFE',cl:'#2563EB'};
-    if(a.indexOf('อัปโหลด')>=0)                         return {ic:'up',  bg:'#EDE9FE',cl:'#7C3AED'};
+    if(a.indexOf('ฉบับประทับ')>=0||a.indexOf('อัปโหลด')>=0) return {ic:'up',  bg:'#EDE9FE',cl:'#7C3AED'};
     if(a.indexOf('ฝังลายเซ็น')>=0)                      return {ic:'pen', bg:'#D1FAE5',cl:'#16A34A'};
     if(a.indexOf('แก้ไข')>=0)                           return {ic:'edit',bg:'#FEF3C7',cl:'#D97706'};
     if(a.indexOf('ส่งต่อ')>=0)                          return {ic:'sign',bg:'#FFF3EE',cl:'#E83A00'};
@@ -346,19 +332,26 @@ async function vDet(docId){
     return {ic:'doc',bg:'#F5F5F5',cl:'#6b6560'};
   };
   html.push('<div class="card"><div class="card-head">'+_ico('cal','#FFF3EE','#E83A00')+'<span class="card-head-title">ประวัติการดำเนินการ</span></div><div class="card-body">');
-  /* [UX] ไม่ต้องแสดงทุก action — กรอง log ที่ทำให้ timeline รกออก เหลือเฉพาะ action ที่เป็นขั้นตอนการดำเนินงานจริง:
-     - "เปิดดูไฟล์" เกิดทุกครั้งที่ preview ไฟล์
-     - "เปลี่ยนสถานะ (Admin)" การบังคับเปลี่ยนสถานะของแอดมิน (ขึ้นซ้ำหลายครั้ง) */
+  /* ประวัติละเอียด = ROLE-SYS / ROLE-DEV เท่านั้น
+     คนอื่นเห็นเฉพาะขั้นสำคัญ (สร้าง/อนุมัติ/ส่งคืน/ออกเลข/ส่งต่อ/รับเอกสาร) ไม่โชว์ note ยกเว้นตอนส่งคืน */
+  var _histFullDetail=['ROLE-SYS','ROLE-DEV'].includes(CU.role_code);
   var _hidePrefix=['เปิดดูไฟล์','เปลี่ยนสถานะ (Admin)'];
   var _dispHist=hist.filter(function(h){return !(h.action&&_hidePrefix.some(function(p){return h.action.indexOf(p)===0}))});
+  if(!_histFullDetail){
+    var _keepKw=['สร้างเอกสาร','ส่งเอกสาร','อนุมัติ','ลงนาม','ส่งคืน','ส่งใหม่','ส่งอีกครั้ง','ออกเลข','ดึงเอกสารกลับ','เจ้าหน้าที่รับ','ส่งต่อ','ส่งเข้ากิจการ','ไม่อนุมัติ','ฉบับประทับ','เสร็จสมบูรณ์'];
+    _dispHist=_dispHist.filter(function(h){
+      var a=h.action||'';
+      return _keepKw.some(function(k){return a.indexOf(k)>=0});
+    });
+  }
   if(_dispHist.length){
     _dispHist.forEach(function(h){
       var _hi=_histIcon(h.action);
+      var _showNote=h.note&&(_histFullDetail||(h.action&&(h.action.indexOf('ส่งคืน')>=0||h.action.indexOf('ไม่อนุมัติ')>=0)));
       html.push('<div class="htl-item">');
       html.push('<div class="htl-ic" style="background:'+_hi.bg+';color:'+_hi.cl+'">'+svg(_hi.ic,15)+'</div>');
       html.push('<div class="htl-body"><div class="htl-action">'+esc(h.action)+'</div>');
-      if(h.note) html.push('<div class="htl-note">"'+esc(h.note)+'"</div>');
-      /* [UX] แสดงเวลาด้วย fdTime() เพื่อแยก actions ที่เกิดในวันเดียวกัน */
+      if(_showNote) html.push('<div class="htl-note">"'+esc(h.note)+'"</div>');
       html.push('<div class="htl-time">'+fdTime(h.performed_at)+'</div></div></div>');
     })
   } else {
@@ -382,32 +375,80 @@ async function vDet(docId){
 
 async function detUp(files,docId){
   var a=$e('dal');
+  var list=Array.from(files||[]);
+  var dupClr=$e('dup'); if(dupClr) dupClr.value='';
   var ALLOWED_MIME2=['application/pdf','application/msword',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     'image/png','image/jpeg'];
   var MAX_SIZE2=(SETT.max_file_size_mb||10)*1024*1024;
-  var errs2=[];
-  for(var k=0;k<files.length;k++){
-    var fk=files[k];
-    if(fk.size>MAX_SIZE2) errs2.push(fk.name+' เกิน 10 MB ('+fsz(fk.size)+')');
-    else if(ALLOWED_MIME2.indexOf(fk.type)===-1) errs2.push(fk.name+' ประเภทไม่รองรับ ('+fk.type+')');
+  var errs2=[], valid=[];
+  for(var k=0;k<list.length;k++){
+    var fk=list[k];
+    if(fk.size>MAX_SIZE2) errs2.push(fk.name+' เกิน '+(SETT.max_file_size_mb||10)+' MB ('+fsz(fk.size)+')');
+    else if(ALLOWED_MIME2.indexOf(fk.type)===-1) errs2.push(fk.name+' ประเภทไม่รองรับ ('+(fk.type||'ไม่ทราบ')+')');
+    else valid.push(fk);
   }
-  if(errs2.length){if(a)a.innerHTML=alrtH('er',errs2.join(' · '));return}
-  if(a) a.innerHTML='<div class="al al-in"><span class="sp sp-dark"></span><span> กำลังอัปโหลด...</span></div>';
+  if(errs2.length){if(a)a.innerHTML=alrtH('er',errs2.join(' · '));if(!valid.length)return}
+  if(!valid.length) return;
+  var existingAll=await dg('document_files','?document_id=eq.'+safeId(docId)+'&select=file_name,version&order=version.desc');
+  if(!Array.isArray(existingAll)) existingAll=[];
+  // เทียบกับชื่อต้นฉบับ (ตัด [ลงนาม]/[แก้ไข] ฯลฯ) — กันอัปโหลดซ้ำทั้งที่ฉบับเซ็นมีอยู่แล้ว
+  var existingBase=existingAll.map(function(f){return {file_name:_fileBaseName(f)}});
+  var split=_splitDupFiles(valid, existingBase);
+  if(!split.fresh.length){
+    if(a) a.innerHTML=alrtH('wa','ไฟล์ที่เลือกซ้ำกับฉบับปัจจุบันแล้ว — ไม่ได้อัปโหลดซ้ำ: '+split.dups.join(' · '));
+    return;
+  }
+  function _goDet(){ _detUpFiles(split.fresh, split.dups, docId); }
+  if(split.dups.length){
+    showConfirm(
+      'พบไฟล์ชื่อซ้ำ',
+      'จะข้าม '+split.dups.length+' ไฟล์ชื่อซ้ำ แล้วอัปโหลดเฉพาะ '+split.fresh.length+' ไฟล์ใหม่',
+      _goDet,
+      {confirmLabel:'อัปโหลดไฟล์ใหม่', confirmClass:'btn-primary', cancelLabel:'ยกเลิก', detail:split.dups.join(', '), icon:'warn'}
+    );
+  } else _goDet();
+}
+
+async function _detUpFiles(files, skipped, docId){
+  var a=$e('dal');
   var existingFiles=await dg('document_files','?document_id=eq.'+safeId(docId)+'&select=version&order=version.desc&limit=1');
-  var nextVer=(existingFiles.length&&existingFiles[0].version?existingFiles[0].version:0)+1;
+  var nextVer=(Array.isArray(existingFiles)&&existingFiles.length&&existingFiles[0].version?existingFiles[0].version:0)+1;
+  var ok=0, fail=[];
   for(var i=0;i<files.length;i++){
-    var f=files[i];var safeName2=f.name.replace(/[^a-zA-Z0-9._-]/g,'_');var path=Date.now()+'_'+safeName2;
-    await upFile(path,f);
-    await dp('document_files',{document_id:docId,file_name:f.name,file_path:path,file_size:f.size,file_type:f.type,uploaded_by:CU.id,version:nextVer+i});
-    await dp('document_history',{document_id:docId,action:'อัปโหลดไฟล์: '+f.name,performed_by:CU.id})
+    var f=files[i];
+    if(a) a.innerHTML='<div class="al al-in"><span class="sp sp-dark"></span><span> กำลังอัปโหลด '+(i+1)+'/'+files.length+': '+esc(f.name)+'</span></div>';
+    try{
+      var safeName2=f.name.replace(/[^a-zA-Z0-9._-]/g,'_');
+      var path=Date.now()+'_'+i+'_'+safeName2;
+      await upFile(path,f);
+      await dp('document_files',{document_id:docId,file_name:f.name,file_path:path,file_size:f.size,file_type:f.type,uploaded_by:CU.id,version:nextVer+i});
+      await dp('document_history',{document_id:docId,action:'อัปโหลดไฟล์: '+f.name,performed_by:CU.id});
+      ok++;
+    }catch(e){
+      fail.push(f.name+(e&&e.message?(' ('+e.message+')'):''));
+    }
   }
-  if(a) a.innerHTML=alrtH('ok','อัปโหลดเรียบร้อยแล้ว');
   var nf=await dg('document_files','?document_id=eq.'+safeId(docId)+'&order=version.desc,uploaded_at.desc');
+  if(!Array.isArray(nf)) nf=[];
   var df=$e('dfiles');
   if(df) df.innerHTML=_rFilesBodyHtml(nf,docId);
-  var dc=$e('dfcount');
-  if(dc) dc.innerHTML=_rFileCountHtml(nf);
+  var msg='อัปโหลดสำเร็จ '+ok+' ไฟล์';
+  if(skipped&&skipped.length) msg+=' · ข้ามชื่อซ้ำ '+skipped.length+' ไฟล์';
+  if(fail.length) msg+=' · ล้มเหลว: '+fail.join(' · ');
+  /* หลังรับเอกสาร (awaiting_submit): อัปฉบับประทับสำเร็จ → เสร็จสมบูรณ์ทันที */
+  if(ok>0){
+    try{
+      var _docNow=(await dg('documents','?id=eq.'+safeId(docId)+'&select=id,status'))[0];
+      if(_docNow&&_docNow.status==='awaiting_submit'){
+        await dpa('documents',docId,{status:'completed',updated_at:new Date().toISOString()});
+        await dp('document_history',{document_id:docId,action:'อัปโหลดฉบับประทับจากมหาวิทยาลัย',performed_by:CU.id,note:'ยื่นในระบบมหาวิทยาลัยแล้ว — สถานะเสร็จสมบูรณ์'});
+        msg+=' · สถานะเปลี่ยนเป็น <strong>เสร็จสมบูรณ์</strong>';
+        setTimeout(function(){nav('det',docId)},900);
+      }
+    }catch(_se){console.warn('mark completed after stamp upload failed',_se)}
+  }
+  if(a) a.innerHTML=alrtH(fail.length?'wa':'ok', msg);
 }
 
 async function showVerHist(docId){
@@ -424,6 +465,7 @@ async function showVerHist(docId){
     var isRejFile=f.file_name.indexOf('[ตีกลับ]')>=0;
     var dtStr=f.uploaded_at?new Date(f.uploaded_at).toLocaleString('th-TH',{day:'numeric',month:'short',year:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
     var _dn=_fileBaseName(f);
+    var _ext=(f.file_name||'').split('.').pop().toLowerCase();
     return '<div class="file-item file-item-detail file-item-hist">'+
       '<div class="file-chip-wrap">'+fChip(f,17)+'</div>'+
       '<div class="file-info">'+
@@ -437,7 +479,7 @@ async function showVerHist(docId){
         '</div>'+
       '</div>'+
       '<div class="file-actions">'+
-        '<button class="btn btn-ghost xs" data-action="openViewer" data-path="'+esc(f.file_path)+'" data-name="'+esc(_dn)+'">'+svg('eye',11)+' ดู</button>'+
+        '<button class="btn btn-ghost xs" data-action="openViewer" data-path="'+esc(f.file_path)+'" data-name="'+esc(_dn)+'" data-ext="'+esc(_ext)+'">'+svg('eye',11)+' ดู</button>'+
         '<button class="btn btn-soft xs" data-action="dlFile" data-path="'+esc(f.file_path)+'" data-name="'+esc(_dn)+'">'+svg('dn',11)+' โหลด</button>'+
       '</div>'+
     '</div>'
@@ -451,7 +493,7 @@ async function showVerHist(docId){
 
 async function showFwdModal(docId){
   var w=$e('mwrap'); if(!w)return;
-  // กรองเฉพาะ เจ้าหน้าที่ (ROLE-STF) และ อาจารย์กิจการ (ROLE-ADV) เท่านั้น
+  // กรองเฉพาะ เจ้าหน้าที่ (ROLE-STF) และ อาจารย์ที่ปรึกษาชมรม (ROLE-ADV) เท่านั้น
   var allUsers=await dg('user_directory','?is_active=eq.true&approval_status=eq.approved&role_code=in.(ROLE-STF,ROLE-ADV)&order=full_name');
   var doc=(await dg('documents','?id=eq.'+safeId(docId)))[0]||{};
   var uOpts=allUsers.map(function(u){
@@ -463,7 +505,7 @@ async function showFwdModal(docId){
     '<button class="btn btn-soft sm btn-icon" data-action="closeModal">'+svg('x',14)+'</button></div>',
     '<div class="modal-body">',
     '<div class="al al-in" style="margin-bottom:14px"><span class="al-icon">'+svg('info',13)+'</span>',
-    '<span>ส่งเอกสารให้ <strong>เจ้าหน้าที่กิจการนิสิต / อาจารย์กิจการ</strong> รับทราบและอนุมัติ ระบบจะแจ้งเตือนทางอีเมล</span></div>',
+    '<span>ส่งเอกสารให้ <strong>เจ้าหน้าที่กิจการนิสิต / อาจารย์ที่ปรึกษาชมรม</strong> รับทราบและอนุมัติ ระบบจะแจ้งเตือนทางอีเมล</span></div>',
     '<div class="fg"><label class="fl">ส่งเอกสารถึง <span class="req">*</span></label>',
     '<select class="fi" id="fwd-to"><option value="">— เลือกผู้รับ —</option>'+uOpts+'</select></div>',
     '<div class="fg"><label class="fl">หมายเหตุ / วัตถุประสงค์</label>',
@@ -499,25 +541,19 @@ async function doForward(docId){
       }
       await logNotifRow({document_id:docId,recipient_id:toId,recipient_email:recipEmail||'',subject:emailSubj,body:emailBody,notification_type:'forward',status:fwdStatus,sent_at:new Date().toISOString()});
     }catch(fe){console.warn('Forward notify failed:',fe)}
-    // LINE OA push (ช่องทางเสริม — ข้ามเงียบ ๆ ถ้าผู้รับไม่ได้ผูก LINE)
-    try{
-      var fwdLine=(SETT.email_prefix||'[กนค.]')+' 📨 มีเอกสารส่งต่อถึงคุณ\nเรียน '+(toUser?toUser.full_name:'')+'\nเรื่อง: '+(doc2.title||'')+(note?'\nหมายเหตุ: '+note:'')+'\n\n'+(SETT.app_url?'เข้าสู่ระบบเพื่อรับเอกสาร: '+SETT.app_url:'กรุณาเข้าสู่ระบบ SAEDU Flow เพื่อรับเอกสาร');
-      var fwdFlex=null;
-      try{fwdFlex=buildLineFlex({headText:'📨 มีเอกสารส่งต่อถึงคุณ',recipName:(toUser?toUser.full_name:''),subj:doc2.title||'',rows:note?[['หมายเหตุ',note]]:[],infoText:'เอกสารผ่านการอนุมัติครบทุกขั้นตอนแล้ว กดรับเอกสารเพื่อดาวน์โหลดไฟล์',button:'เข้าสู่ระบบเพื่อรับเอกสาร'})}catch(fe){}
-      await sendLineWithLog(docId,toId,recipEmail,emailSubj,fwdLine,'forward',fwdFlex);
-    }catch(le){console.warn('Forward LINE failed:',le)}
+    // LINE: ไม่แจ้งส่งต่อ — แจ้งเฉพาะเมื่อถึงคิวเซ็นของเจ้าหน้าที่
     $e('mwrap').innerHTML='';
     var a=$e('dal');if(a)a.innerHTML=alrtH('ok','ส่งต่อเอกสารเรียบร้อยแล้ว และแจ้งเตือนทางอีเมลแล้ว');
     setTimeout(function(){nav('det',docId)},900)
   }catch(e){showAlert('เกิดข้อผิดพลาด: '+e.message,'er');if(btn)btn.disabled=false}
 }
 
-/* ─── FORWARD REVIEW (เจ้าหน้าที่/อาจารย์กิจการ อนุมัติ / ไม่อนุมัติ) ─── */
+/* ─── FORWARD REVIEW (เจ้าหน้าที่/อาจารย์ที่ปรึกษาชมรม อนุมัติ / ไม่อนุมัติ) ─── */
 
 function doAcceptFwd(docId){
   showConfirm(
-    'รับเอกสาร / อนุมัติ?',
-    'ยืนยันการรับเอกสาร เอกสารจะถือว่าดำเนินการเสร็จสิ้นสมบูรณ์',
+    'รับเอกสาร?',
+    'ยืนยันรับเอกสาร — สถานะจะเปลี่ยนเป็น «รอเจ้าหน้าที่ยื่นในระบบ» จากนั้นเมื่ออัปโหลดฉบับประทับจากมหาวิทยาลัยกลับมา จะเป็น «เสร็จสมบูรณ์»',
     function(){_doAcceptFwdConfirmed(docId)},
     {confirmLabel:'รับเอกสาร',confirmClass:'btn-success',icon:'ok',iconBg:'#D1FAE5',iconColor:'#16A34A'}
   );
@@ -526,7 +562,7 @@ function doAcceptFwd(docId){
 async function _doAcceptFwdConfirmed(docId){
   try{
     await acceptForwardedDoc(docId);
-    var a=$e('dal');if(a)a.innerHTML=alrtH('ok','รับเอกสารเรียบร้อยแล้ว');
+    var a=$e('dal');if(a)a.innerHTML=alrtH('ok','รับเอกสารแล้ว — สถานะ: รอเจ้าหน้าที่ยื่นในระบบ');
     if(CV==='docs'){try{fDocs();}catch(e){nav('docs')}}
     else setTimeout(function(){nav('det',docId)},900);
   }catch(e){showAlert('เกิดข้อผิดพลาด: '+e.message,'er')}
@@ -630,8 +666,8 @@ async function doAct(action,docId){
   // Capture signature before closing modal
   var sigSrc=action==='approve'?getActSigSrc():null;
   var docs=await dg('documents','?id=eq.'+docId); var doc=docs[0]; if(!doc){_actBusy=false;return}
-  // Incoming docs require a signature
-  if(action==='approve'&&doc.doc_type==='incoming'&&!sigSrc){
+  // เอกสารที่มีขั้นตอนอนุมัติต้องมีลายเซ็น (สลับ 2026-07-22: outgoing=มีขั้นตอนอนุมัติ)
+  if(action==='approve'&&doc.doc_type==='outgoing'&&!sigSrc){
     showAlert('กรุณาวาดหรืออัปโหลดลายเซ็นก่อนยืนยัน','wa');_actBusy=false;return
   }
   var mw=$e('mwrap'); if(mw) mw.innerHTML='<div class="mo"><div class="modal"><div class="modal-body text-center py-10"><div class="sp sp-dark w-8 h-8 border-[3px] mx-auto"></div><p class="mt-4 text-[#a89e99]">กำลังดำเนินการ...</p></div></div></div>';
@@ -674,7 +710,7 @@ async function doAct(action,docId){
       }
       ns=Math.min((doc.current_step||1)+1,doc.total_steps||1);
       var allDone=action==='approve'&&!wf.some(function(s){return s.step_number>cur.step_number&&s.status!=='done'});
-      nst=action==='approve'?(allDone?(doc.doc_type==='incoming'?'numbering':'completed'):'pending'):'rejected';
+      nst=action==='approve'?(allDone?(doc.doc_type==='outgoing'?'numbering':'completed'):'pending'):'rejected';
       await dpa('documents',docId,{status:nst,current_step:ns,updated_at:new Date().toISOString()});
     }catch(_te){
       await _reconcileDocState(docId);
@@ -875,12 +911,6 @@ async function _doRecallConfirmed(docId){
             if(_er.ok&&typeof showEmailToast==='function') showEmailToast(_em,_subj);
             await logNotifRow({document_id:docId,recipient_id:_u.id,recipient_email:_em,subject:_subj,body:_body,notification_type:'recall',status:_er.ok?'sent':'failed',sent_at:new Date().toISOString()});
           }
-          if(_u){
-            var _lineTxt=(SETT.email_prefix||'[กนค.]')+' ↩️ ผู้จัดทำดึงเอกสารกลับ\nเรียน '+_u.full_name+'\nเรื่อง: '+(doc.title||'')+'\nเอกสารถูกดึงกลับไปแก้ไขแล้ว ไม่ต้องดำเนินการใด ๆ หากส่งเข้าระบบใหม่จะมีการแจ้งอีกครั้ง';
-            var _rcFlex=null;
-            try{_rcFlex=buildLineFlex({headText:'↩️ ผู้จัดทำดึงเอกสารกลับ',recipName:_u.full_name,subj:doc.title||'',infoText:'เอกสารถูกดึงกลับไปแก้ไขแล้ว ไม่ต้องดำเนินการใด ๆ หากส่งเข้าระบบใหม่จะมีการแจ้งอีกครั้ง'})}catch(fe){}
-            try{await sendLineWithLog(docId,_u.id,_em||'',_subj,_lineTxt,'recall',_rcFlex)}catch(le){console.warn('Recall LINE failed:',le)}
-          }
         }catch(ne){console.warn('Recall notify failed:',ne)}
       }
     }
@@ -896,9 +926,9 @@ async function _doRecallConfirmed(docId){
 async function showChgUrgency(docId){
   var w=$e('mwrap'); if(!w)return;
   var doc=(await dg('documents','?id=eq.'+safeId(docId)))[0]||{};
-  var _udot={normal:'#16A34A',urgent:'#D97706',very_urgent:'#DC2626'};
+  var _udot={normal:'#16A34A',urgent:'#D97706'};
   var opts=Object.entries(URG).map(function(e){
-    var on=doc.urgency===e[0];
+    var on=urgNorm(doc.urgency)===e[0];
     return '<button class="btn '+(on?'btn-primary':'btn-soft')+' fw" style="text-align:left;justify-content:flex-start;gap:9px;margin-bottom:8px" data-action="doChgUrgency" data-id="'+docId+'" data-act="'+e[0]+'"><span style="width:9px;height:9px;border-radius:50%;flex-shrink:0;background:'+_udot[e[0]]+'"></span>'+e[1]+(on?' '+svg('ok',13):'')+'</button>';
   }).join('');
   w.innerHTML=

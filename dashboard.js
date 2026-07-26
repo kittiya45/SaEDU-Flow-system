@@ -134,7 +134,7 @@ async function _calSaveEvt(){
   var ti=$e('cal-inp'), da=$e('cal-date');
   if(!ti||!ti.value.trim()) return;
   var date=da&&da.value?da.value:(_calSel||new Date().toISOString().substring(0,10));
-  await dp('calendar_events',{date:date,title:ti.value.trim(),color:'#3B82F6',created_by:CU.id,is_private:!!_calNewEvtPrivate});
+  await dp('calendar_events',{date:date,title:ti.value.trim(),color:'#B8860B',created_by:CU.id,is_private:!!_calNewEvtPrivate});
   if(!_calSel) _calSel=date;
   var mw=$e('mwrap'); if(mw) mw.innerHTML='';
   await _loadEvtsDB(); _renderCal()
@@ -198,7 +198,7 @@ function _buildCal(docs){
   /* day name headers */
   h.push('<div style="display:grid;grid-template-columns:repeat(7,1fr);padding:0 12px 6px">');
   DAYS.forEach(function(d,i){
-    var hdrColor=i===0?'#E83A00':i===6?'#3B82F6':'#b8b0ab';
+    var hdrColor=i===0?'#E83A00':i===6?'#8B7355':'#b8b0ab';
     h.push('<div style="text-align:center;font-size:10px;font-weight:800;padding:4px 0;color:'+hdrColor+';letter-spacing:.4px">'+d+'</div>');
   });
   h.push('</div>');
@@ -215,13 +215,13 @@ function _buildCal(docs){
     var col=(firstDay+d-1)%7;
     var isSun=col===0, isSat=col===6;
     var cellBg=isSel?'#E83A00':'transparent';
-    var hoverBg=isSat?'#EFF6FF':'#F5F3F0';
+    var hoverBg=isSat?'#F7F3EC':'#F5F3F0';
     var dotOnSel='rgba(255,255,255,.9)';
     var numHtml;
     if(isTod&&!isSel){
       numHtml='<span style="width:28px;height:28px;border-radius:50%;background:#E83A00;display:inline-flex;align-items:center;justify-content:center;color:#fff;font-weight:900;font-size:11.5px;line-height:1;flex-shrink:0">'+d+'</span>';
     } else {
-      var tc=isSel?'#fff':isSun?'#C05440':isSat?'#3B82F6':'#18120E';
+      var tc=isSel?'#fff':isSun?'#C05440':isSat?'#8B7355':'#18120E';
       var fw=isSel?'900':'400';
       numHtml='<span style="font-size:11.5px;font-weight:'+fw+';color:'+tc+';line-height:1">'+d+'</span>';
     }
@@ -232,7 +232,7 @@ function _buildCal(docs){
         numHtml+
         '<div style="display:flex;gap:2px;margin-top:3px;height:5px;align-items:center">'+
           (hasDoc?'<div style="width:4px;height:4px;border-radius:50%;background:'+(isSel?dotOnSel:'#E83A00')+'"></div>':'')+
-          (hasCust?'<div style="width:4px;height:4px;border-radius:50%;background:'+(isSel?'rgba(255,255,255,.7)':'#3B82F6')+'"></div>':'')+
+          (hasCust?'<div style="width:4px;height:4px;border-radius:50%;background:'+(isSel?'rgba(255,255,255,.7)':'#B8860B')+'"></div>':'')+
         '</div>'+
       '</div>'
     );
@@ -247,7 +247,7 @@ function _buildCal(docs){
       '<span style="font-size:10px;color:#b0a9a4;font-weight:600">กำหนดส่งเอกสาร</span>'+
     '</div>'+
     '<div style="display:flex;align-items:center;gap:5px">'+
-      '<div style="width:5px;height:5px;border-radius:50%;background:#3B82F6"></div>'+
+      '<div style="width:5px;height:5px;border-radius:50%;background:#B8860B"></div>'+
       '<span style="font-size:10px;color:#b0a9a4;font-weight:600">กิจกรรม</span>'+
     '</div>'+
     '</div>'
@@ -303,8 +303,8 @@ function _buildCal(docs){
           );
         } else {
           h.push(
-            '<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:#EFF6FF;border-radius:10px;margin-bottom:6px;border:1px solid rgba(59,130,246,.1)">'+
-              '<div style="width:7px;height:7px;border-radius:50%;background:#3B82F6;flex-shrink:0"></div>'+
+            '<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:#FBF6EB;border-radius:10px;margin-bottom:6px;border:1px solid rgba(184,134,11,.15)">'+
+              '<div style="width:7px;height:7px;border-radius:50%;background:#B8860B;flex-shrink:0"></div>'+
               '<div style="flex:1;min-width:0;font-size:11px;font-weight:700;color:#18120E;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(e.title)+(e.priv?' <span style="color:#a89e99;font-weight:600">(ส่วนตัว)</span>':'')+'</div>'+
               '<button onclick="_calDelEvt(\''+e.eid+'\')" style="background:none;border:none;color:#c0b9b4;cursor:pointer;padding:2px;line-height:1;flex-shrink:0;display:inline-flex;align-items:center" title="ลบ">'+svg('x',13)+'</button>'+
             '</div>'
@@ -324,7 +324,7 @@ async function vDash(){
   var _ds=await Promise.all([
     dg('documents','?order=created_at.desc&limit=500&select=id,title,doc_type,status,urgency,due_date,created_by,created_at,doc_number'),
     dg('workflow_steps','?assigned_to=eq.'+CU.id+'&select=document_id,status'),
-    // บอร์ดประกาศ — ตารางอาจยังไม่ถูกสร้าง (supabase/create_announcements.sql) → ได้ error object → ซ่อนการ์ดเงียบ ๆ
+    // บอร์ดประกาศ — ตารางอาจยังไม่ถูกสร้าง (supabase/18_create_announcements.sql) → ได้ error object → ซ่อนการ์ดเงียบ ๆ
     dg('announcements','?is_active=eq.true&order=pinned.desc,created_at.desc&limit=10').catch(function(){return null})
   ]);
   var _allD2=_ds[0], _mySteps2=_ds[1];
@@ -340,11 +340,13 @@ async function vDash(){
     }catch(e){}
   }
   var _myIds2=_mySteps2.map(function(s){return s.document_id});
-  var _myActive=_mySteps2.filter(function(s){return s.status==='active'}).length;
-  var _canSeeAll=CU.role_code==='ROLE-SYS'||CU.position_code==='GNK-SEC';
+  var _myActiveIds2=_mySteps2.filter(function(s){return s.status==='active'}).map(function(s){return s.document_id});
+  var _myActive=_myActiveIds2.length;
+  var _canSeeAll=CU.role_code==='ROLE-SYS'||CU.role_code==='ROLE-STF'||CU.position_code==='GNK-SEC';
   var docs=_canSeeAll?_allD2:_allD2.filter(function(d){
-    // ROLE-ADV เห็นภาพรวมกว้างเหมือน ROLE-STF (ตรงกับที่ vDocs()/vStat() ให้เห็นอยู่แล้ว) ไม่ใช่แค่เอกสารของตัวเอง
-    if(['ROLE-STF','ROLE-ADV'].includes(CU.role_code)) return d.created_by===CU.id||d.forwarded_to_id===CU.id||d.status==='numbering'||_myIds2.indexOf(d.id)!==-1;
+    // ROLE-ADV เห็นเฉพาะเอกสารที่ตนมีรายชื่ออยู่ (สร้างเอง/ถูกส่งต่อมา/มี workflow step) ไม่เห็นภาพรวมทั้งหมด
+    if(CU.role_code==='ROLE-ADV') return d.created_by===CU.id||d.forwarded_to_id===CU.id||_myIds2.indexOf(d.id)!==-1;
+    if(CU.role_code==='ROLE-STF') return d.created_by===CU.id||d.forwarded_to_id===CU.id||d.status==='numbering'||_myIds2.indexOf(d.id)!==-1;
     return d.created_by===CU.id||_myIds2.indexOf(d.id)!==-1;
   });
 
@@ -392,7 +394,7 @@ async function vDash(){
 
   /* ── Main 2-col grid ── */
 
-  html.push('<div style="display:grid;grid-template-columns:1fr 320px;gap:20px;align-items:stretch">');
+  html.push('<div class="dash-grid">');
 
   /* ── LEFT: Recent docs ── */
   html.push('<div style="min-width:0;display:flex;flex-direction:column">');
@@ -410,7 +412,7 @@ async function vDash(){
   html.push('<div class="list-panel" style="flex:1;display:flex;flex-direction:column">');
   if(recent.length){
     recent.forEach(function(d){
-      var isMyTask=_myIds2.indexOf(d.id)!==-1;
+      var isMyTask=_myActiveIds2.indexOf(d.id)!==-1;
       html.push(
         '<div class="list-row" data-action="nav" data-view="det" data-id="'+d.id+'">'+
           (isMyTask?'<div style="width:8px;height:8px;border-radius:50%;flex-shrink:0;background:#E83A00" title="งานรอคุณ"></div>':'<div style="width:8px;flex-shrink:0"></div>')+
@@ -445,8 +447,8 @@ async function vDash(){
 
   html.push('</div>'); /* 2-col grid */
 
-  /* ── Project Summary (เฉพาะ ROLE-STF, ROLE-ADV, ROLE-SYS) ── */
-  if(CU&&['ROLE-STF','ROLE-ADV','ROLE-SYS'].includes(CU.role_code)){
+  /* ── Project Summary (เฉพาะ ROLE-STF, ROLE-SYS) — ซ่อนจาก ROLE-ADV เพราะแสดงทุกโครงการ ไม่ใช่แค่ของอาจารย์ ── */
+  if(CU&&['ROLE-STF','ROLE-SYS'].includes(CU.role_code)){
     html.push('<div id="proj-summary-widget" style="margin-top:24px">');
     html.push(await _buildProjSummary());
     html.push('</div>');
@@ -470,7 +472,7 @@ function _projYearRange(thYear){
 }
 
 async function _buildProjSummary(){
-  var raw=await dg('documents','?doc_type=eq.outgoing&select=id,title,doc_number,description,status,created_at,updated_at&order=created_at.desc');
+  var raw=await dg('documents','?project_name=not.is.null&select=id,title,doc_number,project_name,status,created_at,updated_at&order=created_at.desc');
   var all=Array.isArray(raw)?raw:[];
 
   var _rng=_projYearRange(_projYear);
@@ -478,10 +480,10 @@ async function _buildProjSummary(){
     return (d.created_at||'')>=_rng.start&&(d.created_at||'')<_rng.end;
   });
 
-  /* group by project name stored in description */
+  /* group by project_name — รวมทั้งขาเข้า+ขาออก */
   var projMap={};
   yearDocs.forEach(function(d){
-    var key=(d.description||'').trim()||'(ไม่ระบุโครงการ)';
+    var key=(d.project_name||'').trim()||'(ไม่ระบุโครงการ)';
     if(!projMap[key]) projMap[key]={name:key,docs:[],latestDate:null,latestStatus:''};
     projMap[key].docs.push(d);
     var dt=d.updated_at||d.created_at;
@@ -501,7 +503,7 @@ async function _buildProjSummary(){
     '<div style="padding:16px 20px;border-bottom:1px solid #F5F3F0;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">'+
       '<div>'+
         '<div style="font-size:14px;font-weight:800;color:#18120E">สรุปโครงการประจำปี</div>'+
-        '<div style="font-size:11px;color:#a89e99;margin-top:2px">หนังสือขาออกที่ถึงหมด ปีพ.ศ. '+_projYear+'</div>'+
+        '<div style="font-size:11px;color:#a89e99;margin-top:2px">ยังไม่มีข้อมูลโครงการ ปีพ.ศ. '+_projYear+'</div>'+
       '</div>'+
       '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'+
         (total>0?'<span style="font-size:11px;color:#a89e99">'+total+' เอกสาร · '+groups.length+' โครงการ</span>':'')+
@@ -520,7 +522,7 @@ async function _buildProjSummary(){
     h.push(
       '<div style="padding:48px 20px;text-align:center">'+
         '<div style="width:64px;height:64px;border-radius:16px;background:#F5F3F0;display:flex;align-items:center;justify-content:center;color:#6b6560;margin:0 auto 14px">'+svg('doc',30)+'</div>'+
-        '<div style="font-size:13px;font-weight:700;color:#c0b9b4">ไม่มีหนังสือขาออกในปี พ.ศ. '+_projYear+'</div>'+
+        '<div style="font-size:13px;font-weight:700;color:#c0b9b4">ไม่มีข้อมูลโครงการในปี พ.ศ. '+_projYear+'</div>'+
       '</div>'
     );
   } else {
@@ -582,7 +584,7 @@ async function _downloadProjZip(){
   if(btn){btn.disabled=true;btn.innerHTML='<span class="sp" style="border-color:rgba(255,255,255,.3);border-top-color:#fff"></span> กำลังรวมไฟล์...';}
   try{
     await _loadJSZip();
-    var raw=await dg('documents','?doc_type=eq.outgoing&status=eq.completed&select=id,title,doc_number,description,created_at&order=created_at.desc');
+    var raw=await dg('documents','?status=eq.completed&project_name=not.is.null&select=id,title,doc_number,project_name,created_at&order=created_at.desc');
     var _rng=_projYearRange(_projYear);
     var yearDocs=(Array.isArray(raw)?raw:[]).filter(function(d){
       return (d.created_at||'')>=_rng.start&&(d.created_at||'')<_rng.end;
@@ -594,7 +596,7 @@ async function _downloadProjZip(){
 
     for(var i=0;i<yearDocs.length;i++){
       var doc=yearDocs[i];
-      var proj=(doc.description||'ไม่ระบุโครงการ').replace(/[\/\\:*?"<>|]/g,'_').trim()||'ไม่ระบุโครงการ';
+      var proj=(doc.project_name||'ไม่ระบุโครงการ').replace(/[\/\\:*?"<>|]/g,'_').trim()||'ไม่ระบุโครงการ';
       var num=(doc.doc_number||'doc').replace(/[\/\\:*?"<>|]/g,'-').trim();
 
       var files=await dg('document_files','?document_id=eq.'+doc.id+'&order=version.desc&limit=20');
@@ -731,7 +733,7 @@ async function vTodo(){
 }
 
 /* ─── บอร์ดประกาศหน้า Home ───
-   ข้อมูลจากตาราง announcements (supabase/create_announcements.sql) — ทุกคนที่ล็อกอินเห็น
+   ข้อมูลจากตาราง announcements (supabase/18_create_announcements.sql) — ทุกคนที่ล็อกอินเห็น
    แอดมิน/นักพัฒนาเห็นปุ่ม "จัดการประกาศ" ลัดไปหน้าจัดการ (การ์ดในแท็บตั้งค่าระบบ — dev.js) */
 function _rAnnounceBoard(anns,authors){
   if(!Array.isArray(anns)||!anns.length) return '';

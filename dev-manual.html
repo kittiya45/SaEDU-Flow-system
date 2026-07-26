@@ -383,17 +383,17 @@ npx supabase functions deploy line-webhook --no-verify-jwt</code></pre>
             <tr>
               <td><span class="badge phase">1</span></td>
               <td>เช็กลิสต์ SQL · แผง integration · form_templates</td>
-              <td><code>phase1_dev_extras.sql</code> · <code>integration-status</code></td>
+              <td><code>26_phase1_dev_extras.sql</code> · <code>integration-status</code></td>
             </tr>
             <tr>
               <td><span class="badge phase">2</span></td>
               <td>workflow UI · ซ่อมขั้นสูง · ลบเอกสาร · export config</td>
-              <td><code>phase2_dev_ops.sql</code></td>
+              <td><code>27_phase2_dev_ops.sql</code></td>
             </tr>
             <tr>
               <td><span class="badge phase">3</span></td>
               <td>จัดการผู้ใช้จำกัด · รีเซ็ตรหัส · overdue จาก UI</td>
-              <td><code>phase3_dev_users.sql</code> · <code>admin-set-password</code></td>
+              <td><code>28_phase3_dev_users.sql</code> · <code>admin-set-password</code></td>
             </tr>
           </tbody>
         </table></div>
@@ -404,7 +404,7 @@ npx supabase functions deploy line-webhook --no-verify-jwt</code></pre>
         </ul>
         <h3>มอบสิทธิ์</h3>
         <ol>
-          <li>รัน <code>create_dev_role.sql</code> (+ phase2/3 ถ้ายังไม่รวม)</li>
+          <li>รัน <code>17_create_dev_role.sql</code> (+ phase1/2/3 ถ้ายังไม่รวม)</li>
           <li>แอดมินอนุมัติ → ตั้ง ROLE-DEV (ครั้งแรก)</li>
           <li>นักพัฒนาคนอื่นมอบ ROLE-DEV ให้กันได้ที่แท็บจัดการผู้ใช้</li>
         </ol>
@@ -422,19 +422,20 @@ npx supabase functions deploy line-webhook --no-verify-jwt</code></pre>
         <div class="tbl-scroll"><table>
           <thead><tr><th>#</th><th>ไฟล์</th><th>หมายเหตุ</th></tr></thead>
           <tbody>
-            <tr><td>1</td><td><code>migration_auth_rls.sql</code></td><td>โปรเจกต์ใหม่ต้องรันก่อน</td></tr>
-            <tr><td>2</td><td><code>create_dev_role.sql</code></td><td>is_dev + system_logs + สิทธิ์ DEV</td></tr>
-            <tr><td>3</td><td><code>create_admin_config_tables.sql</code></td><td>ตารางตั้งค่า</td></tr>
-            <tr><td>4</td><td><code>create_announcements.sql</code></td><td>หลัง create_dev_role</td></tr>
-            <tr><td>5</td><td><code>user_signatures.sql</code></td><td>ลายเซ็นส่วนตัว</td></tr>
-            <tr><td>6</td><td><code>line_notifications.sql</code></td><td>คอลัมน์ LINE</td></tr>
-            <tr><td>7</td><td><code>workflow_ops_rpc.sql</code></td><td>recall / forward_decline</td></tr>
-            <tr><td>8</td><td><code>overdue_once_auto_approve.sql</code></td><td>เตือนครั้งเดียว + auto-approve</td></tr>
-            <tr><td>9</td><td><code>scale_hardening.sql</code></td><td>workflow_action</td></tr>
-            <tr><td>10</td><td><code>private_storage_bucket.sql</code></td><td>ตรวจด้วยมือ</td></tr>
-            <tr><td>12</td><td><code>phase2_dev_ops.sql</code></td><td>ลบเอกสาร (DEV)</td></tr>
-            <tr><td>13</td><td><code>phase3_dev_users.sql</code></td><td>จัดการผู้ใช้แบบจำกัด</td></tr>
-            <tr><td>14</td><td><code>cron_overdue.sql</code></td><td>หลัง deploy check-overdue</td></tr>
+            <tr><td>1</td><td><code>01_migration_auth_rls.sql</code></td><td>โปรเจกต์ใหม่ต้องรันก่อน</td></tr>
+            <tr><td>2</td><td><code>17_create_dev_role.sql</code></td><td>is_dev + system_logs + สิทธิ์ DEV</td></tr>
+            <tr><td>3</td><td><code>07_create_admin_config_tables.sql</code></td><td>ตารางตั้งค่า</td></tr>
+            <tr><td>4</td><td><code>18_create_announcements.sql</code></td><td>หลัง create_dev_role</td></tr>
+            <tr><td>5</td><td><code>19_user_signatures.sql</code></td><td>ลายเซ็นส่วนตัว</td></tr>
+            <tr><td>6</td><td><code>20_line_notifications.sql</code></td><td>คอลัมน์ LINE</td></tr>
+            <tr><td>7</td><td><code>21_overdue_once_auto_approve.sql</code></td><td>เตือนครั้งเดียว + auto-approve</td></tr>
+            <tr><td>8</td><td><code>22_scale_hardening.sql</code></td><td>workflow_action</td></tr>
+            <tr><td>9</td><td><code>23_workflow_ops_rpc.sql</code></td><td>recall / forward_decline — ต้องรันหลัง 22_scale_hardening.sql</td></tr>
+            <tr><td>10</td><td><code>24_private_storage_bucket.sql</code></td><td>ตรวจด้วยมือ</td></tr>
+            <tr><td>11</td><td><code>26_phase1_dev_extras.sql</code></td><td>สิทธิ์ form_templates สำหรับ DEV</td></tr>
+            <tr><td>12</td><td><code>27_phase2_dev_ops.sql</code></td><td>ลบเอกสาร (DEV)</td></tr>
+            <tr><td>13</td><td><code>28_phase3_dev_users.sql</code></td><td>จัดการผู้ใช้แบบจำกัด</td></tr>
+            <tr><td>14</td><td><code>29_cron_overdue.sql</code></td><td>หลัง deploy check-overdue</td></tr>
           </tbody>
         </table></div>
       </section>

@@ -4,12 +4,13 @@
 async function showActModal(action,docId){
   var w=$e('mwrap'); if(!w)return;
   var _doc=(await dg('documents','?id=eq.'+docId))[0]||{};
-  var isIncoming=_doc.doc_type==='incoming';
+  var isIncoming=_doc.doc_type==='outgoing'; /* สลับ 2026-07-22: outgoing=มีขั้นตอนอนุมัติ ต้องมีลายเซ็น */
   var isApprove=action==='approve';
 
   _actSigMarks=[]; _actSigLastIdx=-1;
   _actSigPgDims={}; _actSigDefW=null;
   _actSigPdf=null; _actSigPage=1; _actSigZoom=1.0;
+  _actSigRenderGen++; // ยกเลิก render ค้างจาก modal รอบก่อน
   _actSigColor='#1C1C1E'; _actSigSz=2;
   var sigColors=['#1C1C1E','#D32F2F','#1565C0','#1B5E20','#7B1FA2'];
 
@@ -179,6 +180,7 @@ var _actSigPgDims={};  // ขนาดหน้าแต่ละหน้า (p
 var _actSigDefW=null;  // ขนาดลายเซ็น (สัดส่วนความกว้างหน้า) จากแถบ "ขนาดลายเซ็น" — null = ค่าเริ่มต้น 180pt
 var _actSigPdfW=595,_actSigPdfH=842;
 var _actSigPdf=null, _actSigPage=1, _actSigZoom=1.0;
+var _actSigRenderGen=0; // กัน render ซ้อนกันแล้วล้างกรอบลายเซ็นหาย
 
 function sigTabA(tab){
   var tabA=$e('sig-tab-a'),tabB=$e('sig-tab-b'),tabC=$e('sig-tab-c');
@@ -326,32 +328,64 @@ async function _loadSigPosPreview(docId){
     }
     var tot=$e('sig-page-total'); if(tot)tot.textContent='/ '+N;
 
-    await _renderSigDoc();
-    setTimeout(function(){_renderSigDoc(true)},120);
+    // รอให้คอลัมน์ preview มีความกว้างจริงก่อนเรนเดอร์รอบเดียว — เลิก setTimeout ซ้อนที่ทำให้กรอบหาย
+    await _waitSigPreviewWidth();
+    await _renderSigDoc(true);
     // ตั้งค่าแถบ "ขนาดลายเซ็น" ตามค่าเริ่มต้นของหน้าสุดท้าย
     var defPct=Math.round(_sigDefaultWFrac(N)*100);
     var sl=$e('sig-size'); if(sl)sl.value=defPct;
     var slv=$e('sig-size-val'); if(slv)slv.textContent=defPct+'%';
     _seedDefaultMark();
-    _sigGoPage(N,true);
+    _sigRevealDefaultMark(N);
   }catch(e){
     console.warn('sig pos preview failed:',e);
     if(hint)hint.textContent='ไม่สามารถโหลดเอกสารได้ — ลายเซ็นจะวางที่มุมขวาล่างอัตโนมัติ';
   }
 }
 
+/* รอจน #sig-scroll มีความกว้าง (modal layout นิ่ง) — กันเรนเดอร์ตอนกว้าง=0 */
+function _waitSigPreviewWidth(){
+  return new Promise(function(resolve){
+    var tries=0;
+    (function tick(){
+      var sc=$e('sig-scroll');
+      if(sc&&sc.clientWidth>40){resolve(sc.clientWidth);return}
+      if(++tries>40){resolve(sc&&sc.clientWidth||480);return}
+      requestAnimationFrame(tick);
+    })();
+  });
+}
+
+/* เลื่อนไปหน้าที่มีจุดเริ่มต้น + วาดกรอบซ้ำหลัง paint — กัน scroll ตอน layout ยังไม่พร้อม */
+function _sigRevealDefaultMark(page){
+  _sigGoPage(page,true);
+  requestAnimationFrame(function(){
+    _renderSigStamps();
+    _sigGoPage(page,true);
+    requestAnimationFrame(function(){
+      _renderSigStamps();
+      _sigGoPage(page,true);
+    });
+  });
+}
+
 /* เรนเดอร์ทุกหน้าเรียงต่อกันแนวตั้ง (เลื่อนดูได้เหมือน PDF viewer) — แต่ละหน้ามีเลเยอร์วางลายเซ็นของตัวเอง */
 async function _renderSigDoc(keepPage){
   if(!_actSigPdf)return;
   var wrap=$e('sig-pos-wrap'); if(!wrap)return;
+  var gen=++_actSigRenderGen;
   var N=_actSigPdf.numPages;
   var sc=$e('sig-scroll');
-  var pad=sc?24:24;
+  var pad=24;
   var outerW=Math.max((sc&&sc.clientWidth?sc.clientWidth-pad:wrap.offsetWidth||480)-8,200);
-  wrap.innerHTML='';
-  wrap.style.cssText='position:relative;line-height:0;display:flex;flex-direction:column;align-items:stretch;gap:10px;width:100%;min-height:0';
+
+  // สร้างนอก DOM แล้วค่อยสลับทีเดียว — render ซ้อนกันจะไม่ล้างกรอบที่เห็นอยู่กลางคัน
+  var host=document.createElement('div');
+  host.style.cssText='position:relative;line-height:0;display:flex;flex-direction:column;align-items:stretch;gap:10px;width:100%;min-height:0';
   for(var p=1;p<=N;p++){
+    if(gen!==_actSigRenderGen)return;
     var page=await _actSigPdf.getPage(p);
+    if(gen!==_actSigRenderGen)return;
     var vp0=page.getViewport({scale:1.0});
     _actSigPgDims[p]={w:vp0.width,h:vp0.height};
     if(p===N){_actSigPdfW=vp0.width;_actSigPdfH=vp0.height;}
@@ -362,6 +396,7 @@ async function _renderSigDoc(keepPage){
     canvas.width=sv.width; canvas.height=sv.height;
     canvas.style.cssText='display:block;width:'+vp0.width+'px;height:'+vp0.height+'px;border-radius:2px';
     await page.render({canvasContext:canvas.getContext('2d'),viewport:sv}).promise;
+    if(gen!==_actSigRenderGen)return;
 
     // เลเยอร์วางลายเซ็น: คลิกพื้นที่ว่าง = เพิ่มจุดใหม่บนหน้านั้น, ลากกรอบ = ย้ายตำแหน่ง
     var layer=document.createElement('div');
@@ -369,11 +404,11 @@ async function _renderSigDoc(keepPage){
     layer.className='sig-layer';
     layer.dataset.page=p;
     layer.style.cssText='position:absolute;left:0;top:0;width:'+vp0.width+'px;height:'+vp0.height+'px;cursor:crosshair';
-    layer.onclick=(function(pp,ly,slotSc){return function(e){
+    layer.onclick=(function(pp,ly){return function(e){
       if(e.target!==ly)return;
       var lr=ly.getBoundingClientRect();
       _addSigMarkAt((e.clientX-lr.left)/lr.width,(e.clientY-lr.top)/lr.height,pp);
-    }})(p,layer,baseScale);
+    }})(p,layer);
 
     var badge=document.createElement('div');
     badge.textContent=p+' / '+N;
@@ -390,13 +425,23 @@ async function _renderSigDoc(keepPage){
     cont.dataset.scale=String(baseScale);
     cont.style.cssText='position:relative;flex-shrink:0;line-height:0;width:'+(vp0.width*baseScale)+'px;height:'+(vp0.height*baseScale)+'px;overflow:hidden;border-radius:2px;box-shadow:0 4px 16px rgba(0,0,0,.45);background:#fff';
     cont.appendChild(inner); cont.appendChild(badge);
-    wrap.appendChild(cont);
+    host.appendChild(cont);
   }
+  if(gen!==_actSigRenderGen)return;
+
+  wrap.style.cssText=host.style.cssText;
+  wrap.innerHTML='';
+  while(host.firstChild)wrap.appendChild(host.firstChild);
+
   _renderSigStamps();
   var zi=$e('sig-zoom-info'); if(zi) zi.textContent=Math.round(_actSigZoom*100)+'%';
   if(keepPage)_sigGoPage(_actSigPage,true);
   else _sigPageUI(_actSigPage);
-  requestAnimationFrame(function(){_renderSigStamps()});
+  requestAnimationFrame(function(){
+    if(gen!==_actSigRenderGen)return;
+    _renderSigStamps();
+    if(keepPage)_sigGoPage(_actSigPage,true);
+  });
 }
 
 /* กระโดดไปหน้า p (จาก dropdown / ปุ่มลูกศร / chip) */

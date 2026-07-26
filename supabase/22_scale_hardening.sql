@@ -10,10 +10,10 @@
 --   4. จำกัด notifications INSERT ตรง (ต้องผ่าน RPC หรือ admin/dev)
 --   5. index สำหรับ overdue scan
 --   6. app_settings.schema_version = '3' (frontend แจ้งเตือนถ้ายังไม่ deploy)
---      รัน workflow_ops_rpc.sql + cron_overdue.sql ด้วยถ้ายังไม่ได้รัน
+--      รัน 23_workflow_ops_rpc.sql + 29_cron_overdue.sql ด้วยถ้ายังไม่ได้รัน
 -- รันใน Supabase Dashboard → SQL Editor (idempotent — รันซ้ำได้)
 
--- ── helpers (reuse add_working_days จาก overdue_once_auto_approve.sql) ─────
+-- ── helpers (reuse add_working_days จาก 21_overdue_once_auto_approve.sql) ─────
 CREATE OR REPLACE FUNCTION public.add_working_days(p_from timestamptz, p_days int)
 RETURNS timestamptz
 LANGUAGE plpgsql

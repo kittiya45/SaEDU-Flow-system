@@ -8,7 +8,7 @@ async function exportDocPDF(docId){
   var uids=[...new Set([doc.created_by].concat(hist.map(function(h){return h.performed_by})).filter(Boolean))];
   var umap={};
   if(uids.length){(await dg('user_directory','?id=in.('+uids.join(',')+')'+'&select=id,full_name')).forEach(function(u){umap[u.id]=u.full_name})}
-  var stTh={pending:'รอลงนาม',completed:'เสร็จสิ้น',rejected:'ส่งคืนแก้ไข',draft:'ร่างเอกสาร',signed:'ลงนามแล้ว',done:'ผ่านแล้ว',active:'กำลังดำเนินการ',skipped:'ข้ามขั้นตอน'};
+  var stTh={pending:'รอลงนาม',awaiting_submit:'รอเจ้าหน้าที่ยื่นในระบบ',completed:'เสร็จสมบูรณ์',rejected:'ส่งคืนแก้ไข',draft:'ร่างเอกสาร',signed:'ลงนามแล้ว',done:'ผ่านแล้ว',active:'กำลังดำเนินการ',skipped:'ข้ามขั้นตอน'};
   var wfRows=wf.map(function(s,i){
     var stCl=s.status==='done'?'color:#2E7D32':s.status==='active'?'color:#E65100':'color:#888';
     return '<tr><td>'+(i+1)+'</td><td>'+esc(s.step_name||'')+'</td><td style="'+stCl+'">'+(stTh[s.status]||s.status)+'</td>'+
@@ -39,7 +39,7 @@ async function exportDocPDF(docId){
     '<div class="kv"><span class="k">เลขที่:</span><span class="v">'+esc(doc.doc_number||'—')+'</span></div>'+
     '<div class="kv"><span class="k">สถานะ:</span><span class="v">'+(stTh[doc.status]||doc.status)+'</span></div>'+
     '<div class="kv"><span class="k">ประเภท:</span><span class="v">'+(DTYPES[doc.doc_type]||doc.doc_type||'')+'</span></div>'+
-    '<div class="kv"><span class="k">ความเร่งด่วน:</span><span class="v">'+(URG[doc.urgency]||doc.urgency||'')+'</span></div>'+
+    '<div class="kv"><span class="k">ความเร่งด่วน:</span><span class="v">'+esc(urgTxt(doc.urgency))+'</span></div>'+
     '<div class="kv"><span class="k">จากฝ่าย:</span><span class="v">'+esc(doc.from_department||'—')+'</span></div>'+
     '<div class="kv"><span class="k">เรียน:</span><span class="v">'+esc(doc.addressed_to||'—')+'</span></div>'+
     '<div class="kv"><span class="k">วันที่สร้าง:</span><span class="v">'+new Date(doc.created_at).toLocaleDateString('th-TH')+'</span></div>'+
@@ -72,7 +72,7 @@ async function exportCSV(){
       d.doc_number||'—',
       d.title||'',
       DTYPES[d.doc_type]||d.doc_type||'',
-      URG[d.urgency]||d.urgency||'',
+      urgTxt(d.urgency),
       STTH[d.status]||d.status||'',
       d.from_department||'',
       d.addressed_to||'',

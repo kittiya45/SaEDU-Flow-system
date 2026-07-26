@@ -16,7 +16,7 @@ async function _ensureHomeViews(){
   if(_homeViewsOk()) return true;
   if(_homeViewsLoad) return _homeViewsLoad;
   _homeViewsLoad=(async function(){
-    var urls=['homeViews.js?v=2','dashboard.js?v=23'];
+    var urls=['homeViews.js?v=13','dashboard.js?v=33'];
     for(var i=0;i<urls.length;i++){
       if(_homeViewsOk()) return true;
       try{await _loadScriptOnce(urls[i]);}catch(e){console.warn(e);}
@@ -51,6 +51,29 @@ function fsz(b){
   if(b<1048576)return(b/1024).toFixed(1)+'KB';
   return(b/1048576).toFixed(1)+'MB'
 }
+/* เทียบชื่อไฟล์แบบไม่สนตัวพิมพ์ — ใช้กันอัปโหลดชื่อซ้ำ + ติดป้ายในรายการ */
+function _fileNameKey(name){
+  return String(name||'').trim().toLowerCase();
+}
+/* แยกไฟล์ใหม่ / ชื่อซ้ำ (รวมชื่อซ้ำภายในชุดที่เลือกเอง) */
+function _splitDupFiles(incoming, existing){
+  var have={};
+  (existing||[]).forEach(function(f){
+    var k=_fileNameKey(f.file_name||f.name);
+    if(k) have[k]=true;
+  });
+  var fresh=[], dups=[], seenBatch={};
+  for(var i=0;i<(incoming||[]).length;i++){
+    var f=incoming[i];
+    var n=f.name||f.file_name||'';
+    var k=_fileNameKey(n);
+    if(!k) continue;
+    if(have[k]||seenBatch[k]){ dups.push(n); continue; }
+    seenBatch[k]=true;
+    fresh.push(f);
+  }
+  return {fresh:fresh, dups:dups};
+}
 function ini(n){return(n||'').split(' ').map(function(w){return w[0]||''}).join('').slice(0,2).toUpperCase()||'??'}
 function esc(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
 function _lcr(){if(window.lucide)window.lucide.createIcons()}
@@ -77,14 +100,33 @@ function alrtH(t,m){
   return '<div class="al al-'+t+'"><span class="al-icon">'+ic[t]+'</span><span>'+esc(m)+'</span></div>'
 }
 
-function sBadge(s){
-  var cls={draft:'b-draft',pending:'b-pending',signed:'b-signed',rejected:'b-rejected',numbering:'b-advisor',completed:'b-completed'};
-  var txt={draft:'ร่างเอกสาร',pending:'รอลงนาม',signed:'ลงนามแล้ว',rejected:'ส่งคืนแก้ไข',numbering:'รอออกเลขหนังสือ',completed:'เสร็จสิ้น'};
-  return '<span class="badge '+( cls[s]||'b-draft')+'"><span class="bdot"></span>'+esc(txt[s]||s)+'</span>'
+function sBadge(s, labelOverride){
+  var cls={draft:'b-draft',pending:'b-pending',signed:'b-signed',rejected:'b-rejected',numbering:'b-numbering',awaiting_submit:'b-awaiting',completed:'b-completed'};
+  var txt={draft:'ร่างเอกสาร',pending:'รอลงนาม',signed:'ลงนามแล้ว',rejected:'ส่งคืนแก้ไข',numbering:'รอออกเลขหนังสือ',awaiting_submit:'รอเจ้าหน้าที่ยื่นในระบบ',completed:'เสร็จสมบูรณ์'};
+  var label=labelOverride||txt[s]||s;
+  var wrap=(labelOverride||s==='awaiting_submit')?' style="white-space:normal;line-height:1.35;text-align:left;max-width:11.5rem"':'';
+  return '<span class="badge '+(cls[s]||'b-draft')+'"'+wrap+'><span class="bdot"></span>'+esc(label)+'</span>'
 }
+/* สถานะแสดงเมื่อเอกสารออกเลขแล้วถูกส่งต่อไปยัง จนท./คณะ รอรับ */
+var FWD_STATUS_LABEL='นำส่งเข้ากภ.กิจการนิสิต /คณะ';
+function sBadgeFwd(pending){
+  return sBadge('pending', pending?FWD_STATUS_LABEL:'เสร็จสมบูรณ์');
+}
+function _isStaffPoolFwd(d){
+  return !!(d&&d.forwarded_to_staff&&d.status==='completed');
+}
+function _canActStaffPool(){
+  return CU&&(CU.role_code==='ROLE-STF'||CU.role_code==='ROLE-SYS'||CU.role_code==='ROLE-DEV');
+}
+function _isFwdInboxForMe(d){
+  if(!d||d.status!=='completed') return false;
+  if(d.forwarded_to_id===CU.id) return true;
+  return _isStaffPoolFwd(d)&&CU.role_code==='ROLE-STF';
+}
+
 function tBadge(t){
-  var cls={incoming:'b-draft',outgoing:'b-signed',certificate:'b-advisor',memo:'b-staff'};
-  var lbl={incoming:'ขาเข้า',outgoing:'ขาออก',certificate:'หนังสือรับรอง',memo:'บันทึกข้อความ'};
+  var cls={incoming:'b-draft',outgoing:'b-signed'};
+  var lbl={incoming:'ขาออก',outgoing:'ขาเข้า'};
   return '<span class="badge '+(cls[t]||'b-draft')+'">'+esc(lbl[t]||t)+'</span>'
 }
 /* จำแนกประเภทไฟล์จากนามสกุล/mime — คืน {ic,label,bg,cl} สำหรับ chip ไอคอนรายการไฟล์
@@ -133,12 +175,14 @@ function _signPdfWorkingCopy(pdfs){
   });
   return {primary:primary,working:group[0],baseName:bn,signedRow:group.find(function(f){return _isSignedPdfRow(f)})||null};
 }
-function urgCls(u){if(u==='urgent')return'urg-urgent';if(u==='very_urgent')return'urg-vurgent';return'urg-normal'}
-/* ความเร่งด่วนแบบ badge แบ่งสี: เขียว=ปกติ, เหลือง=เร่งด่วน, แดง=ด่วนมาก */
+function urgNorm(u){return u==='very_urgent'?'urgent':(u||'normal')}
+function urgTxt(u){return URG[urgNorm(u)]||u||''}
+function urgCls(u){return urgNorm(u)==='urgent'?'urg-urgent':'urg-normal'}
+/* ความเร่งด่วน: ปกติ / เร่งด่วน (very_urgent ในฐานข้อมูลเก่าแสดงเป็นเร่งด่วน) */
 function uBadge(u){
-  var cls={normal:'u-normal',urgent:'u-urgent',very_urgent:'u-vurgent'};
-  var txt={normal:'ปกติ',urgent:'เร่งด่วน',very_urgent:'ด่วนมาก'};
-  return '<span class="ubadge '+(cls[u]||'u-normal')+'"><span class="bdot"></span>'+esc(txt[u]||u)+'</span>'
+  var n=urgNorm(u);
+  var cls={normal:'u-normal',urgent:'u-urgent'};
+  return '<span class="ubadge '+(cls[n]||'u-normal')+'"><span class="bdot"></span>'+esc(urgTxt(u))+'</span>'
 }
 
 /* การ์ดสถิติแบบ gradient สีสัน — cards: [{label,val,sub?,ico,grad,shadow,navTarget?}] */
@@ -146,7 +190,8 @@ function rStatCards(cards, opts){
   opts=opts||{};
   var cols=opts.cols||4;
   var mb=opts.mb||'28px';
-  var html=['<div class="stat-cards'+(cols===3?' cols-3':'')+'" style="margin-bottom:'+mb+'">'];
+  var cls='stat-cards'+(cols===3?' cols-3':'')+(opts.fit?' fit-row':'');
+  var html=['<div class="'+cls+'" style="margin-bottom:'+mb+'">'];
   cards.forEach(function(c){
     var click=c.navTarget?' onclick="nav(\''+c.navTarget+'\')"':'';
     var grad=c.grad||'linear-gradient(135deg,#1D4ED8 0%,#3B82F6 100%)';
@@ -188,7 +233,8 @@ function svg(n,s){
     warn:'alert-triangle',info:'info',folder:'folder',
     refresh:'refresh-cw',pen:'pen',dots:'more-horizontal',
     gear:'settings',clock:'clock',tri:'chevron-right',
-    tasks:'clipboard-list',inbox:'inbox'
+    tasks:'clipboard-list',inbox:'inbox',
+    chup:'chevron-up',chdn:'chevron-down'
   };
   var ln=M[n]||n;
   return '<i data-lucide="'+ln+'" width="'+s+'" height="'+s+'" stroke-width="1.6" style="display:inline-flex;vertical-align:middle;flex-shrink:0;pointer-events:none"></i>'
@@ -289,8 +335,8 @@ async function acceptForwardedDoc(docId, note){
   }catch(e){
     if(!rpcFnMissing(e)) throw e;
   }
-  await dpa('documents',docId,{forwarded_to_id:null,forwarded_at:null,updated_at:new Date().toISOString()});
-  await dp('document_history',{document_id:docId,action:'เจ้าหน้าที่รับเอกสาร',performed_by:CU.id,note:note||'รับและอนุมัติเอกสารเรียบร้อยแล้ว'});
+  await dpa('documents',docId,{status:'awaiting_submit',forwarded_to_id:null,forwarded_to_staff:false,forwarded_at:null,updated_at:new Date().toISOString()});
+  await dp('document_history',{document_id:docId,action:'เจ้าหน้าที่รับเอกสาร',performed_by:CU.id,note:note||'รับเอกสารแล้ว — รอเจ้าหน้าที่ยื่นในระบบมหาวิทยาลัย'});
 }
 
 /* ไม่อนุมัติเอกสารที่ส่งต่อ — atomic RPC + fallback */
@@ -301,7 +347,7 @@ async function declineForwardedDoc(docId, note){
   }catch(e){
     if(!rpcFnMissing(e)) throw e;
   }
-  await dpa('documents',docId,{status:'rejected',forwarded_to_id:null,forwarded_at:null,updated_at:new Date().toISOString()});
+  await dpa('documents',docId,{status:'rejected',forwarded_to_id:null,forwarded_to_staff:false,forwarded_at:null,updated_at:new Date().toISOString()});
   var _wfR=await dg('workflow_steps','?document_id=eq.'+safeId(docId)+'&order=step_number');
   var _firstRev=_wfR.find(function(s){return s.step_number>1})||(_wfR.length?_wfR[0]:null);
   for(var _ri=0;_ri<_wfR.length;_ri++){
@@ -433,7 +479,7 @@ function showConfirm(title, msg, onConfirm, opts){
       '<div class="modal-body" style="padding:28px 24px 20px;text-align:center">'+
         '<div style="width:52px;height:52px;border-radius:14px;background:'+iconBg+';display:flex;align-items:center;justify-content:center;margin:0 auto 16px;color:'+iconColor+'">'+svg(icon,24)+'</div>'+
         '<div style="font-size:16px;font-weight:800;color:#18120E;margin-bottom:8px">'+esc(title)+'</div>'+
-        '<div style="font-size:13.5px;color:#6b6560;line-height:1.65">'+esc(msg)+'</div>'+
+        '<div style="font-size:13.5px;color:#6b6560;line-height:1.7">'+esc(msg)+'</div>'+
         detail+
       '</div>'+
       '<div class="modal-foot" style="justify-content:center;gap:10px">'+
@@ -457,7 +503,7 @@ function showAlert(msg, type){
     '<div class="modal" style="max-width:380px">'+
       '<div class="modal-body" style="padding:28px 24px 20px;text-align:center">'+
         '<div style="width:52px;height:52px;border-radius:14px;background:'+bgMap[type]+';display:flex;align-items:center;justify-content:center;margin:0 auto 16px;color:'+clrMap[type]+'">'+svg(iconMap[type]||'info',24)+'</div>'+
-        '<div style="font-size:14px;color:#6b6560;line-height:1.65">'+esc(msg)+'</div>'+
+        '<div style="font-size:14px;color:#6b6560;line-height:1.7">'+esc(msg)+'</div>'+
       '</div>'+
       '<div class="modal-foot" style="justify-content:center">'+
         '<button class="btn btn-primary" data-action="closeModal">ตกลง</button>'+

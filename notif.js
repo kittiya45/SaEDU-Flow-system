@@ -1,4 +1,15 @@
 /* ─── NOTIF — อีเมลแจ้งเตือนและตรวจเอกสารเลยกำหนด ─── */
+
+/* LINE: แจ้งเฉพาะเมื่อถึงคิวขั้นตอนของเจ้าหน้าที่ (ROLE-STF) ให้เซ็น/อนุมัติ
+   อีเมลยังส่งตามปกติทุกกรณี — จำกัดเฉพาะช่องทาง LINE */
+function _shouldSendLineForStaffSign(recipUser, nextStep, action){
+  // แจ้ง LINE เฉพาะตอนที่เอกสารเพิ่งถึงคิวเซ็นของเจ้าหน้าที่ (ไม่รวม overdue/reject/forward/ฯลฯ)
+  if(!action||['create','resubmit','approve'].indexOf(action)<0) return false;
+  if(!recipUser||!nextStep||!nextStep.assigned_to) return false;
+  if(recipUser.id!==nextStep.assigned_to) return false;
+  return recipUser.role_code==='ROLE-STF';
+}
+
 /* ── EMAIL NOTIFICATION (ส่งจริงผ่าน Supabase Edge Function + Resend) ── */
 async function sendNotifEmail(docId, action, newStatus, note){
   var doc=(await dg('documents','?id=eq.'+docId))[0]; if(!doc)return;
@@ -142,25 +153,34 @@ async function sendNotifEmail(docId, action, newStatus, note){
       }catch(e){}
     }
 
-    // ── LINE OA push (ช่องทางเสริม — ข้ามเงียบ ๆ ถ้าผู้รับไม่ได้ผูก LINE) ──
-    try{
-      var _lineO={
-        recipName:recip.user.full_name, action:action, newStatus:newStatus,
-        subj:subj, deadlineStr:deadlineStr, nextStep:nextStep, urgency:doc.urgency,
-        note:note, autoApprove:_autoQ, slaDays:SETT.sla_cascade_days||3, sentAt:sentAt
-      };
-      var lineText=buildLineText(_lineO);
-      var lineFlex=null;
-      try{lineFlex=buildLineFlex(Object.assign({steps:lineSteps},_lineO))}catch(fe){console.warn('LINE flex build failed:',fe)}
-      await sendLineWithLog(docId,recip.user.id,recip.email,emailSubj,lineText,action||'email',lineFlex);
-    }catch(e){console.warn('LINE notify error:',e)}
+    // ── LINE: เฉพาะเมื่อผู้รับคือ จนท. และถึงคิวขั้นตอนของเขา ──
+    if(_shouldSendLineForStaffSign(recip.user, nextStep, action)){
+      try{
+        var _lineO={
+          recipName:recip.user.full_name, action:action, newStatus:newStatus,
+          subj:subj, deadlineStr:deadlineStr, nextStep:nextStep, urgency:doc.urgency,
+          note:note, autoApprove:_autoQ, slaDays:SETT.sla_cascade_days||3, sentAt:sentAt
+        };
+        var lineText=buildLineText(_lineO);
+        var lineFlex=null;
+        try{lineFlex=buildLineFlex(Object.assign({steps:lineSteps},_lineO))}catch(fe){console.warn('LINE flex build failed:',fe)}
+        await sendLineWithLog(docId,recip.user.id,recip.email,emailSubj,lineText,action||'email',lineFlex);
+      }catch(e){console.warn('LINE notify error:',e)}
+    }
   }
 
-  // ── แจ้งเข้ากลุ่ม LINE เจ้าหน้าที่ (ครั้งเดียวต่อเหตุการณ์ ไม่ใช่ต่อผู้รับ) ──
-  // ค่าเริ่มต้น: เอกสารใหม่/ส่งใหม่ + เลยกำหนด — ปรับได้ผ่าน app_settings key 'line_group_events'
+  // ── กลุ่ม LINE: แจ้งเฉพาะเมื่อถึงคิวขั้นตอนของเจ้าหน้าที่ ──
   try{
-    var _gEv=String(SETT.line_group_events||'create,resubmit,overdue').split(',');
-    if(SETT.line_group_id&&_gEv.indexOf(action)>=0){
+    var _staffActive=false;
+    if(nextStep&&nextStep.assigned_to){
+      var _na=recipients.find(function(r){return r.user&&r.user.id===nextStep.assigned_to});
+      if(_na&&_na.user.role_code==='ROLE-STF') _staffActive=true;
+      else if(!_na){
+        var _nu=await dg('user_directory','?id=eq.'+safeId(nextStep.assigned_to)+'&select=id,role_code');
+        _staffActive=!!(_nu&&_nu[0]&&_nu[0].role_code==='ROLE-STF');
+      }
+    }
+    if(SETT.line_group_id&&_staffActive&&['create','resubmit','approve'].indexOf(action)>=0){
       var _gO={
         action:action, newStatus:newStatus, subj:subj, deadlineStr:deadlineStr,
         nextStep:nextStep, urgency:doc.urgency, note:note,
@@ -183,21 +203,7 @@ async function sendRejectFyiEmail(docId, recipientUser, rejectedStepName, note){
   var subj=(doc.subject_line&&doc.subject_line.length<3&&/^[1-9]$/.test(doc.subject_line.trim()))?doc.title:(doc.subject_line||doc.title);
   var emailSubj=(SETT.email_prefix||'[กนค.]')+' ℹ️ แจ้งเพื่อทราบ: '+subj;
 
-  // ── LINE OA push (ส่งได้แม้ผู้รับไม่มีอีเมลจริง) ──
-  try{
-    var _fyiO={
-      recipName:recipientUser.full_name, action:'reject_fyi', newStatus:'rejected',
-      subj:subj, note:note, rejectedStepName:rejectedStepName, urgency:doc.urgency
-    };
-    var lineText=buildLineText(_fyiO);
-    var _fyiFlex=null;
-    try{
-      var _fyiWs=await dg('workflow_steps','?document_id=eq.'+docId+'&order=step_number');
-      _fyiFlex=buildLineFlex(Object.assign({steps:await _lineStepsInfo(_fyiWs)},_fyiO));
-    }catch(fe){}
-    await sendLineWithLog(docId,recipientUser.id,em,emailSubj,lineText,'reject_fyi',_fyiFlex);
-  }catch(e){console.warn('FYI LINE error:',e)}
-
+  // LINE: ไม่แจ้ง reject_fyi — แจ้งเฉพาะเมื่อถึงคิวเซ็นของเจ้าหน้าที่
   if(!emOk) return;
   var html=buildEmailHtml({
     recipName: recipientUser.full_name,
@@ -232,9 +238,9 @@ async function sendRejectFyiEmail(docId, recipientUser, rejectedStepName, note){
 
 /* ── สร้าง HTML Template สำหรับอีเมล ── */
 function buildEmailHtml(o){
-  var urgColor={normal:'#4CAF50',urgent:'#FF9800',very_urgent:'#F44336'};
-  var urgLabel={normal:'ปกติ',urgent:'เร่งด่วน',very_urgent:'ด่วนมาก'};
-  var urgClr=urgColor[o.urgency]||'#888';
+  var _urgClr={normal:'#4CAF50',urgent:'#FF9800'};
+  var _u=urgNorm(o.urgency);
+  var urgClr=_urgClr[_u]||'#888';
 
   var bannerBg,bannerIcon,actionLabel;
   if(o.newStatus==='completed'){
@@ -254,7 +260,7 @@ function buildEmailHtml(o){
   var rows='';
   if(o.addrTo) rows+='<tr><td style="color:#888;padding:5px 0;width:110px;font-size:13px">เรียน</td><td style="font-weight:600;font-size:13px">'+esc(o.addrTo)+'</td></tr>';
   if(o.fromDept) rows+='<tr><td style="color:#888;padding:5px 0;font-size:13px">จากฝ่าย</td><td style="font-size:13px">'+esc(o.fromDept)+'</td></tr>';
-  if(o.urgency) rows+='<tr><td style="color:#888;padding:5px 0;font-size:13px">ความเร่งด่วน</td><td><span style="color:'+urgClr+';font-weight:600;font-size:13px">'+esc(urgLabel[o.urgency]||o.urgency)+'</span></td></tr>';
+  if(o.urgency) rows+='<tr><td style="color:#888;padding:5px 0;font-size:13px">ความเร่งด่วน</td><td><span style="color:'+urgClr+';font-weight:600;font-size:13px">'+esc(urgTxt(o.urgency))+'</span></td></tr>';
   if(o.deadlineStr) rows+='<tr><td style="color:#888;padding:5px 0;font-size:13px">วันกำหนดส่ง</td><td style="font-weight:700;color:#E84300;font-size:13px">'+esc(o.deadlineStr)+'</td></tr>';
   if(o.nextStep&&o.action!=='reject'&&o.newStatus!=='completed') rows+='<tr><td style="color:#888;padding:5px 0;font-size:13px">ขั้นตอนที่รอ</td><td style="font-size:13px">'+esc(o.nextStep.step_name||'')+'</td></tr>';
   if(o.action==='reject'&&o.note) rows+='<tr><td style="color:#888;padding:5px 0;vertical-align:top;font-size:13px">ส่วนที่ต้องแก้ไข</td><td style="color:#E65100;font-size:13px">'+esc(o.note)+'</td></tr>';
@@ -319,7 +325,7 @@ function buildEmailHtml(o){
    นโยบาย: เตือนครั้งเดียวต่อเอกสาร → ถ้ายังเงียบเกิน sla_cascade_days วันทำการ
    ระบบจัดการอัตโนมัติผ่าน auto_approve_overdue RPC เฉพาะเอกสารที่
    (a) ค้างขั้นตอนสุดท้ายของ workflow หรือ (b) รอผู้รับปลายทางกดรับ
-   — เงื่อนไขจริงถูกตรวจซ้ำฝั่งเซิร์ฟเวอร์ใน RPC (supabase/overdue_once_auto_approve.sql) */
+   — เงื่อนไขจริงถูกตรวจซ้ำฝั่งเซิร์ฟเวอร์ใน RPC (supabase/21_overdue_once_auto_approve.sql) */
 /* ── ตรวจเอกสารเลยกำหนด — ย้ายไป cron ฝั่งเซิร์ฟเวอร์ (check-overdue Edge Function)
    คงไว้เป็น fallback เฉพาะเจ้าหน้าที่ กรณี cron ล้มเหลว */
 async function sendOverdueNotifs(force){
@@ -486,11 +492,10 @@ function buildLineText(o){
   else if(o.action==='overdue')      head='⚠️ เอกสารเลยกำหนด — กรุณาดำเนินการด่วน';
   else                               head='📋 มีเอกสารรอการดำเนินการของคุณ';
 
-  var urgLabel={normal:'ปกติ',urgent:'เร่งด่วน',very_urgent:'ด่วนมาก'};
   var lines=[pfx+' '+head];
   if(o.recipName)   lines.push('เรียน '+o.recipName);
   lines.push('เรื่อง: '+(o.subj||''));
-  if(o.urgency&&o.urgency!=='normal') lines.push('ความเร่งด่วน: '+(urgLabel[o.urgency]||o.urgency));
+  if(o.urgency&&urgNorm(o.urgency)!=='normal') lines.push('ความเร่งด่วน: '+urgTxt(o.urgency));
   if(o.deadlineStr) lines.push('กำหนดส่ง: '+o.deadlineStr);
   if(o.sentAt) lines.push('สถานะ ณ '+o.sentAt);
   if(o.nextStep&&o.action!=='reject'&&o.newStatus!=='completed'&&o.nextStep.step_name) lines.push('ขั้นตอนที่รอ: '+o.nextStep.step_name);
@@ -532,7 +537,6 @@ function buildLineFlex(o){
     else if(o.action==='overdue')      head='⚠️ เอกสารเลยกำหนด';
     else                               head='📋 เอกสารรอการดำเนินการของคุณ';
   }
-  var urgLabel={normal:'ปกติ',urgent:'เร่งด่วน',very_urgent:'ด่วนมาก'};
   function row(label,value,vColor){
     return {type:'box',layout:'baseline',spacing:'md',contents:[
       {type:'text',text:String(label),size:'xs',color:'#9A8F84',flex:3},
@@ -542,7 +546,7 @@ function buildLineFlex(o){
   var body=[{type:'text',text:String(o.subj||'—'),weight:'bold',size:'sm',wrap:true,color:'#18120E'}];
   if(o.sentAt) body.push({type:'text',text:'สถานะ ณ '+o.sentAt,size:'xxs',color:'#9A8F84',margin:'sm'});
   if(o.recipName) body.push(row('เรียน',o.recipName));
-  if(o.urgency&&o.urgency!=='normal') body.push(row('ความเร่งด่วน',urgLabel[o.urgency]||o.urgency,'#DC2626'));
+  if(o.urgency&&urgNorm(o.urgency)!=='normal') body.push(row('ความเร่งด่วน',urgTxt(o.urgency),'#B45309'));
   if(o.deadlineStr) body.push(row('กำหนดส่ง',o.deadlineStr));
   (o.rows||[]).forEach(function(r){body.push(row(r[0],r[1]))});
   if(o.rejectedStepName) body.push(row('ตีกลับจาก',o.rejectedStepName,'#C77A1A'));

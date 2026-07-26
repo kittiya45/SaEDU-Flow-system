@@ -3,7 +3,7 @@
    - เมนู: แอดมิน (ROLE-SYS) ไม่เห็น/ไม่เข้าหน้านี้ · นักพัฒนาไม่เข้าหน้า "จัดการระบบ" ของแอดมิน
      แต่ใช้เนื้อหาเดียวกันผ่านแท็บ "จัดการระบบ" ด้านใน (_vSysContent() จาก sysAdmin.js)
    - สิทธิ์ DB: is_dev() แยกจาก is_admin() — เขียนได้เฉพาะตาราง config + UPDATE documents/workflow_steps
-     (ซ่อมเอกสาร) + อ่าน log — จัดการผู้ใช้/ลบข้อมูลไม่ได้ (supabase/create_dev_role.sql)
+     (ซ่อมเอกสาร) + อ่าน log — จัดการผู้ใช้/ลบข้อมูลไม่ได้ (supabase/17_create_dev_role.sql)
    ทุกการแก้ข้อมูลเอกสารผ่านแท็บ "ซ่อมเอกสาร" จะถูกบันทึกลง document_history เสมอ */
 
 var _devTab='health';      // แท็บที่เปิดอยู่: health | logs | doctool | sysadmin | info
@@ -27,7 +27,7 @@ async function vDev(){
 
   // ตรวจ migration + สิทธิ์ dev (system_logs)
   var _migResults=await _devRunMigrationProbes();
-  var _devRoleRow=_migResults.find(function(r){return r.file==='create_dev_role.sql';});
+  var _devRoleRow=_migResults.find(function(r){return r.file==='17_create_dev_role.sql';});
   var _sqlReady=!!(_devRoleRow&&_devRoleRow.ok);
   var _migPending=_migResults.filter(function(r){return r.ok===false&&!r.optional;}).length;
   var _sqlWarn=_migPending?'<div class="al al-wa" style="margin-bottom:16px"><span class="al-icon">'+svg('warn',13)+'</span><span><strong>พบ SQL migration ค้าง '+_migPending+' รายการ</strong> — ดูรายละเอียดและคัดลอก SQL ได้ที่แท็บ <strong>สุขภาพระบบ</strong></span></div>':'';
@@ -114,29 +114,31 @@ async function _devColExists(table,col){
 
 /* รายการ SQL ที่ต้องรัน — เรียงตามลำดับที่แนะนำ */
 var DEV_MIGRATIONS=[
-  {file:'migration_auth_rls.sql',order:1,title:'Auth + RLS พื้นฐาน',desc:'Supabase Auth, ตารางหลัก, policy เริ่มต้น — โปรเจกต์ใหม่ต้องรันก่อนทุกอย่าง',
+  {file:'01_migration_auth_rls.sql',order:1,title:'Auth + RLS พื้นฐาน',desc:'Supabase Auth, ตารางหลัก, policy เริ่มต้น — โปรเจกต์ใหม่ต้องรันก่อนทุกอย่าง',
    probe:async function(){return _devDgOk(await dg('documents','?select=id&limit=1'))&&_devDgOk(await dg('users','?select=id&limit=1'));}},
-  {file:'create_dev_role.sql',order:2,title:'บทบาทนักพัฒนา + system_logs',desc:'is_dev(), สิทธิ์ config, เครื่องมือซ่อมเอกสาร, form_templates สำหรับ DEV',
+  {file:'17_create_dev_role.sql',order:2,title:'บทบาทนักพัฒนา + system_logs',desc:'is_dev(), สิทธิ์ config, เครื่องมือซ่อมเอกสาร, form_templates สำหรับ DEV',
    probe:async function(){return _devDgOk(await dg('system_logs','?select=id&limit=1'));}},
-  {file:'create_admin_config_tables.sql',order:3,title:'ตารางตั้งค่าระบบ',desc:'app_settings, email_templates, workflow_templates, doc_types',
+  {file:'07_create_admin_config_tables.sql',order:3,title:'ตารางตั้งค่าระบบ',desc:'app_settings, email_templates, workflow_templates, doc_types',
    probe:async function(){return _devDgOk(await dg('app_settings','?select=key&limit=1'));}},
-  {file:'create_announcements.sql',order:4,title:'บอร์ดประกาศหน้า Home',desc:'ตาราง announcements — ต้องรันหลัง create_dev_role.sql',
+  {file:'18_create_announcements.sql',order:4,title:'บอร์ดประกาศหน้า Home',desc:'ตาราง announcements — ต้องรันหลัง 17_create_dev_role.sql',
    probe:async function(){return _devDgOk(await dg('announcements','?select=id&limit=1'));}},
-  {file:'user_signatures.sql',order:5,title:'ลายเซ็นส่วนตัว',desc:'คอลัมน์ signature_path + bucket user-signatures',
+  {file:'19_user_signatures.sql',order:5,title:'ลายเซ็นส่วนตัว',desc:'คอลัมน์ signature_path + bucket user-signatures',
    probe:async function(){return _devColExists('users','signature_path');}},
-  {file:'line_notifications.sql',order:6,title:'แจ้งเตือน LINE',desc:'คอลัมน์ line_user_id / line_link_code บนตาราง users',
+  {file:'20_line_notifications.sql',order:6,title:'แจ้งเตือน LINE',desc:'คอลัมน์ line_user_id / line_link_code บนตาราง users',
    probe:async function(){return _devColExists('users','line_link_code');}},
-  {file:'workflow_ops_rpc.sql',order:7,title:'RPC ดึงกลับ / ปฏิเสธส่งต่อ',desc:'recall_document, forward_decline + schema_version',
-   probe:async function(){return _devRpcExists('recall_document',{p_doc:_FAKE_DOC});}},
-  {file:'overdue_once_auto_approve.sql',order:8,title:'นโยบายเกินกำหนด + auto-approve',desc:'overdue_notif_sent_at, auto_approve_overdue',
+  {file:'21_overdue_once_auto_approve.sql',order:7,title:'นโยบายเกินกำหนด + auto-approve',desc:'overdue_notif_sent_at, auto_approve_overdue',
    probe:async function(){return _devRpcExists('overdue_notif_sent_at',{p_doc:_FAKE_DOC});}},
-  {file:'scale_hardening.sql',order:9,title:'workflow_action + hardening',desc:'อนุมัติ/ตีกลับแบบ atomic, log_notification, schema v'+REQUIRED_SCHEMA_VERSION,
+  {file:'22_scale_hardening.sql',order:8,title:'workflow_action + hardening',desc:'อนุมัติ/ตีกลับแบบ atomic, log_notification, schema v'+REQUIRED_SCHEMA_VERSION,
    probe:async function(){return _devRpcExists('workflow_action',{p_doc:_FAKE_DOC,p_action:'approve',p_note:''});}},
-  {file:'private_storage_bucket.sql',order:10,title:'Storage ส่วนตัว (documents)',desc:'ปิด public bucket + RLS — รันพร้อม frontend ที่ใช้ signed URL',
+  {file:'23_workflow_ops_rpc.sql',order:9,title:'RPC ดึงกลับ / ปฏิเสธส่งต่อ',desc:'recall_document, forward_decline + schema_version — ต้องรันหลัง 22_scale_hardening.sql (ใช้ step_deadline_ts จากไฟล์นั้น)',
+   probe:async function(){return _devRpcExists('recall_document',{p_doc:_FAKE_DOC});}},
+  {file:'24_private_storage_bucket.sql',order:10,title:'Storage ส่วนตัว (documents)',desc:'ปิด public bucket + RLS — รันพร้อม frontend ที่ใช้ signed URL',
    manual:true,desc2:'ตรวจด้วยการเปิดไฟล์แนบในเอกสาร — ถ้าเปิดได้ปกติถือว่าพร้อม'},
-  {file:'phase2_dev_ops.sql',order:12,title:'สิทธิ์ลบเอกสาร (DEV)',desc:'ให้นักพัฒนาลบเอกสาร/ไฟล์/ขั้นตอนได้จากเครื่องมือซ่อมเอกสาร',
+  {file:'26_phase1_dev_extras.sql',order:11,title:'สิทธิ์แบบฟอร์ม (DEV) ระยะ 1',desc:'ให้นักพัฒนาอัปโหลด/แก้ไข form_templates ได้เหมือนแอดมิน',
+   optional:true,manual:true,desc2:'รันแล้วทดสอบด้วยการอัปโหลดแบบฟอร์มในแท็บจัดการระบบ'},
+  {file:'27_phase2_dev_ops.sql',order:12,title:'สิทธิ์ลบเอกสาร (DEV)',desc:'ให้นักพัฒนาลบเอกสาร/ไฟล์/ขั้นตอนได้จากเครื่องมือซ่อมเอกสาร',
    optional:true,manual:true,desc2:'รันแล้วทดสอบด้วยปุ่ม "ลบเอกสารถาวร" ในแท็บซ่อมเอกสาร'},
-  {file:'phase3_dev_users.sql',order:13,title:'จัดการผู้ใช้แบบจำกัด (DEV)',desc:'SELECT/UPDATE users — อนุมัติ เปิด-ปิด แก้ role (ห้าม ROLE-SYS)',
+  {file:'28_phase3_dev_users.sql',order:13,title:'จัดการผู้ใช้แบบจำกัด (DEV)',desc:'SELECT/UPDATE users — อนุมัติ เปิด-ปิด แก้ role (ห้าม ROLE-SYS)',
    probe:async function(){
      try{
        var dir=await dg('user_directory','?select=id');
@@ -147,7 +149,7 @@ var DEV_MIGRATIONS=[
      }catch(e){return false;}
    },
    desc2:'รันแล้วเปิดแท็บจัดการผู้ใช้ — ควรเห็นรายชื่อทั้งหมด (ไม่ใช่แค่บัญชีตัวเอง)'},
-  {file:'cron_overdue.sql',order:14,title:'Cron ตรวจเลยกำหนด (pg_cron)',desc:'ตั้ง job เรียก check-overdue รายวัน 01:00 น. — ต้อง deploy Edge Function + ตั้ง OVERDUE_CRON_SECRET ก่อน',
+  {file:'29_cron_overdue.sql',order:14,title:'Cron ตรวจเลยกำหนด (pg_cron)',desc:'ตั้ง job เรียก check-overdue รายวัน 01:00 น. — ต้อง deploy Edge Function + ตั้ง OVERDUE_CRON_SECRET ก่อน',
    optional:true,manual:true,desc2:'ทางเลือก: ใช้ Supabase Dashboard → Edge Functions → Schedule แทน pg_cron'}
 ];
 
@@ -572,7 +574,7 @@ async function _devLogBody(){
   if(_devLogTab==='syslog'){
     var logs=[];
     try{logs=await dg('system_logs','?order=at.desc&limit=100');}catch(e){}
-    if(!Array.isArray(logs)) return _err('อ่านตาราง system_logs ไม่ได้ — ต้องรัน supabase/create_dev_role.sql ก่อน');
+    if(!Array.isArray(logs)) return _err('อ่านตาราง system_logs ไม่ได้ — ต้องรัน supabase/17_create_dev_role.sql ก่อน');
     var rows=logs.map(function(l){
       return '<div style="display:flex;gap:10px;padding:9px 16px;border-bottom:1px solid #F9F8F7;align-items:baseline">'+
         '<span class="mono" style="width:110px;flex-shrink:0;font-size:10.5px;color:#a89e99">'+fdTime(l.at)+'</span>'+
@@ -620,7 +622,7 @@ async function _devLogBody(){
   // notif
   var nt=[];
   try{nt=await dg('notifications','?order=sent_at.desc&limit=100');}catch(e){}
-  if(!Array.isArray(nt)) return _err('อ่าน notifications ไม่ได้ — สิทธิ์อ่านของ ROLE-DEV มาจาก policy notifications_select_dev (ต้องรัน supabase/create_dev_role.sql ก่อน)');
+  if(!Array.isArray(nt)) return _err('อ่าน notifications ไม่ได้ — สิทธิ์อ่านของ ROLE-DEV มาจาก policy notifications_select_dev (ต้องรัน supabase/17_create_dev_role.sql ก่อน)');
   var nrows=nt.map(function(n){
     var ok=(n.status||'')==='sent'||(n.status||'')==='success';
     return '<div style="display:flex;gap:10px;padding:9px 16px;border-bottom:1px solid #F9F8F7;align-items:baseline">'+
@@ -914,7 +916,7 @@ async function _devDeleteDocConfirmed(){
     _devCurDocId=null;
     var box=$e('dev-doc-inspector'); if(box) box.innerHTML='';
     showAlert('ลบเอกสารแล้ว','ok');
-  }catch(e){showAlert('ลบไม่สำเร็จ: '+(e.message||e)+' — รัน supabase/phase2_dev_ops.sql หากยังไม่มีสิทธิ์ลบ','er');}
+  }catch(e){showAlert('ลบไม่สำเร็จ: '+(e.message||e)+' — รัน supabase/27_phase2_dev_ops.sql หากยังไม่มีสิทธิ์ลบ','er');}
 }
 
 async function _devExportConfig(){
@@ -1064,7 +1066,7 @@ function _rDevExtraSettingsCards(rows,anns){
         '<button class="btn btn-primary sm" onclick="_devSaveLoginAnnounce()">'+svg('save',12)+' บันทึกประกาศ</button>'+
         '<button class="btn btn-soft sm" onclick="_devPreviewLoginAnnounce()">'+svg('eye',12)+' ดูตัวอย่าง</button>'+
       '</div>'+
-      '<div style="font-size:10.5px;color:#a89e99;margin-top:14px;line-height:1.7">ต้องรัน supabase/create_dev_role.sql ก่อน popup ถึงจะแสดงบนหน้า Login ได้ (เปิดสิทธิ์ให้คนที่ยังไม่ล็อกอินอ่านประกาศ)</div>'+
+      '<div style="font-size:10.5px;color:#a89e99;margin-top:14px;line-height:1.7">ต้องรัน supabase/17_create_dev_role.sql ก่อน popup ถึงจะแสดงบนหน้า Login ได้ (เปิดสิทธิ์ให้คนที่ยังไม่ล็อกอินอ่านประกาศ)</div>'+
     '</div></div>';
 
   // ── Card 2: app_settings ทั้งหมด (raw editor) ──
@@ -1115,7 +1117,7 @@ function _rAnnbManageCard(anns){
     '</div>';
   if(!Array.isArray(anns)){
     return '<div class="card">'+head+
-      '<div class="al al-wa" style="margin:12px 16px 16px"><span class="al-icon">'+svg('warn',13)+'</span><span><strong>ยังไม่ได้รัน supabase/create_announcements.sql</strong> — ตาราง announcements ยังไม่ถูกสร้าง รันไฟล์นี้ใน Supabase SQL Editor ก่อน (ต้องรันหลัง create_dev_role.sql เพราะ policy อ้าง is_dev())</span></div></div>';
+      '<div class="al al-wa" style="margin:12px 16px 16px"><span class="al-icon">'+svg('warn',13)+'</span><span><strong>ยังไม่ได้รัน supabase/18_create_announcements.sql</strong> — ตาราง announcements ยังไม่ถูกสร้าง รันไฟล์นี้ใน Supabase SQL Editor ก่อน (ต้องรันหลัง 17_create_dev_role.sql เพราะ policy อ้าง is_dev())</span></div></div>';
   }
   var TH={info:{cl:'#2563EB',bg:'#EFF6FF',label:'ข้อมูล'},warning:{cl:'#D97706',bg:'#FFFBEB',label:'เตือน'},error:{cl:'#DC2626',bg:'#FEF2F2',label:'สำคัญ'}};
   var list=anns.length?anns.map(function(a){
@@ -1305,10 +1307,10 @@ function _devInfoPanel(sqlReady){
       '<div style="width:26px;height:26px;border-radius:7px;background:#FEF3C7;display:flex;align-items:center;justify-content:center;color:#D97706">'+svg('list',13)+'</div>'+
       '<div><div class="card-head-title">เช็กลิสต์เปิดใช้ระบบนักพัฒนา</div></div>'+
     '</div><div class="card-body" style="font-size:12.5px;color:#3A332E;line-height:2">'+
-      '<div>'+(sqlReady?svg('ok',13)+' <strong>รัน supabase/create_dev_role.sql แล้ว</strong> — ดูเช็กลิสต์ SQL ครบถ้วนที่แท็บ "สุขภาพระบบ"':svg('x',13)+' <strong style="color:#DC2626">ยังไม่ได้รัน supabase/create_dev_role.sql</strong> — ไปที่แท็บ "สุขภาพระบบ" แล้วกด "คัดลอก SQL"')+'</div>'+
+      '<div>'+(sqlReady?svg('ok',13)+' <strong>รัน supabase/17_create_dev_role.sql แล้ว</strong> — ดูเช็กลิสต์ SQL ครบถ้วนที่แท็บ "สุขภาพระบบ"':svg('x',13)+' <strong style="color:#DC2626">ยังไม่ได้รัน supabase/17_create_dev_role.sql</strong> — ไปที่แท็บ "สุขภาพระบบ" แล้วกด "คัดลอก SQL"')+'</div>'+
       '<div>'+svg('info',13)+' <strong>บริการภายนอก:</strong> ตรวจสถานะ Brevo / LINE / CloudConvert ได้ที่แท็บ "สุขภาพระบบ" (ต้อง deploy Edge Function <code class="mono">integration-status</code>)</div>'+
       '<div>'+svg('info',13)+' <strong>มอบสิทธิ์นักพัฒนา:</strong> แอดมินอนุมัติบัญชี → แก้ role เป็น ROLE-DEV · หลังจากนั้นนักพัฒนาคนอื่นมอบ ROLE-DEV ให้กันได้ที่แท็บ "จัดการผู้ใช้"</div>'+
-      '<div>'+svg('info',13)+' <strong>จัดการผู้ใช้ (ระยะ 3):</strong> แท็บ "จัดการผู้ใช้" — อนุมัติ/ปฏิเสธ/เปิด-ปิด/แก้ role/รีเซ็ตรหัสผ่าน (ห้าม ROLE-SYS) · ต้องรัน <code class="mono">phase3_dev_users.sql</code> และ deploy <code class="mono">admin-set-password</code> ใหม่</div>'+
+      '<div>'+svg('info',13)+' <strong>จัดการผู้ใช้ (ระยะ 3):</strong> แท็บ "จัดการผู้ใช้" — อนุมัติ/ปฏิเสธ/เปิด-ปิด/แก้ role/รีเซ็ตรหัสผ่าน (ห้าม ROLE-SYS) · ต้องรัน <code class="mono">28_phase3_dev_users.sql</code> และ deploy <code class="mono">admin-set-password</code> ใหม่</div>'+
       '<div>'+svg('info',13)+' ระบบนักพัฒนา<strong>แยกจากแอดมิน</strong>: เห็นเมนู "นักพัฒนา" เมนูเดียว — config, ซ่อมเอกสาร, จัดการผู้ใช้แบบจำกัด, ทดสอบระบบ · ลบผู้ใช้/นำเข้า/เพิ่มอาจารย์ยังต้องใช้แอดมินหลัก</div>'+
     '</div></div>';
 
@@ -1410,7 +1412,7 @@ function _sbxPanel(){
   var flowCard=
     '<div class="card"><div class="card-head">'+
       '<div style="width:26px;height:26px;border-radius:7px;background:#F5F3FF;display:flex;align-items:center;justify-content:center;color:#7C3AED">'+svg('refresh',13)+'</div>'+
-      '<div><div class="card-head-title">จำลองขั้นตอน workflow (หนังสือขาเข้า)</div>'+
+      '<div><div class="card-head-title">จำลองขั้นตอน workflow (หนังสือขาออก)</div>'+
       '<div style="font-size:10px;color:#a89e99;margin-top:1px">ดูว่าเลือกประเภทจดหมายไหนแล้วระบบจะล็อกขั้นตอนอะไรบ้าง — ไม่สร้างเอกสารจริง</div></div>'+
     '</div><div class="card-body">'+
       '<div class="fg" style="margin-bottom:10px"><label class="fl">ประเภทจดหมาย</label>'+
@@ -1431,7 +1433,7 @@ function _sbxNumTypeChanged(){
   var type=gv('sbx-num-type');
   var pos=$e('sbx-num-pos'), lb=$e('sbx-num-pos-lb');
   if(!pos) return;
-  if(type==='incoming'){
+  if(type==='outgoing'){ /* สลับ 2026-07-22: outgoing=มีขั้นตอนอนุมัติ ใช้ SENDER_POS */
     if(lb) lb.textContent='ตำแหน่ง/สังกัดผู้ส่ง (หลัก 2-3)';
     pos.innerHTML=SENDER_POS.map(function(p){return '<option value="'+esc(p.code)+'">'+esc(p.code)+' — '+esc(p.name)+(p.isClub?' (ชมรม)':'')+'</option>';}).join('');
   }else{

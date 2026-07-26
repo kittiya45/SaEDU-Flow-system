@@ -6,7 +6,7 @@
 -- ============================================================================
 --
 -- Problem this fixes:
--- migration_auth_rls.sql's policies for documents (update), workflow_steps
+-- 01_migration_auth_rls.sql's policies for documents (update), workflow_steps
 -- (all) and document_files (all) only checked `auth.uid() is not null` — ANY
 -- logged-in user, including the lowest-privilege role (ROLE-CRT), could call
 -- the REST API directly (bypassing the app's client-side CAN.* checks) to:
@@ -39,7 +39,7 @@ create policy documents_update on public.documents for update
     )
   );
 -- documents_select / documents_insert / documents_delete unchanged from
--- migration_auth_rls.sql — already scoped correctly.
+-- 01_migration_auth_rls.sql — already scoped correctly.
 
 -- workflow_steps -----------------------------------------------------------
 drop policy if exists workflow_steps_all on public.workflow_steps;

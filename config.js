@@ -192,8 +192,8 @@ async function dgCount(t,q){
 }
 
 /* ─── CONSTANTS ─── */
-var DTYPES={incoming:'หนังสือขาเข้า',outgoing:'หนังสือขาออก',certificate:'หนังสือรับรอง',memo:'บันทึกข้อความ'};
-var URG={normal:'ปกติ',urgent:'เร่งด่วน',very_urgent:'ด่วนมาก'};
+var DTYPES={incoming:'หนังสือขาเข้า',outgoing:'หนังสือขาออก'};
+var URG={normal:'ปกติ',urgent:'เร่งด่วน'};
 var LETTER_TYPES=[
   'ขออนุมัติโครงการ ไม่เกิน 1 แสนบาท',
   'ขออนุมัติโครงการ เกิน 1 แสนบาท',
@@ -224,7 +224,7 @@ var LT_LEADTIME={
   'ขอความอนุเคราะห์ประชาสัมพันธ์ ภายในคณะ':'ไม่ต่ำกว่า 2 สัปดาห์ก่อนเริ่มกิจกรรม/โครงการ',
   'ขอความอนุเคราะห์ใช้ยานพาหนะรถตู้คณะ':'ไม่ต่ำกว่า 3 สัปดาห์ก่อนเริ่มกิจกรรม/โครงการ (ต้องประสานกับกายภาพก่อน)'
 };
-/* ─── ขั้นตอนบังคับ (Fixed Workflow) สำหรับหนังสือขาเข้า ───
+/* ─── ขั้นตอนบังคับ (Fixed Workflow) สำหรับหนังสือขาออก ───
    สายทั่วไป 4 ขั้น / สายตรวจงบประมาณ 7 ขั้น — ล็อกโครงลำดับขั้นตอน แต่เปลี่ยนตัวบุคคลในแต่ละขั้นได้
    ใช้ใน _applyFixedFlow() (docForm.js); ROLE-STF/ROLE-SYS ได้รับการยกเว้น (จัดขั้นตอนเองได้อิสระ)
    pos: เติมคนที่ถือตำแหน่งนี้เป็นค่าเริ่มต้น | role: เติมคนแรกที่มี role นี้ | self: ผู้สร้างเอกสารเอง (เปลี่ยนไม่ได้) */
@@ -297,8 +297,8 @@ var SENDER_POS=[
   {name:'แผนกถ่ายภาพ',code:'23',isClub:false},
   {name:'แผนกศิลป์และออกแบบ',code:'24',isClub:false}
 ];
-var STTH={draft:'ร่างเอกสาร',pending:'รอลงนาม',signed:'ลงนามแล้ว',rejected:'ส่งคืนแก้ไข',numbering:'รอออกเลขหนังสือ',completed:'เสร็จสิ้น'};
-var RTH={'ROLE-SYS':'ผู้ดูแลระบบ','ROLE-SGN':'ผู้ลงนาม','ROLE-REV':'ผู้ตรวจทาน','ROLE-CRT':'ผู้จัดทำ','ROLE-STF':'เจ้าหน้าที่','ROLE-ADV':'อาจารย์กิจการ','ROLE-DEV':'นักพัฒนา'};
+var STTH={draft:'ร่างเอกสาร',pending:'รอลงนาม',signed:'ลงนามแล้ว',rejected:'ส่งคืนแก้ไข',numbering:'รอออกเลขหนังสือ',awaiting_submit:'รอเจ้าหน้าที่ยื่นในระบบ',completed:'เสร็จสมบูรณ์'};
+var RTH={'ROLE-SYS':'ผู้ดูแลระบบ','ROLE-SGN':'ผู้ลงนาม','ROLE-REV':'ผู้ตรวจทาน','ROLE-CRT':'ผู้จัดทำ','ROLE-STF':'เจ้าหน้าที่','ROLE-ADV':'อาจารย์ที่ปรึกษาชมรม','ROLE-DEV':'นักพัฒนา'};
 var POSS=['GNK-PRE','GNK-VPR','GNK-VPR2','GNK-SEC','GNK-TRS','GNK-ACA','GNK-STR','GNK-SPT','GNK-ART','GNK-SDV','GNK-YR4','GNK-YR3','GNK-YR2','GNK-YR1','GNK-WEL','GNK-CER','GNK-REG','GNK-FAC','GNK-AVT','GNK-SUP','GNK-COM','GNK-PHO','GNK-DES','GNK-IT','GNK-FND','GNK-CPR','GNK-CVP','GNK-CSEC','GNK-CTRS'];
 var PTH={'GNK-PRE':'หัวหน้านิสิต','GNK-VPR':'รองหัวหน้านิสิตคนที่ 1','GNK-VPR2':'รองหัวหน้านิสิตคนที่ 2','GNK-SEC':'เลขานุการ','GNK-TRS':'เหรัญญิก','GNK-ACA':'ฝ่ายวิชาการ','GNK-STR':'ฝ่ายนิสิตสัมพันธ์','GNK-SPT':'ฝ่ายกีฬา','GNK-ART':'ฝ่ายศิลปะและวัฒนธรรม','GNK-SDV':'ฝ่ายพัฒนาสังคมและบำเพ็ญประโยชน์','GNK-YR4':'หัวหน้านิสิตชั้นปีที่ 4','GNK-YR3':'หัวหน้านิสิตชั้นปีที่ 3','GNK-YR2':'หัวหน้านิสิตชั้นปีที่ 2','GNK-YR1':'หัวหน้านิสิตชั้นปีที่ 1','GNK-WEL':'สวัสดิการและพยาบาล','GNK-CER':'ปฏิคมและพิธีการ','GNK-REG':'ทะเบียนและประเมินผล','GNK-FAC':'สถานที่','GNK-AVT':'โสตทัศนูปกรณ์','GNK-SUP':'พัสดุ','GNK-COM':'สื่อและประชาสัมพันธ์','GNK-PHO':'ถ่ายภาพ','GNK-DES':'ศิลป์และออกแบบ','GNK-IT':'เทคโนโลยีและสารสนเทศ','GNK-FND':'หาทุน','GNK-CPR':'ประธานชมรม','GNK-CVP':'รองประธานชมรม','GNK-CSEC':'เลขานุการชมรม','GNK-CTRS':'เหรัญญิกชมรม'};
 var PR={'GNK-PRE':'ROLE-SGN','GNK-VPR':'ROLE-CRT','GNK-VPR2':'ROLE-CRT','GNK-SEC':'ROLE-CRT','GNK-TRS':'ROLE-CRT','GNK-ACA':'ROLE-CRT','GNK-STR':'ROLE-CRT','GNK-SPT':'ROLE-CRT','GNK-ART':'ROLE-CRT','GNK-SDV':'ROLE-CRT','GNK-YR4':'ROLE-CRT','GNK-YR3':'ROLE-CRT','GNK-YR2':'ROLE-CRT','GNK-YR1':'ROLE-CRT','GNK-WEL':'ROLE-CRT','GNK-CER':'ROLE-CRT','GNK-REG':'ROLE-CRT','GNK-FAC':'ROLE-CRT','GNK-AVT':'ROLE-CRT','GNK-SUP':'ROLE-CRT','GNK-COM':'ROLE-CRT','GNK-PHO':'ROLE-CRT','GNK-DES':'ROLE-CRT','GNK-IT':'ROLE-CRT','GNK-FND':'ROLE-CRT','GNK-CPR':'ROLE-CRT','GNK-CVP':'ROLE-CRT','GNK-CSEC':'ROLE-CRT','GNK-CTRS':'ROLE-CRT'};
@@ -317,8 +317,32 @@ var _canAnyRole=function(r){return['ROLE-SYS','ROLE-SGN','ROLE-REV','ROLE-CRT','
 var CAN={
   up:_canAnyRole,cr:_canAnyRole,ed:_canAnyRole,
   sg:function(r){return['ROLE-SGN','ROLE-ADV','ROLE-SYS','ROLE-DEV'].includes(r)},
-  rv:function(r){return['ROLE-REV','ROLE-SGN','ROLE-ADV','ROLE-SYS','ROLE-DEV'].includes(r)}
+  rv:function(r){return['ROLE-REV','ROLE-SGN','ROLE-ADV','ROLE-SYS','ROLE-DEV'].includes(r)},
+  ci:function(r,p){return true;}, // สร้างหนังสือขาเข้า — ค่าเริ่มต้นเปิดให้ทุก role/ตำแหน่ง, override ผ่าน SETT.can_create_incoming_roles_json/_positions_json
+  co:function(r,p){return true;} // สร้างหนังสือขาออก — ค่าเริ่มต้นเปิดให้ทุก role/ตำแหน่ง, override ผ่าน SETT.can_create_outgoing_roles_json/_positions_json
 };
+
+/* ─── อายุบัญชี กนค. — รอบละ 1 ปี เริ่ม 20 พ.ค. 2569 (ค.ศ. 2026-05-20)
+   หมดอายุ 20 พ.ค. ปีถัดไป (2570 / 2027-05-20) — อนุมัติ/สมัครใหม่ใช้วันนี้เป็นมาตรฐาน
+   ต่ออายุ = เลื่อนวันหมดอายุออกไปอีก 1 ปี (คงวัน 20 พ.ค.) */
+var GNK_ACCOUNT_START='2026-05-20';
+function gnkAccountStartDate(){
+  return new Date(GNK_ACCOUNT_START+'T00:00:00+07:00');
+}
+function gnkDefaultExpiresAt(){
+  var d=gnkAccountStartDate();
+  d.setFullYear(d.getFullYear()+1);
+  return d.toISOString();
+}
+function gnkRenewExpiresAt(currentExpires){
+  var d=currentExpires?new Date(currentExpires):null;
+  if(!d||isNaN(d.getTime())) d=new Date(gnkDefaultExpiresAt());
+  d=new Date(d.getTime());
+  d.setFullYear(d.getFullYear()+1);
+  var now=new Date();
+  while(d<=now) d.setFullYear(d.getFullYear()+1);
+  return d.toISOString();
+}
 
 /* ─── DOCUMENT TYPE FIELD CONFIG ─── */
 var DTYPE_CFG={
@@ -333,19 +357,7 @@ var DTYPE_CFG={
     showTo:true,toLabel:'เรียน (ส่งถึงใคร)',
     showRef:true,refLabel:'หัวข้ออีเมลแจ้งเตือน',
     showDocDate:false,docDateLabel:'',
-    eventLabel:'วันที่จัดกิจกรรม / วันที่ต้องใช้เอกสาร',eventRequired:true},
-  certificate:{label:'หนังสือรับรอง',icon:'doc',
-    showFrom:false,fromLabel:'',
-    showTo:true,toLabel:'ออกให้แก่ / เรียน',
-    showRef:false,refLabel:'',
-    showDocDate:false,docDateLabel:'',
-    eventLabel:'วันที่ต้องการใช้ (Deadline)',eventRequired:true},
-  memo:{label:'บันทึกข้อความ',icon:'edit',
-    showFrom:true,fromLabel:'จาก (ฝ่าย / ผู้บันทึก)',
-    showTo:true,toLabel:'ถึง (ฝ่าย / ผู้รับ)',
-    showRef:false,refLabel:'',
-    showDocDate:false,docDateLabel:'',
-    eventLabel:'วันที่ต้องการ (ถ้ามี)',eventRequired:false}
+    eventLabel:'วันที่จัดกิจกรรม / วันที่ต้องใช้เอกสาร',eventRequired:true}
 };
 
 /* โหลดประเภทเอกสารจาก DB แทนค่าที่ hardcode ไว้ */
@@ -457,6 +469,20 @@ async function loadAppSettings(){
       if(!_rv.includes('ROLE-SYS')) _rv.push('ROLE-SYS');
       if(!_rv.includes('ROLE-DEV')) _rv.push('ROLE-DEV');
       CAN.rv=function(r){return _rv.includes(r);};
+    }
+    if((Array.isArray(SETT.can_create_incoming_roles_json)&&SETT.can_create_incoming_roles_json.length)||(Array.isArray(SETT.can_create_incoming_positions_json)&&SETT.can_create_incoming_positions_json.length)){
+      var _ci=(Array.isArray(SETT.can_create_incoming_roles_json)?SETT.can_create_incoming_roles_json.slice():[]);
+      var _ciP=(Array.isArray(SETT.can_create_incoming_positions_json)?SETT.can_create_incoming_positions_json.slice():[]);
+      if(!_ci.includes('ROLE-SYS')) _ci.push('ROLE-SYS');
+      if(!_ci.includes('ROLE-DEV')) _ci.push('ROLE-DEV');
+      CAN.ci=function(r,p){return _ci.includes(r)||_ciP.includes(p);};
+    }
+    if((Array.isArray(SETT.can_create_outgoing_roles_json)&&SETT.can_create_outgoing_roles_json.length)||(Array.isArray(SETT.can_create_outgoing_positions_json)&&SETT.can_create_outgoing_positions_json.length)){
+      var _co=(Array.isArray(SETT.can_create_outgoing_roles_json)?SETT.can_create_outgoing_roles_json.slice():[]);
+      var _coP=(Array.isArray(SETT.can_create_outgoing_positions_json)?SETT.can_create_outgoing_positions_json.slice():[]);
+      if(!_co.includes('ROLE-SYS')) _co.push('ROLE-SYS');
+      if(!_co.includes('ROLE-DEV')) _co.push('ROLE-DEV');
+      CAN.co=function(r,p){return _co.includes(r)||_coP.includes(p);};
     }
   }catch(e){}
   checkSchemaHealth();

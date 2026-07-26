@@ -1,9 +1,12 @@
 /* ─── DOC FORM ─── */
 /* [UX] flag ติดตามว่า user เริ่มกรอกฟอร์มแล้วหรือยัง */
 var _formDirty=false;
+/* โหมดแก้ไข "ฉบับร่าง" (รวมที่ดึงกลับมา) — เปิดการ์ดจัดการขั้นตอนให้แก้ลำดับ/ผู้ลงนามได้ */
+var _editDraftMode=false;
 
 async function vForm(editId){
   _saveBusy=false; // reset ทุกครั้งที่ render form ใหม่
+  _editDraftMode=false;
   var doc={title:'',doc_type:'outgoing',urgency:'normal',description:'',doc_date:new Date().toISOString().slice(0,10),due_date:''};
   FS=[{step_name:'ผู้จัดทำ',role_required:'ROLE-CRT',assigned_to:CU.id,deadline_days:1}];
   FF=[]; FDI=editId||null; PF=[];
@@ -11,7 +14,13 @@ async function vForm(editId){
     var rs=await Promise.all([dg('documents','?id=eq.'+editId),dg('workflow_steps','?document_id=eq.'+editId+'&order=step_number'),dg('document_files','?document_id=eq.'+editId+'&order=uploaded_at')]);
     if(rs[0][0]) Object.assign(doc,rs[0][0]);
     if(rs[1].length) FS=rs[1];
-    FF=rs[2]
+    FF=rs[2];
+    // ฉบับร่างที่ไม่ใช่ขาออก → แก้ไขลำดับขั้นตอนได้ ทำเครื่องหมาย locked ให้ทุกขั้น (ยกเว้นผู้จัดทำ)
+    // เพื่อให้ rWfPeople แสดง dropdown เปลี่ยนตัวบุคคล + ลบได้ (locked = "ระบบจัดการ/แก้ได้" ไม่ได้แปลว่าห้ามลบ)
+    _editDraftMode=(doc.status==='draft'&&doc.doc_type!=='incoming'); /* สลับ 2026-07-22: outgoing=มีอนุมัติ, incoming=ฟอร์มง่าย */
+    if(_editDraftMode){
+      FS=FS.map(function(s,idx){return idx===0?s:Object.assign({},s,{locked:true})});
+    }
   }
   FU=await dg('user_directory','?is_active=eq.true&approval_status=eq.approved&order=full_name');
   // GNK-PRE auto-add จัดการใน selectDocType() ตามประเภทเอกสาร
@@ -33,17 +42,18 @@ async function vForm(editId){
   ];
 
   // ── Step 1: เลือกประเภทเอกสาร — Dropdown ──
-  // SYS, STF, ADV, DEV เห็นทุกประเภท; ROLE-CRT เห็นเฉพาะ incoming/outgoing
-  var _extRoles=['ROLE-SYS','ROLE-STF','ROLE-ADV','ROLE-DEV'];
-  var _VISIBLE_TYPES=_extRoles.includes(CU.role_code)?Object.keys(DTYPES):['incoming','outgoing'];
+  // สิทธิ์เข้าถึงแต่ละประเภทกำหนดผ่าน CAN.ci/CAN.co (ตั้งค่าระบบ → สิทธิ์การใช้งาน) — ค่าเริ่มต้นเปิดให้ทุก role
+  // (ยกเว้นกำลังแก้ไขฉบับที่เป็นประเภทนั้นอยู่แล้ว — ไม่ซ่อนออกจากผู้สร้างเดิมแม้สิทธิ์จะถูกถอนภายหลัง)
   var _DTYPE_META={
-    incoming:{ico:'dn',desc:'รับเอกสารจากภายนอก เข้าสู่ขั้นตอนตรวจทาน / ลงนาม'},
-    outgoing:{ico:'up',desc:'จัดทำเพื่อส่งออก ออกเลขหนังสือก่อนเผยแพร่ให้ดาวน์โหลด'},
-    certificate:{ico:'shield',desc:'ออกหนังสือรับรองสถานะหรือการเข้าร่วมกิจกรรม'},
-    memo:{ico:'doc',desc:'บันทึกข้อความภายในระหว่างหน่วยงาน'}
+    incoming:{ico:'dn'},
+    outgoing:{ico:'up'}
   };
-  var dtCards=Object.entries(DTYPES).filter(function(e){return _VISIBLE_TYPES.includes(e[0])}).map(function(e){
-    var meta=_DTYPE_META[e[0]]||{ico:'doc',desc:''};
+  var dtCards=Object.entries(DTYPES).filter(function(e){
+    if(e[0]==='incoming') return CAN.ci(CU.role_code,CU.position_code)||(editId&&doc.doc_type==='incoming');
+    if(e[0]==='outgoing') return CAN.co(CU.role_code,CU.position_code)||(editId&&doc.doc_type==='outgoing');
+    return true;
+  }).map(function(e){
+    var meta=_DTYPE_META[e[0]]||{ico:'doc'};
     var on=editId&&doc.doc_type===e[0];
     return '<button type="button" class="dtype-opt'+(on?' on':'')+'" data-dtype="'+e[0]+'" onclick="selectDocType(\''+e[0]+'\')">'+
       '<span class="dtype-opt-head">'+
@@ -51,7 +61,6 @@ async function vForm(editId){
         '<span class="dtype-check">'+svg('check',12)+'</span>'+
       '</span>'+
       '<span class="dtype-opt-title">'+esc(e[1])+'</span>'+
-      '<span class="dtype-opt-desc">'+esc(meta.desc)+'</span>'+
     '</button>';
   }).join('');
   html.push('<div class="card" style="margin-bottom:16px"><div class="card-head">'+_ico('doc','#FFF3EE','#E83A00')+'<span class="card-head-title">ประเภทเอกสาร <span class="req">*</span></span></div><div class="card-body">');
@@ -71,8 +80,9 @@ async function vForm(editId){
   html.push('<div id="dtype-fields">'+(editId?renderTypeFields(doc.doc_type||'outgoing',doc):'')+'</div>');
   html.push('</div></div>');
 
-// Files card
-html.push('<div class="card"><div class="card-head">'+_ico('folder','#FFF3EE','#E83A00')+'<span class="card-head-title">ไฟล์เอกสาร</span></div><div class="card-body">');
+// Files card — แสดงจำนวนแนบชัดเจน เพื่อให้รู้ว่าโหลดครบหรือยัง
+html.push('<div class="card"><div class="card-head files-card-head">'+_ico('folder','#FFF3EE','#E83A00')+'<span class="card-head-title">ไฟล์เอกสาร</span>');
+html.push('<span class="files-count-chip ml-auto" id="ffcount">'+_rFormFileCountHtml(FF)+'</span></div><div class="card-body">');
 
 html.push('<div class="files-stack">');
 html.push('<div id="fflist">'+buildFileList(FF, editId||'')+'</div>');
@@ -84,7 +94,7 @@ html.push(`
         ${svg('folder',48)}
       </div>
       <div class="upload-zone-text">คลิกหรือลากไฟล์มาวางที่นี่</div>
-      <div class="upload-zone-hint">PDF, DOCX, PNG, JPG สูงสุด ${SETT.max_file_size_mb||10} MB</div>
+      <div class="upload-zone-hint" id="fzone-hint">PDF, DOCX, PNG, JPG สูงสุด ${SETT.max_file_size_mb||10} MB · ชื่อไฟล์ซ้ำจะถูกข้าม · อัปโหลดให้ครบก่อนบันทึก</div>
     </div>
   </div>
 `);
@@ -100,15 +110,17 @@ html.push('</div></div></div>');
 
   // Right col
   html.push('<div>');
-    if(!editId){
-    html.push('<div class="card" id="wf-card"><div class="card-head">'+_ico('user','#FFF1E8','#E83A00')+'<span class="card-head-title">ผู้ดำเนินการตามลำดับ</span></div>');
+    if(!editId || _editDraftMode){
+    var _wfHide=_editDraftMode&&doc.doc_type==='incoming';
+    html.push('<div class="card" id="wf-card"'+(_wfHide?' style="display:none"':'')+'><div class="card-head">'+_ico('user','#FFF1E8','#E83A00')+'<span class="card-head-title">ผู้ดำเนินการตามลำดับ</span></div>');
     html.push('<div class="card-body">');
-    html.push('<div class="al al-in"><span class="al-icon">'+svg('info',14)+'</span><span id="wf-info">เลือกผู้ที่ต้องอนุมัติ / ตรวจสอบเอกสารตามลำดับ</span></div>');
-    html.push('<div id="wfadd-row" style="display:flex;gap:8px;margin:14px 0 20px">');
+    var _draftFixed=_editDraftMode&&doc.doc_type==='outgoing'&&CU.role_code!=='ROLE-STF'&&CU.role_code!=='ROLE-SYS';
+    html.push('<div class="al al-in"><span class="al-icon">'+svg('info',14)+'</span><span id="wf-info">'+(_draftFixed?'ลำดับขั้นตอนตาม flow ระบบ — เปลี่ยนตัวผู้ลงนามในแต่ละขั้นได้ (ลบ/สลับลำดับไม่ได้)':'เลือกผู้ที่ต้องอนุมัติ / ตรวจสอบเอกสารตามลำดับ')+'</span></div>');
+    html.push('<div id="wfadd-row" style="display:'+(_draftFixed?'none':'flex')+';gap:8px;margin:14px 0 20px">');
     html.push('<select class="fi" style="flex:1" id="wfadd">'+wfPersonOpts+'</select>');
     html.push('<button class="btn btn-primary sm" data-action="addWfPerson">'+svg('plus',12)+' เพิ่ม</button>');
     html.push('</div>');
-    html.push('<div id="wfwrap"></div>');
+    html.push('<div id="wfwrap">'+(_editDraftMode?rWfPeople():'')+'</div>');
     html.push('</div></div>');
   }
   // Info card สำหรับขาออก (ซ่อนสำหรับประเภทอื่น)
@@ -116,7 +128,7 @@ html.push('</div></div></div>');
   html.push('<div class="card-body py-3">');
   html.push('<div class="flex items-start gap-2.5"><div class="w-8 h-8 rounded-lg bg-[#DCFCE7] flex items-center justify-center shrink-0 text-[#16A34A]">'+svg('up',16)+'</div>');
   html.push('<div><div class="text-[12px] font-bold text-[#15803D] mb-1">ไม่มีขั้นตอนอนุมัติ — รอออกเลขหนังสือ</div>');
-  html.push('<div class="text-[11px] text-[#166534] leading-[1.7]">หนังสือขาออกไม่ต้องผ่านขั้นตอนอนุมัติ แต่หลังกด "อัปโหลดและแชร์ไฟล์" ผู้จัดทำต้องกด "ออกเลขหนังสือ" อีกครั้งเพื่อกำหนดเลขที่และเผยแพร่ให้ผู้รับดาวน์โหลด</div>');
+  html.push('<div class="text-[11px] text-[#166534] leading-[1.7]">หนังสือขาเข้าไม่ต้องผ่านขั้นตอนอนุมัติ แต่หลังกด "อัปโหลดและแชร์ไฟล์" ผู้จัดทำต้องกด "ออกเลขหนังสือ" อีกครั้งเพื่อกำหนดเลขที่และเผยแพร่ให้ผู้รับดาวน์โหลด</div>');
   html.push('</div></div></div></div>');
 
   html.push('<div class="card" id="notif-card"><div class="card-head">'+_ico('bell','#FFF3EE','#E83A00')+'<span class="card-head-title">การแจ้งเตือน</span></div>');
@@ -160,8 +172,8 @@ function renderTypeFields(type, doc){
   var cfg=DTYPE_CFG[type]||DTYPE_CFG.outgoing||{};
   var html=[];
 
-  /* ── หนังสือขาออก: อัปโหลดและแขวนไฟล์ให้ดาวน์โหลด ──  */
-  if(type==='outgoing'){
+  /* ── ฟอร์มง่าย อัปโหลดและแขวนไฟล์ให้ดาวน์โหลด (สลับ 2026-07-22: ตอนนี้เป็นของ incoming) ──  */
+  if(type==='incoming'){
     var _curDesc2=(doc&&doc.description)||'';
     var _curTo2=(doc&&doc.addressed_to)||'';
     var _curDate2=(doc&&doc.doc_date)||new Date().toISOString().slice(0,10);
@@ -188,7 +200,7 @@ function renderTypeFields(type, doc){
     // layout: ชมรม → โครงการ → ประเภท → ผู้รับ → วันที่
     html.push(
       '<div class="al al-in" style="margin-bottom:14px"><span class="al-icon">'+svg('up',13)+'</span>'+
-      '<span class="text-[12px]">เอกสารขาออกไม่ต้องผ่านขั้นตอนอนุมัติ — หลังบันทึกแล้วผู้จัดทำต้องกด "ออกเลขหนังสือ" เพื่อกำหนดเลขที่ก่อนเผยแพร่ให้ดาวน์โหลด</span></div>'
+      '<span class="text-[12px]">เอกสารขาเข้าไม่ต้องผ่านขั้นตอนอนุมัติ — หลังบันทึกแล้วผู้จัดทำต้องกด "ออกเลขหนังสือ" เพื่อกำหนดเลขที่ก่อนเผยแพร่ให้ดาวน์โหลด</span></div>'
     );
     html.push('<div class="fg"><label class="fl">สังกัด / ชมรม</label>'+
       '<select class="fi" id="fclub" onchange="_populateProjectList(this.value);_PROJ_FILTER_CLUB=this.value">'+_clubOpts+'</select></div>');
@@ -212,18 +224,27 @@ function renderTypeFields(type, doc){
     return html.join('');
   }
 
-  /* ── หนังสือขาเข้า: custom layout ── */
-  if(type==='incoming'){
+  /* ── ฟอร์มขั้นตอนอนุมัติ custom layout (สลับ 2026-07-22: ตอนนี้เป็นของ outgoing) ── */
+  if(type==='outgoing'){
     var _curDesc=(doc&&doc.description)||'';
     var _curFrom=(doc&&doc.from_department)||'';
     var _curTo=(doc&&doc.addressed_to)||'';
     var _curSubj=(doc&&doc.subject_line)||'';
     var _curDate=(doc&&doc.doc_date)||new Date().toISOString().slice(0,10);
     var _curEv=(doc&&doc.due_date)||'';
+    var _curProj=(doc&&doc.project_name)||'';
     var _ltOpts='<option value="">— เลือกประเภทหนังสือ —</option>'+LETTER_TYPES.map(function(t){
       return '<option value="'+esc(t)+'"'+(_curDesc===t?' selected':'')+'>'+esc(t)+'</option>'
     }).join('');
     var _curLtHint=LT_LEADTIME[_curDesc]||'';
+    // โครงการ/กิจกรรม — เก็บแยกใน project_name เพื่อให้สรุปรายงานประจำปีรวมกับแบบขาเข้าได้
+    var _projInList2=PROJS.some(function(p){return p.name===_curProj});
+    var _projOpts2='<option value="">— กรุณาเลือกโครงการ —</option>';
+    _projOpts2+=PROJS.map(function(p){
+      return '<option value="'+esc(p.name)+'"'+(_curProj===p.name?' selected':'')+'>'+esc(p.name)+'</option>';
+    }).join('');
+    _projOpts2+='<option value="__other__"'+(!_projInList2&&_curProj?' selected':'')+'>อื่น ๆ (ระบุเอง)</option>';
+    var _showOther2=!_projInList2&&_curProj;
     var _spGnk=SENDER_POS.filter(function(p){return !p.isClub&&parseInt(p.code,10)<=14;});
     var _spDept=SENDER_POS.filter(function(p){return !p.isClub&&parseInt(p.code,10)>=15;});
     var _spClub=SENDER_POS.filter(function(p){return p.isClub;});
@@ -238,6 +259,10 @@ function renderTypeFields(type, doc){
     html.push('<div class="fg"><label class="fl">ประเภทหนังสือ <span class="req">*</span></label><select class="fi" id="fdsc" onchange="_updateLtHint()">'+_ltOpts+'</select>'+
       '<div id="lt-hint" style="margin-top:6px">'+(_curLtHint?alrtH('in',_curLtHint):'')+'</div></div>');
     html.push('<div class="fg" id="fsubject-wrap" style="display:'+(_curDesc==='เรื่องอื่น ๆ'?'block':'none')+'"><label class="fl">ระบุว่าเป็นเรื่องอะไร <span class="req">*</span></label><input class="fi" id="fsubject" value="'+esc(_curSubj)+'" placeholder="ระบุเรื่อง"></div>');
+    html.push('<div class="fg"><label class="fl">โครงการ / กิจกรรม</label>');
+    html.push('<select class="fi" id="fproj-sel" onchange="_onProj2SelChange(this.value)">'+_projOpts2+'</select>');
+    html.push('<input class="fi" id="fproj" style="margin-top:8px;display:'+(_showOther2?'block':'none')+'" value="'+esc(_curProj)+'" placeholder="ระบุชื่อโครงการ / กิจกรรม">');
+    html.push('</div>');
     html.push('<div class="fg"><label class="fl">ชื่อผู้ส่งเอกสาร <span class="req">*</span></label><input class="fi" id="ffromdept" value="'+esc(_curFrom)+'" placeholder="ระบุชื่อผู้ส่งหรือหน่วยงาน"></div>');
     html.push('<div class="fg"><label class="fl">ตำแหน่ง / สังกัด</label><select class="fi" id="fto">'+_spOpts+'</select></div>');
     html.push('<div class="two-col-sm"><div class="fg"><label class="fl">วันที่รับเอกสาร</label><input type="date" class="fi" id="fdate" value="'+esc(_curDate)+'"></div>');
@@ -330,22 +355,26 @@ function selectDocType(type){
       var curDoc={from_department:gv('ffromdept'),addressed_to:gv('fto'),subject_line:gv('fsubject'),doc_date:gv('fdate'),due_date:gv('feventdate'),description:gv('fdsc')};
       tf.innerHTML=renderTypeFields(type,curDoc);
     }
-    // Default Flow — หนังสือขาเข้าเติมชุดขั้นตอนให้อัตโนมัติตามประเภทหนังสือ (สายทั่วไป 4 ขั้น / สายงบประมาณ 7 ขั้น)
-    // เป็นแค่ค่าเริ่มต้น ไม่ล็อก: ลบขั้นตอนออกได้ เพิ่มคนได้ตามปกติ และเปลี่ยนตัวบุคคลในแต่ละขั้นได้ผ่าน dropdown
+    // Fixed Flow — หนังสือขาเข้า: ล็อกโครงลำดับ (ลบ/เพิ่ม/สลับไม่ได้) แต่เปลี่ยนตัวบุคคลในแต่ละขั้นได้
     // ROLE-STF และ ROLE-SYS ไม่เติมให้ (จัดขั้นตอนเองอิสระ + workflow template ทำงานเฉพาะกลุ่มนี้)
     var _staffBypass=CU.role_code==='ROLE-STF'||CU.role_code==='ROLE-SYS';
-    var _fixedFlow=(type==='incoming'&&!_staffBypass);
-    // เอา step ที่ระบบเคยเติมอัตโนมัติออกก่อน กันซ้ำเมื่อสลับประเภทเอกสาร (step ที่ user เพิ่มเองไม่มี locked จึงไม่โดน)
-    FS=FS.filter(function(s){return !s.locked});
+    var _fixedFlow=(type==='outgoing'&&!_staffBypass); /* สลับ 2026-07-22: outgoing=มีอนุมัติ */
+    var _addRow=$e('wfadd-row');
+    if(_addRow) _addRow.style.display=_fixedFlow?'none':'flex';
     var _wfInfo=$e('wf-info');
-    if(_wfInfo) _wfInfo.innerHTML=_fixedFlow?'ระบบเติมขั้นตอนให้ตามประเภทหนังสือ (ปรับอัตโนมัติเมื่อเลือกเรื่องเกี่ยวกับงบประมาณ) — เพิ่ม ลบ หรือเปลี่ยนตัวบุคคลได้ตามต้องการ':'เลือกผู้ที่ต้องอนุมัติ / ตรวจสอบเอกสารตามลำดับ';
-    if(_fixedFlow) _applyFixedFlow();
+    if(_wfInfo) _wfInfo.innerHTML=_fixedFlow?'ขั้นตอนถูกกำหนดตามประเภทหนังสือ (ปรับอัตโนมัติเมื่อเลือกเรื่องเกี่ยวกับงบประมาณ) — เปลี่ยนตัวบุคคลในแต่ละขั้นได้':'เลือกผู้ที่ต้องอนุมัติ / ตรวจสอบเอกสารตามลำดับ';
+    // แก้ไขฉบับร่าง: คงขั้นตอนที่โหลดมาไว้ ไม่ล้าง/ไม่เติม default — กันการกดการ์ดประเภทซ้ำแล้วขั้นตอนหาย
+    if(!_editDraftMode){
+      // เอา step ที่ระบบเคยเติมอัตโนมัติออกก่อน กันซ้ำเมื่อสลับประเภทเอกสาร (ขั้น extra ที่ user เพิ่มเองรอด)
+      FS=FS.filter(function(s){return !s.locked||s.extra});
+      if(_fixedFlow) _applyFixedFlow();
+    }
     var wfc=$e('wf-card');
     var fsub=$e('fsub');
     var _notifCard=$e('notif-card');
     var _finalCard=$e('final-card');
     var _outInfoCard=$e('out-info-card');
-    if(type==='outgoing'){
+    if(type==='incoming'){
       if(wfc) wfc.style.display='none';
       if(_notifCard) _notifCard.style.display='none';
       if(_outInfoCard) _outInfoCard.style.display='';
@@ -359,7 +388,7 @@ function selectDocType(type){
       if(fsub) fsub.innerHTML=svg('sign',14)+' ส่งเข้าขั้นตอนอนุมัติ';
     }
     var ww=$e('wfwrap'); if(ww) ww.innerHTML=rWfPeople();
-    if(type==='outgoing'){_PROJ_FILTER_CLUB='';_populateProjectList();}
+    if(type==='incoming'){_PROJ_FILTER_CLUB='';_populateProjectList();}
     else if(!_fixedFlow) _applyWfTemplate(type); // ขาเข้าแบบล็อกใช้ fixed flow — ไม่โหลด template ทับ
     calcDeadline();
     attachFormEvents();
@@ -387,16 +416,15 @@ async function _applyWfTemplate(docType){
 
 /* ขั้นตอนเริ่มต้น (default flow) สำหรับหนังสือขาเข้า — เลือกชุดตามประเภทหนังสือที่เลือกในฟอร์ม
    (BUDGET_LTYPES → สายตรวจงบประมาณ 7 ขั้น, อื่น ๆ → สายทั่วไป 4 ขั้น — นิยามใน config.js)
-   ไม่ล็อก: ผู้ใช้ลบ/เพิ่มขั้นตอนได้อิสระ (flag locked ใช้แค่แยกว่าขั้นไหนระบบเติมให้ เพื่อการ rebuild/validation)
+   ล็อกโครงลำดับ (ลบ/เพิ่ม/สลับไม่ได้) แต่เปลี่ยนตัวบุคคลในแต่ละขั้นได้
    เรียกซ้ำได้ทุกครั้งที่เปลี่ยนประเภทหนังสือ: จำตัวบุคคลที่เคยเลือกไว้ต่อชื่อขั้นตอนเดิม */
 function _applyFixedFlow(){
-  if(FDI) return; // โหมดแก้ไขไม่มีการ์ด workflow และ step จริงถูกสร้างใน DB ไปแล้ว
+  if(FDI) return; // โหมดแก้ไข: step จริงอยู่ใน DB แล้ว — ไม่ rebuild ทับ
   var isBudget=BUDGET_LTYPES.indexOf(gv('fdsc')||'')>=0;
   var flow=isBudget?FLOW_STEPS_BUDGET:FLOW_STEPS_GENERAL;
   var creatorStep=FS.find(function(s){return s.step_name==='ผู้จัดทำ'&&s.assigned_to===CU.id})||{step_name:'ผู้จัดทำ',role_required:'ROLE-CRT',assigned_to:CU.id,deadline_days:1};
-  // จำคนที่เคยเลือกไว้ เมื่อสลับสาย (เช่น เลือกประธานฝ่ายแล้ว ค่อยเปลี่ยนเป็นเรื่องงบประมาณ)
-  // ขั้นที่ผู้ใช้เพิ่มเอง (extra หรือเพิ่มผ่าน picker หลัก — ไม่มี locked) เก็บทั้ง step ไว้ต่อท้ายเหมือนเดิม
-  var prevPick={}, kept=FS.filter(function(s){return s!==creatorStep&&(s.extra||!s.locked)});
+  // จำคนที่เคยเลือกไว้ เมื่อสลับสาย + คงขั้น extra (เช่น อาจารย์ที่ปรึกษาท่านที่ 2)
+  var prevPick={}, kept=FS.filter(function(s){return s!==creatorStep&&s.extra});
   FS.forEach(function(s){if(s.locked&&!s.extra&&s.assigned_to)prevPick[s.step_name]=s.assigned_to});
   FS=[creatorStep];
   flow.forEach(function(f){
@@ -437,7 +465,7 @@ function _updateLtHint(){
   if(wrap) wrap.style.display=(val==='เรื่องอื่น ๆ')?'block':'none';
   // เรื่องเกี่ยวกับงบประมาณสลับเป็นสาย 7 ขั้นอัตโนมัติ (เฉพาะขาเข้าแบบล็อก — staff จัดเอง)
   var _staffBypass=CU&&(CU.role_code==='ROLE-STF'||CU.role_code==='ROLE-SYS');
-  if(!FDI&&!_staffBypass&&gv('ftype')==='incoming') _applyFixedFlow();
+  if(!FDI&&!_staffBypass&&gv('ftype')==='outgoing') _applyFixedFlow(); /* สลับ 2026-07-22 */
 }
 
 function _getProjValue(){
@@ -448,12 +476,33 @@ function _getProjValue(){
   return sel.value;
 }
 
+/* โครงการ/กิจกรรม สำหรับฟอร์มขั้นตอนอนุมัติ (id ต่างจาก _onProjSelChange/_getProjValue เพราะ fdsc ถูกใช้กับ "ประเภทหนังสือ" ในฟอร์มนี้แล้ว) */
+function _onProj2SelChange(val){
+  var inp=$e('fproj');
+  if(!inp) return;
+  if(val==='__other__'){
+    inp.style.display='block';
+    inp.value='';
+    inp.focus();
+  } else {
+    inp.style.display='none';
+    inp.value=val;
+  }
+}
+function _getProjValue2(){
+  var sel=$e('fproj-sel');
+  var inp=$e('fproj');
+  if(!sel) return (inp?inp.value:'');
+  if(sel.value==='__other__') return inp?inp.value.trim():'';
+  return sel.value;
+}
+
 var _PROJ_FILTER_CLUB=''; // club code ที่เลือกอยู่ใน outgoing form
 async function _populateProjectList(clubCode){
   if(clubCode!==undefined) _PROJ_FILTER_CLUB=clubCode||'';
   try{
-    var q='?doc_type=eq.outgoing&select=description,from_department&not.description=is.null&order=created_at.desc&limit=400';
-    if(_PROJ_FILTER_CLUB) q='?doc_type=eq.outgoing&from_department=eq.'+encodeURIComponent(_PROJ_FILTER_CLUB)+'&select=description&not.description=is.null&order=created_at.desc&limit=200';
+    var q='?doc_type=eq.incoming&select=description,from_department&not.description=is.null&order=created_at.desc&limit=400';
+    if(_PROJ_FILTER_CLUB) q='?doc_type=eq.incoming&from_department=eq.'+encodeURIComponent(_PROJ_FILTER_CLUB)+'&select=description&not.description=is.null&order=created_at.desc&limit=200';
     var rows=await dg('documents',q);
     var projs=[...new Set(rows.map(function(r){return r.description}).filter(Boolean))];
     var dl=$e('project-list');
@@ -508,19 +557,50 @@ function calcDeadline(){
   di.innerHTML=msg
 }
 
+function _rFormFileCountHtml(files){
+  var n=(files&&files.length)||0;
+  if(!n) return 'ยังไม่มีไฟล์';
+  var seen={}, dupExtra=0;
+  files.forEach(function(f){
+    var k=_fileNameKey(f.file_name);
+    if(!k) return;
+    if(seen[k]) dupExtra++; else seen[k]=1;
+  });
+  var s='แนบแล้ว '+n+' ไฟล์';
+  if(dupExtra) s+=' · ชื่อซ้ำ '+dupExtra;
+  return s;
+}
+function _formFileHint(files, docId){
+  var n=(files&&files.length)||0;
+  var base='PDF, DOCX, PNG, JPG สูงสุด '+(SETT.max_file_size_mb||10)+' MB · ชื่อไฟล์ซ้ำจะถูกข้าม';
+  if(!n) return base+' · อัปโหลดให้ครบก่อนบันทึก';
+  if(!docId) return 'รอบันทึก · '+n+' ไฟล์จะผูกกับเอกสารเมื่อกดบันทึก · '+base;
+  return 'แนบแล้ว '+n+' ไฟล์ · '+base;
+}
+function _setFormFileUi(files, docId){
+  var list=files||[];
+  var fl=$e('fflist'); if(fl) fl.innerHTML=buildFileList(list, docId||'');
+  var fc=$e('ffcount'); if(fc) fc.innerHTML=_rFormFileCountHtml(list);
+  var hint=$e('fzone-hint'); if(hint) hint.textContent=_formFileHint(list, docId||'');
+}
 function buildFileList(files, docId){
   if(!files||!files.length) return '';
+  var seen={};
   return files.map(function(f,i){
     var ft=fType(f);
-    return '<div class="file-item">' +
+    var _ext=(f.file_name||'').split('.').pop().toLowerCase();
+    var k=_fileNameKey(f.file_name);
+    var isDup=!!seen[k];
+    if(k) seen[k]=true;
+    return '<div class="file-item'+(isDup?' file-item-dup':'')+'">' +
       fChip(f,18) +
-      '<div class="file-info"><div class="file-name">'+esc(f.file_name)+'</div><div class="file-meta"><strong style="color:'+ft.cl+'">'+ft.label+'</strong> · '+fsz(f.file_size)+' · v'+f.version+'</div></div>' +
+      '<div class="file-info"><div class="file-name">'+esc(f.file_name)+(isDup?' <span class="badge badge-muted">ชื่อซ้ำ</span>':'')+'</div><div class="file-meta"><strong style="color:'+ft.cl+'">'+ft.label+'</strong> · '+fsz(f.file_size)+' · v'+(f.version||1)+'</div></div>' +
       '<div class="file-actions">' +
-      '<button class="btn btn-soft xs" data-action="openViewer" data-path="'+esc(f.file_path)+'" data-name="'+esc(f.file_name)+'">'+svg('eye',12)+' ดู</button>' +
+      '<button class="btn btn-soft xs" data-action="openViewer" data-path="'+esc(f.file_path)+'" data-name="'+esc(f.file_name)+'" data-ext="'+esc(_ext)+'">'+svg('eye',12)+' ดู</button>' +
       (docId?'<button class="btn btn-soft xs" data-action="openEditor" data-path="'+esc(f.file_path)+'" data-name="'+esc(f.file_name)+'" data-fid="'+f.id+'" data-did="'+docId+'">'+svg('edit',12)+' แก้ไข</button>':'')+
-      '<button class="btn btn-danger xs btn-icon" data-action="delFF" data-id="'+(f.id||'')+'" data-idx="'+i+'" title="ลบไฟล์">'+svg('trash',12)+'</button>' +
-      '</div></div>'
-  }).join('')
+      '<button class="btn btn-danger xs btn-icon" data-action="delFF" data-id="'+(f.id||'')+'" data-idx="'+i+'" data-path="'+esc(f.file_path||'')+'" title="ลบไฟล์">'+svg('trash',12)+'</button>' +
+      '</div></div>';
+  }).join('');
 }
 
 function attachFormEvents(){
@@ -533,6 +613,34 @@ function attachFormEvents(){
   }
   var fi=$e('finp');
   if(fi) fi.onchange=function(){_formDirty=true;doUp(Array.from(fi.files))}
+  // sync hint + count กับรายการไฟล์ตอนเปิดฟอร์ม (แก้ไขมี FF / สร้างใหม่ใช้ PF)
+  _setFormFileUi(FDI?FF:PF, FDI||'');
+}
+
+/* เขียน workflow_steps ใหม่ทั้งชุดตาม FS (ใช้เมื่อแก้ไขลำดับขั้นของฉบับร่าง) — ลบของเดิมก่อนแล้วใส่ใหม่ */
+async function _rebuildDraftSteps(docId,finalStatus){
+  var old=await dg('workflow_steps','?document_id=eq.'+safeId(docId)+'&select=id');
+  if(Array.isArray(old)){
+    for(var k=0;k<old.length;k++){ try{await dd('workflow_steps',old[k].id);}catch(e){} }
+  }
+  var _now=new Date().toISOString();
+  for(var i=0;i<FS.length;i++){
+    var stepSt,extraSt={};
+    if(finalStatus==='pending'&&i===0){
+      stepSt='done';extraSt={action_taken:'approve',action_at:_now,completed_at:_now};
+    }else if(finalStatus==='pending'&&i===1){
+      stepSt='active';extraSt={deadline_datetime:stepDeadline(FS[i].deadline_days)};
+    }else{
+      stepSt=i===0?'active':'pending';
+      if(stepSt==='active') extraSt={deadline_datetime:stepDeadline(FS[i].deadline_days)};
+    }
+    var _row=Object.assign({
+      document_id:docId,step_number:i+1,status:stepSt,
+      step_name:FS[i].step_name,role_required:FS[i].role_required||null,
+      assigned_to:FS[i].assigned_to||null,deadline_days:FS[i].deadline_days||2
+    },extraSt);
+    await dp('workflow_steps',_row);
+  }
 }
 
 /* ─── DOC NUMBER GENERATOR ─── */
@@ -545,7 +653,7 @@ async function genDocNumber(){
   }catch(e){}
   var prefix=orgPrefix+'-'+thYear+'-';
   try{
-    var docs=await dg('documents','?select=doc_number&order=doc_number.desc');
+    var docs=await dg('documents','?doc_number=like.'+encodeURIComponent(prefix)+'*&select=doc_number&order=doc_number.desc&limit=500');
     var maxSeq=0;
     (docs||[]).forEach(function(d){
       if(d.doc_number&&d.doc_number.startsWith(prefix)){
@@ -569,7 +677,7 @@ async function genOutDocNumber(){
   }catch(e){}
   var prefix=orgPrefix+thYear+'.';
   try{
-    var docs=await dg('documents','?doc_type=eq.outgoing&doc_number=not.is.null&select=doc_number&order=doc_number.desc');
+    var docs=await dg('documents','?doc_type=eq.incoming&doc_number=like.'+encodeURIComponent(prefix)+'*&select=doc_number&order=doc_number.desc&limit=500');
     var maxSeq=0;
     (docs||[]).forEach(function(d){
       if(d.doc_number&&d.doc_number.startsWith(prefix)){
@@ -598,26 +706,27 @@ async function saveDoc(status){
   var a=$e('fal'), title=gv('ftit').trim();
   if(!title){a.innerHTML=alrtH('er','กรุณาระบุชื่อเรื่องเอกสาร');return}
   var _dtype=gv('ftype'), _dcfg=DTYPE_CFG[_dtype]||{};
+  var _editDraftSteps=_editDraftMode&&_dtype!=='incoming'; // แก้ไขลำดับขั้นตอนของฉบับร่าง แล้วเขียน workflow ใหม่ (สลับ 2026-07-22)
   if(_dcfg.fields&&_dcfg.fields.length){
     var _fmap={from_department:'ffromdept',addressed_to:'fto',subject_line:'fsubject',doc_date:'fdate',description:'fdsc'};
     for(var _fi=0;_fi<_dcfg.fields.length;_fi++){
       var _rf=_dcfg.fields[_fi];
-      if(_dtype==='outgoing'&&_rf.db_column==='from_department') continue;
+      if(_dtype==='incoming'&&_rf.db_column==='from_department') continue;
       if(_rf.required&&!( gv(_fmap[_rf.db_column]||_rf.db_column)||'' ).trim()){
         a.innerHTML=alrtH('er','กรุณากรอก: '+_rf.label);return;
       }
     }
   }
-  if(_dtype==='incoming'){
+  if(_dtype==='outgoing'){
     if(!(gv('fdsc')||'').trim()){a.innerHTML=alrtH('er','กรุณาเลือกประเภทหนังสือ');return}
     if(gv('fdsc')==='เรื่องอื่น ๆ'&&!(gv('fsubject')||'').trim()){a.innerHTML=alrtH('er','กรุณาระบุว่าเป็นเรื่องอะไร');return}
     if(!(gv('ffromdept')||'').trim()){a.innerHTML=alrtH('er','กรุณาระบุชื่อผู้ส่งเอกสาร');return}
     // ขั้นตอนที่ระบบเติมให้และยังอยู่ในรายการ ต้องมีผู้รับผิดชอบครบก่อนบันทึก (ไม่ต้องการก็ลบขั้นนั้นออกได้)
     // — step แก้ไม่ได้อีกหลังสร้างเอกสาร (ฟอร์มแก้ไขไม่มีการ์ด workflow)
     var _missing=FS.filter(function(s){return s.locked&&!s.assigned_to}).map(function(s){return s.step_name});
-    if(!FDI&&_missing.length){a.innerHTML=alrtH('er','กรุณาเลือกผู้ลงนามให้ครบทุกขั้นตอน หรือลบขั้นตอนที่ไม่ต้องการออก (ยังไม่ได้เลือก: '+_missing.join(', ')+')');return}
+    if((!FDI||_editDraftSteps)&&_missing.length){a.innerHTML=alrtH('er','กรุณาเลือกผู้ลงนามให้ครบทุกขั้นตอน หรือลบขั้นตอนที่ไม่ต้องการออก (ยังไม่ได้เลือก: '+_missing.join(', ')+')');return}
   }
-  if(_dtype==='outgoing'&&status!=='draft'){
+  if(_dtype==='incoming'&&status!=='draft'){
     if(!_getProjValue()){a.innerHTML=alrtH('er','กรุณาระบุชื่อโครงการ / กิจกรรม');return}
     if(!(gv('fto')||'').trim()){a.innerHTML=alrtH('er','กรุณาเลือกตำแหน่งกนค. ที่รับเอกสาร');return}
   }
@@ -632,12 +741,37 @@ async function saveDoc(status){
     var finalNote=gv('ffinalnote')||null;
     var eventDate=gv('feventdate')||null;
     var _ns=$e('fnotifystep'); var _no=$e('fnotifyoverdue');
-    var _outLt=(_dtype==='outgoing')?(gv('foutltype')||''):'';
-    var _outClub=(_dtype==='outgoing')?(gv('fclub')||''):'';
-    var body={title:title,doc_type:gv('ftype'),urgency:gv('furg'),description:(_dtype==='outgoing'?_getProjValue():gv('fdsc')),doc_date:gv('fdate')||new Date().toISOString().slice(0,10),due_date:eventDate,from_department:_dtype==='outgoing'?_outClub:fromdept,addressed_to:addrto,subject_line:_dtype==='outgoing'?_outLt:(subj||title),final_recipient_id:finalRec,final_recipient_note:finalNote,status:status,notify_step:_ns?_ns.checked:true,notify_overdue:_no?_no.checked:true};
+    var _outLt=(_dtype==='incoming')?(gv('foutltype')||''):'';
+    var _outClub=(_dtype==='incoming')?(gv('fclub')||''):'';
+    // โครงการ/กิจกรรม — เก็บใน project_name เสมอ ไม่ว่าจะเป็นฟอร์มไหน เพื่อรวมในรายงานประจำปีได้
+    var _projName=(_dtype==='incoming')?_getProjValue():_getProjValue2();
+    var body={title:title,doc_type:gv('ftype'),urgency:gv('furg'),description:(_dtype==='incoming'?_getProjValue():gv('fdsc')),doc_date:gv('fdate')||new Date().toISOString().slice(0,10),due_date:eventDate,from_department:_dtype==='incoming'?_outClub:fromdept,addressed_to:addrto,subject_line:_dtype==='incoming'?_outLt:(subj||title),final_recipient_id:finalRec,final_recipient_note:finalNote,project_name:_projName||null,status:status,notify_step:_ns?_ns.checked:true,notify_overdue:_no?_no.checked:true};
     if(FDI){
-  await dpa('documents',FDI,Object.assign({},body,{updated_at:new Date().toISOString()}));
-  if(status==='pending'){
+  await dpa('documents',FDI,Object.assign({},body,{total_steps:FS.length,updated_at:new Date().toISOString()}));
+  if(_editDraftSteps){
+    // แก้ไขลำดับ/ผู้ลงนามของฉบับร่าง → เขียน workflow_steps ใหม่ตาม FS ที่จัดเรียง
+    var _fin=status;
+    await _rebuildDraftSteps(FDI,_fin);
+    if(_fin==='pending'){
+      if(FS.length===1){
+        var _autoSt=['incoming','outgoing'].indexOf(_dtype)>=0?'numbering':'completed';
+        await dpa('documents',FDI,{status:_autoSt,current_step:1});
+        _fin=_autoSt;
+      }else{
+        await dpa('documents',FDI,{status:'pending',current_step:2});
+      }
+      await dp('document_history',{document_id:FDI,action:'ส่งเข้าระบบอีกครั้ง',performed_by:CU.id,note:'แก้ไขลำดับ/ผู้ลงนามแล้วส่งใหม่'});
+      try{
+        if(FS.length===1) await sendNotifEmail(FDI,'create',_fin,'');
+        else await sendNotifEmail(FDI,'resubmit','pending','');
+      }catch(e2){}
+    }else{
+      await dpa('documents',FDI,{status:'draft',current_step:1});
+      await dp('document_history',{document_id:FDI,action:'แก้ไขเอกสาร',performed_by:CU.id,note:'ปรับลำดับ/ผู้ลงนามของฉบับร่าง'});
+    }
+    a.innerHTML=alrtH('ok',status==='pending'?'ส่งเข้าระบบเรียบร้อยแล้ว':'บันทึกร่างเรียบร้อยแล้ว');
+    setTimeout(function(){nav('det',FDI)},900)
+  } else if(status==='pending'){
     var _rs=await restartDocWorkflow(FDI);
     if(_rs.ok){
       await dp('document_history',{document_id:FDI,action:'ส่งใหม่อีกครั้ง',performed_by:CU.id,note:'ส่งจากฟอร์มแก้ไข — เริ่มขั้นตอนอนุมัติใหม่ทั้งหมด'});
@@ -646,14 +780,16 @@ async function saveDoc(status){
         else await sendNotifEmail(FDI,'resubmit','pending','');
       }catch(e2){}
     }
+    a.innerHTML=alrtH('ok','ส่งเข้าระบบเรียบร้อยแล้ว');
+    setTimeout(function(){nav('det',FDI)},900)
   } else {
     await dp('document_history',{document_id:FDI,action:'แก้ไขเอกสาร',performed_by:CU.id});
+    a.innerHTML=alrtH('ok','บันทึกเรียบร้อยแล้ว');
+    setTimeout(function(){nav('det',FDI)},900)
   }
-  a.innerHTML=alrtH('ok',status==='pending'?'ส่งเข้าระบบเรียบร้อยแล้ว':'บันทึกเรียบร้อยแล้ว');
-  setTimeout(function(){nav('det',FDI)},900)
 
     } else {
-      var docNum=(_dtype==='outgoing')?await genOutDocNumber():await genDocNumber();
+      var docNum=(_dtype==='incoming')?await genOutDocNumber():await genDocNumber();
       var finalStatus=status;
       var res=await dp('documents',Object.assign({},body,{status:finalStatus,created_by:CU.id,current_step:1,total_steps:FS.length,doc_number:docNum}));
       if(!Array.isArray(res)||!res[0]||!res[0].id){
@@ -696,7 +832,7 @@ async function saveDoc(status){
       PF=[];
       await dp('document_history',{document_id:did,action:'สร้างเอกสาร',performed_by:CU.id});
       // Notify
-      if(_dtype==='outgoing'&&finalStatus==='numbering'){
+      if(_dtype==='incoming'&&finalStatus==='numbering'){
         // แจ้งเตือนตำแหน่งกนค. ที่รับเอกสาร — แจ้งทันทีที่ส่ง ไม่ต้องรอออกเลขหนังสือ
         try{
           var _posCode=body.addressed_to;
@@ -704,8 +840,8 @@ async function saveDoc(status){
           if(_posUser){
             var _posEmail=_posUser.contact_email||_posUser.email;
             if(_posEmail&&!_posEmail.includes('@gnk.student')){
-              var _eSubj=(SETT.email_prefix||'[กนค.]')+' หนังสือขาออก: '+title;
-              var _eBody='เรียน '+_posUser.full_name+', มีเอกสารขาออกสำหรับท่าน เรื่อง "'+title+'" โครงการ '+body.description;
+              var _eSubj=(SETT.email_prefix||'[กนค.]')+' หนังสือขาเข้า: '+title;
+              var _eBody='เรียน '+_posUser.full_name+', มีเอกสารขาเข้าสำหรับท่าน เรื่อง "'+title+'" โครงการ '+body.description;
               var _er=await sendEmailEdge({to:_posEmail,subject:_eSubj,html:_eBody,documentId:did,recipientUserId:_posUser.id});
               if(_er.ok&&typeof showEmailToast==='function') showEmailToast(_posEmail,_eSubj);
               await logNotifRow({document_id:did,recipient_id:_posUser.id,recipient_email:_posEmail,subject:_eSubj,body:_eBody,notification_type:'outgoing',status:_er.ok?'sent':'failed',sent_at:new Date().toISOString()});
@@ -715,7 +851,7 @@ async function saveDoc(status){
       } else if(finalStatus==='pending'){
         try{await sendNotifEmail(did,'create','pending','');}catch(e2){}
       }
-      a.innerHTML=alrtH('ok',_dtype==='outgoing'?'อัพโหลดเอกสารและส่งเรียบร้อยแล้ว':'สร้างเอกสารเรียบร้อยแล้ว');
+      a.innerHTML=alrtH('ok',_dtype==='incoming'?'อัพโหลดเอกสารและส่งเรียบร้อยแล้ว':'สร้างเอกสารเรียบร้อยแล้ว');
       var _successMsg=finalStatus==='pending'?'ส่งเอกสารเข้าระบบเรียบร้อยแล้ว รอการอนุมัติตามขั้นตอน':
                       finalStatus==='numbering'?'อัพโหลดและส่งเรียบร้อยแล้ว รอออกเลขที่หนังสือ':
                       finalStatus==='completed'?'อัพโหลดและส่งเรียบร้อยแล้ว เอกสารถูกบันทึกในระบบ':
@@ -729,7 +865,7 @@ async function saveDoc(status){
   } catch(e){
     _saveBusy=false;
     a.innerHTML=alrtH('er','เกิดข้อผิดพลาด: '+e.message);
-    if(btn){btn.disabled=false;btn.innerHTML=_dtype==='outgoing'?svg('up',14)+' อัพโหลดและส่งเอกสาร':svg('sign',14)+' ส่งเข้าขั้นตอนอนุมัติ'}
+    if(btn){btn.disabled=false;btn.innerHTML=_dtype==='incoming'?svg('up',14)+' อัพโหลดและส่งเอกสาร':svg('sign',14)+' ส่งเข้าขั้นตอนอนุมัติ'}
   }
 }
 

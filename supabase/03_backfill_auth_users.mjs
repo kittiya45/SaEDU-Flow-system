@@ -1,7 +1,7 @@
 // ============================================================================
 // SAEDU Flow — Phase D backfill: create a real Supabase Auth account for
 // every existing public.users row, linked automatically by the trigger from
-// migration_auth_rls.sql (matches by email, only sets auth_uid — never
+// 01_migration_auth_rls.sql (matches by email, only sets auth_uid — never
 // touches your existing profile data).
 //
 // Run this YOURSELF, locally. The service_role key never needs to be shared
@@ -25,9 +25,9 @@
 // row's email in the SQL editor or via the admin UI before running this.
 //
 // Usage:
-//   node backfill_auth_users.mjs --dry-run                 # preview only, no writes
-//   node backfill_auth_users.mjs --only=a@x.com,b@y.com     # test a small batch first
-//   node backfill_auth_users.mjs                            # run against everyone
+//   node 03_backfill_auth_users.mjs --dry-run                 # preview only, no writes
+//   node 03_backfill_auth_users.mjs --only=a@x.com,b@y.com     # test a small batch first
+//   node 03_backfill_auth_users.mjs                            # run against everyone
 // ============================================================================
 
 import { createClient } from '@supabase/supabase-js';
@@ -110,7 +110,7 @@ async function main() {
     }
   }
   console.log(`\nDone. ${ok} created, ${fail} failed.`);
-  console.log('Verify a couple of these can log in with the temp password before running enable_rls.sql.');
+  console.log('Verify a couple of these can log in with the temp password before running 02_enable_rls.sql.');
 }
 
 main();

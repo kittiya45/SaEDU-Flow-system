@@ -6,7 +6,7 @@
 -- ============================================================================
 --
 -- Problem this fixes:
--- migration_auth_rls.sql's `users_select` policy only lets a logged-in user
+-- 01_migration_auth_rls.sql's `users_select` policy only lets a logged-in user
 -- see their OWN row (or any row if is_admin()). But the app treats `users`
 -- as an internal directory too — e.g. docForm.js builds the "เลือกผู้ตรวจ/
 -- ผู้ลงนาม" dropdown from ALL active users, docDetail.js's forward-modal lists

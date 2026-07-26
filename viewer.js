@@ -20,7 +20,25 @@ function _pdfBodyHtml(url,name,safeUrl){
     '</div>':'<p class="p-8 text-[#DC2626]">URL ไม่ถูกต้อง</p>')+
   '</div>';
 }
-function openViewer(url,name){
+/* เหมือนหน้าแบบฟอร์ม (tmplPreview) — resolveFileUrl + นามสกุลไฟล์ครบ + ส่ง storage path ให้ convert-docx */
+function previewFile(urlOrPath,name,ext){
+  var displayName=name||'';
+  if(ext){
+    var sfx='.'+String(ext).toLowerCase();
+    if(!displayName.toLowerCase().endsWith(sfx)) displayName+=sfx;
+  }else if(urlOrPath&&String(urlOrPath).indexOf('http')!==0){
+    var m=String(urlOrPath).match(/\.([^.]+)$/);
+    if(m&&!displayName.toLowerCase().endsWith('.'+m[1].toLowerCase())) displayName=(displayName||'file')+'.'+m[1];
+  }
+  var storagePath=(urlOrPath&&String(urlOrPath).indexOf('http')!==0)?String(urlOrPath):(_storagePathFromUrl(urlOrPath)||'');
+  resolveFileUrl(urlOrPath).then(function(u){
+    openViewer(u,displayName||name||'file',storagePath||_storagePathFromUrl(u)||'');
+  }).catch(function(){
+    openViewer(urlOrPath,displayName||name||'file',storagePath||'');
+  });
+}
+
+function openViewer(url,name,storagePath){
   // Audit log: file view
   if(CU&&CDI){
     try{dp('document_history',{document_id:CDI,action:'เปิดดูไฟล์',performed_by:CU.id,note:'เปิดดู: '+name});}catch(e){}
@@ -47,10 +65,10 @@ function openViewer(url,name){
     inner='<div id="docx-body" class="pdf-viewer-body">'+
       '<div class="ped-toolbar" style="flex-shrink:0">'+
       '<span style="font-size:12px;color:var(--text-3)" id="docx-status">กำลังแปลงไฟล์ Word เป็น PDF เพื่อแสดงตัวอย่าง...</span>'+
-      '<button class="btn btn-ghost sm" style="margin-left:auto" data-action="dlFile" data-url="'+(safeUrl||url)+'" data-name="'+esc(name)+'">'+svg('dn',13)+' ดาวน์โหลด</button>'+
+      '<button class="btn btn-ghost sm" style="margin-left:auto" data-action="dlFile" data-path="'+esc(storagePath||'')+'" data-url="'+(safeUrl||url||'')+'" data-name="'+esc(name)+'">'+svg('dn',13)+' ดาวน์โหลด</button>'+
       '</div>'+
       '<div class="ped-canvas-area pdf-viewer-scroll" style="display:flex;align-items:center;justify-content:center">'+
-      (safeUrl?'<div class="sp sp-dark" style="width:36px;height:36px;border-width:3px"></div>':'<p class="p-8 text-[#DC2626]">URL ไม่ถูกต้อง</p>')+
+      ((safeUrl||storagePath)?'<div class="sp sp-dark" style="width:36px;height:36px;border-width:3px"></div>':'<p class="p-8 text-[#DC2626]">URL ไม่ถูกต้อง</p>')+
       '</div>'+
       '</div>'
   } else {
@@ -77,7 +95,7 @@ function openViewer(url,name){
   ].join('');
   // Trigger rendering after modal is in DOM
   if(isPDF&&safeUrl) setTimeout(function(){renderPdfView(safeUrl)},150)
-  if(isDocx&&safeUrl) setTimeout(function(){renderDocxAsPdf(safeUrl,name)},150)
+  if(isDocx&&(safeUrl||storagePath)) setTimeout(function(){renderDocxAsPdf(safeUrl,name,storagePath)},150)
 }
 
 async function _pdfWaitLayout(el){
@@ -87,14 +105,20 @@ async function _pdfWaitLayout(el){
   }
 }
 
-async function renderDocxAsPdf(url,name){
+async function renderDocxAsPdf(url,name,storagePath){
   var status=$e('docx-status');
   var body=$e('docx-body');
   try{
     var headers={apikey:SK,Authorization:H.Authorization,'Content-Type':'application/json'};
-    var resp=await fetch(SU+'/functions/v1/convert-docx',{method:'POST',headers:headers,body:JSON.stringify({url:url})});
+    var path=storagePath||_storagePathFromUrl(url);
+    if(!path&&!url) throw new Error('ไม่พบ path ไฟล์');
+    var payload=path?{path:path}:{url:url};
+    var resp=await fetch(SU+'/functions/v1/convert-docx',{method:'POST',headers:headers,body:JSON.stringify(payload)});
     var data=await resp.json();
-    if(!resp.ok||!data.pdfUrl) throw new Error(data.error||'แปลงไฟล์ไม่สำเร็จ');
+    if(!resp.ok||!data.pdfUrl){
+      var errMsg=data.error||data.message||'แปลงไฟล์ไม่สำเร็จ';
+      throw new Error(errMsg);
+    }
     if(body) body.outerHTML=_pdfBodyHtml(data.pdfUrl,name,data.pdfUrl);
     await renderPdfView(data.pdfUrl);
   }catch(e){
@@ -102,7 +126,7 @@ async function renderDocxAsPdf(url,name){
     var area=body&&body.querySelector('.ped-canvas-area');
     if(area) area.innerHTML=
       '<div style="padding:40px;text-align:center;color:#DC2626;font-size:13px">ไม่สามารถแสดงตัวอย่างไฟล์ Word ได้<br>'+esc(e.message)+'<br><br>'+
-      '<button class="btn btn-primary sm" data-action="dlFile" data-url="'+url+'" data-name="'+esc(name)+'">ดาวน์โหลดไฟล์แทน</button></div>';
+      '<button class="btn btn-primary sm" data-action="dlFile" data-path="'+esc(storagePath||'')+'" data-url="'+esc(url||'')+'" data-name="'+esc(name)+'">ดาวน์โหลดไฟล์แทน</button></div>';
     console.warn('DOCX→PDF conversion failed:',e);
   }
 }

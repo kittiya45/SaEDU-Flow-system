@@ -1,5 +1,5 @@
 -- ════════════════════════════════════════════════════════════════════════
--- restrict_notifications_select.sql
+-- 16_restrict_notifications_select.sql
 -- ปิดช่องอีเมลรั่ว: เดิม notifications_select เปิดให้ผู้ล็อกอินทุกคนอ่านได้
 -- (มี recipient_email) → นิสิตคนใดก็ query อีเมลคนอื่นได้ผ่าน REST
 --

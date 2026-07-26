@@ -14,7 +14,7 @@
 -- try/catch so it silently no-ops; the UI renders but nothing ever persists.
 -- This script creates the tables with the exact columns those call sites
 -- read/write, then RLS-enables them in the same shot (no separate cutover
--- step needed, unlike enable_rls.sql — there's no pre-existing anon-key-only
+-- step needed, unlike 02_enable_rls.sql — there's no pre-existing anon-key-only
 -- frontend reading these specific tables today).
 --
 -- Read access: any logged-in user (loadAppSettings runs for everyone after

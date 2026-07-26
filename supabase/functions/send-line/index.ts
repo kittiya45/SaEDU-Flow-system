@@ -6,6 +6,9 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.108.2';
 import { corsHeaders, json } from '../_shared/cors.ts';
 import { requireAuth } from '../_shared/requireAuth.ts';
 import { validateLineSend } from '../_shared/validateNotify.ts';
+import { checkNotifyRateLimit } from '../_shared/rateLimit.ts';
+
+const RATE_LIMIT_PER_HOUR = 50;
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
@@ -20,6 +23,7 @@ Deno.serve(async (req: Request) => {
 
     const { caller, admin } = await requireAuth(req);
     await validateLineSend(admin, caller, { recipientId, group, documentId, testSelf });
+    await checkNotifyRateLimit(admin, caller, 'line', RATE_LIMIT_PER_HOUR);
 
     const LINE_TOKEN = Deno.env.get('LINE_CHANNEL_ACCESS_TOKEN') ?? '';
     if (!LINE_TOKEN) return json({ error: 'LINE_CHANNEL_ACCESS_TOKEN not configured' }, 500);

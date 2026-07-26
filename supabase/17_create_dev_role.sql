@@ -1,12 +1,12 @@
 -- ═══════════════════════════════════════════════════════════════════
--- create_dev_role.sql — role "นักพัฒนา" (ROLE-DEV) แบบแยกสิทธิ์จากแอดมิน
+-- 17_create_dev_role.sql — role "นักพัฒนา" (ROLE-DEV) แบบแยกสิทธิ์จากแอดมิน
 --
 -- รันในหน้า SQL Editor ของ Supabase Dashboard (หรือ npx supabase db query --linked --file <path>)
 -- idempotent — รันซ้ำได้ปลอดภัย (และถ้าเคยรันเวอร์ชันเก่าที่ยัด ROLE-DEV เข้า is_admin()
 -- การรันไฟล์นี้จะถอน ROLE-DEV ออกจาก is_admin() ให้เองในข้อ 1)
 --
 -- โมเดลสิทธิ์: ROLE-DEV ≠ แอดมิน
---   is_admin()  = ROLE-SYS, ROLE-STF (เหมือนเดิมตาม migration_auth_rls.sql)
+--   is_admin()  = ROLE-SYS, ROLE-STF (เหมือนเดิมตาม 01_migration_auth_rls.sql)
 --   is_dev()    = ROLE-DEV — ได้สิทธิ์เฉพาะที่เครื่องมือนักพัฒนาใช้จริง:
 --     ✓ อ่าน/ลบ system_logs (error log)
 --     ✓ อ่าน notifications (ดู log การแจ้งเตือน)
@@ -75,7 +75,7 @@ create policy system_logs_delete on public.system_logs
 -- 4) สิทธิ์ ROLE-DEV เพิ่มเติม — policy คู่ขนานกับของแอดมิน (permissive policies ทำงานแบบ OR
 --    จึงเพิ่มได้โดยไม่แตะ policy เดิม)
 
--- 4.1 ตาราง config (จาก create_admin_config_tables.sql + migration_auth_rls.sql)
+-- 4.1 ตาราง config (จาก 07_create_admin_config_tables.sql + 01_migration_auth_rls.sql)
 drop policy if exists app_settings_write_dev on public.app_settings;
 create policy app_settings_write_dev on public.app_settings
   for all using (public.is_dev()) with check (public.is_dev());
@@ -112,13 +112,13 @@ drop policy if exists form_templates_write_dev on public.form_templates;
 create policy form_templates_write_dev on public.form_templates
   for all using (public.is_dev()) with check (public.is_dev());
 
--- 4.2 log การแจ้งเตือน — SELECT ปกติจำกัด recipient/is_admin (restrict_notifications_select.sql)
+-- 4.2 log การแจ้งเตือน — SELECT ปกติจำกัด recipient/is_admin (16_restrict_notifications_select.sql)
 drop policy if exists notifications_select_dev on public.notifications;
 create policy notifications_select_dev on public.notifications
   for select using (public.is_dev());
 
 -- 4.3 เครื่องมือซ่อมเอกสาร — UPDATE เท่านั้น (ห้าม insert/delete)
---    การเขียน document_history ของ dev ใช้ policy เดิมได้ (performed_by = ตัวเอง — tighten_audit_rls.sql)
+--    การเขียน document_history ของ dev ใช้ policy เดิมได้ (performed_by = ตัวเอง — 06_tighten_audit_rls.sql)
 drop policy if exists documents_update_dev on public.documents;
 create policy documents_update_dev on public.documents
   for update using (public.is_dev()) with check (public.is_dev());
@@ -139,7 +139,7 @@ drop policy if exists workflow_steps_delete_dev on public.workflow_steps;
 create policy workflow_steps_delete_dev on public.workflow_steps
   for delete using (public.is_dev());
 
--- 4.4 จัดการผู้ใช้แบบจำกัด (phase3_dev_users.sql)
+-- 4.4 จัดการผู้ใช้แบบจำกัด (28_phase3_dev_users.sql)
 drop policy if exists users_select_dev on public.users;
 create policy users_select_dev on public.users
   for select using (public.is_dev());

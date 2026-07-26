@@ -14,19 +14,20 @@ const SQL_DIR = path.join(ROOT, 'supabase');
 const OUT = path.join(ROOT, 'dev-sql-bundle.js');
 
 const FILES = [
-  'migration_auth_rls.sql',
-  'create_dev_role.sql',
-  'create_admin_config_tables.sql',
-  'create_announcements.sql',
-  'user_signatures.sql',
-  'line_notifications.sql',
-  'workflow_ops_rpc.sql',
-  'overdue_once_auto_approve.sql',
-  'scale_hardening.sql',
-  'private_storage_bucket.sql',
-  'phase2_dev_ops.sql',
-  'phase3_dev_users.sql',
-  'cron_overdue.sql',
+  '01_migration_auth_rls.sql',
+  '17_create_dev_role.sql',
+  '07_create_admin_config_tables.sql',
+  '18_create_announcements.sql',
+  '19_user_signatures.sql',
+  '20_line_notifications.sql',
+  '21_overdue_once_auto_approve.sql',
+  '22_scale_hardening.sql',
+  '23_workflow_ops_rpc.sql',
+  '24_private_storage_bucket.sql',
+  '26_phase1_dev_extras.sql',
+  '27_phase2_dev_ops.sql',
+  '28_phase3_dev_users.sql',
+  '29_cron_overdue.sql',
 ];
 
 const bundle = {};

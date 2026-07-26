@@ -104,22 +104,23 @@ function rAdmTbl(users){
   }
 
   function avGrad(ut,rc){
-    if(rc==='ROLE-SYS') return 'linear-gradient(135deg,#18120E,#3D1A0A)';
+    if(rc==='ROLE-SYS') return 'linear-gradient(135deg,#3A332E,#5C4F45)';
     if(rc==='ROLE-SGN') return 'linear-gradient(135deg,#C42800,#E83A00)';
-    if(rc==='ROLE-REV') return 'linear-gradient(135deg,#B45309,#D97706)';
-    if(rc==='ROLE-ADV') return 'linear-gradient(135deg,#6D28D9,#7C3AED)';
-    if(rc==='ROLE-STF') return 'linear-gradient(135deg,#0369A1,#0891B2)';
-    if(rc==='ROLE-CRT') return 'linear-gradient(135deg,#1D4ED8,#2563EB)';
+    if(rc==='ROLE-REV') return 'linear-gradient(135deg,#8B6914,#B8860B)';
+    if(rc==='ROLE-ADV') return 'linear-gradient(135deg,#5B4B6E,#6B5B7A)';
+    if(rc==='ROLE-STF') return 'linear-gradient(135deg,#3D4F4A,#4A5C56)';
+    if(rc==='ROLE-CRT') return 'linear-gradient(135deg,#5C534A,#6B6157)';
+    if(rc==='ROLE-DEV') return 'linear-gradient(135deg,#18120E,#3A332E)';
     if(ut==='gnk')    return 'linear-gradient(135deg,#C42800,#E83A00)';
-    if(ut==='advisor')return 'linear-gradient(135deg,#6D28D9,#7C3AED)';
-    return 'linear-gradient(135deg,#1D4ED8,#2563EB)';
+    if(ut==='advisor')return 'linear-gradient(135deg,#5B4B6E,#6B5B7A)';
+    return 'linear-gradient(135deg,#5C534A,#6B6157)';
   }
   function avDot(rc){
-    var m={'ROLE-SYS':'#F59E0B','ROLE-SGN':'#E83A00','ROLE-REV':'#D97706','ROLE-CRT':'#3B82F6','ROLE-STF':'#06B6D4','ROLE-ADV':'#A855F7'};
+    var m={'ROLE-SYS':'#D97706','ROLE-SGN':'#E83A00','ROLE-REV':'#B45309','ROLE-CRT':'#6B6157','ROLE-STF':'#0F766E','ROLE-ADV':'#7C3AED','ROLE-DEV':'#5C534A'};
     return m[rc]||'#a89e99';
   }
   function roleColor(rc){
-    var m={'ROLE-SYS':'#F59E0B','ROLE-SGN':'#E83A00','ROLE-REV':'#D97706','ROLE-CRT':'#2563EB','ROLE-STF':'#0891B2','ROLE-ADV':'#7C3AED'};
+    var m={'ROLE-SYS':'#D97706','ROLE-SGN':'#E83A00','ROLE-REV':'#B45309','ROLE-CRT':'#6B6157','ROLE-STF':'#0F766E','ROLE-ADV':'#7C3AED','ROLE-DEV':'#5C534A'};
     return m[rc]||'#a89e99';
   }
   var personSVG='<svg width="20" height="20" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="5.5" r="2.8" fill="rgba(255,255,255,0.95)"/><path d="M2.5 15c0-3.04 2.46-5.5 5.5-5.5s5.5 2.46 5.5 5.5" fill="rgba(255,255,255,0.85)" stroke="none"/></svg>';
@@ -191,7 +192,7 @@ function rAdmTbl(users){
             '<div class="text-[13px] font-semibold text-[#18120E] leading-tight">'+esc(u.full_name)+'</div>'+
             '<div class="text-[11px] font-semibold mt-0.5" style="color:'+roleColor(u.role_code)+'">'+
               esc(u.user_type==='gnk'?(PTH[u.position_code]||u.department||RTH[u.role_code]||u.role_code||'—'):
-               u.user_type==='advisor'?'อาจารย์กิจการ':
+               u.user_type==='advisor'?'อาจารย์ที่ปรึกษาชมรม':
                u.user_type==='staff'?(u.department||'เจ้าหน้าที่กิจการนิสิต'):
                (RTH[u.role_code]||u.role_code||'—'))+
             '</div>'+
@@ -230,7 +231,8 @@ function admApv(uid){
 }
 async function _admApvConfirmed(uid){
   var u=(AUSERS||[]).filter(function(x){return x.id===uid})[0];
-  var _exp=u&&u.user_type==='gnk'?new Date(Date.now()+365*24*60*60*1000).toISOString():null;
+  // กนค.: อายุ 1 ปี เริ่ม 20 พ.ค. 2569 → หมดอายุ 20 พ.ค. 2570 (ไม่นับจากวันอนุมัติ)
+  var _exp=u&&u.user_type==='gnk'?gnkDefaultExpiresAt():null;
   var _patch={approval_status:'approved',is_active:true,approved_at:new Date().toISOString()};
   if(_exp) _patch.expires_at=_exp;
   try{
@@ -244,16 +246,17 @@ async function _admApvConfirmed(uid){
 
 function admRenew(uid){
   var u=(AUSERS||[]).filter(function(x){return x.id===uid})[0];
+  var _preview=gnkRenewExpiresAt(u&&u.expires_at);
   showConfirm(
     'ต่ออายุบัญชี?',
-    (u?u.full_name:uid)+' — ต่ออายุอีก 1 ปี',
+    (u?u.full_name:uid)+' — ต่ออายุอีก 1 ปี จนถึง '+new Date(_preview).toLocaleDateString('th-TH'),
     function(){_admRenewConfirmed(uid);},
     {confirmLabel:'ต่ออายุ',confirmClass:'btn-primary',icon:'refresh',iconBg:'#EFF6FF',iconColor:'#2563EB'}
   );
 }
 async function _admRenewConfirmed(uid){
   var u=(AUSERS||[]).filter(function(x){return x.id===uid})[0];
-  var _exp=new Date(Date.now()+365*24*60*60*1000).toISOString();
+  var _exp=gnkRenewExpiresAt(u&&u.expires_at);
   try{
     await dpa('users',uid,{expires_at:_exp,is_active:true});
     try{await dp('document_history',{action:'ต่ออายุบัญชีผู้ใช้',performed_by:CU.id,note:'ต่ออายุ: '+(u?u.full_name:uid)+' จนถึง '+new Date(_exp).toLocaleDateString('th-TH')});}catch(e){}

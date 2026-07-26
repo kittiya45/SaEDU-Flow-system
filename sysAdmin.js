@@ -5,7 +5,7 @@ var _sysTab='docnum'; // tab ที่เปิดอยู่
 async function vSys(){
   // หน้านี้ของแอดมินเท่านั้น — นักพัฒนา (ROLE-DEV) ใช้เนื้อหาเดียวกันผ่านแท็บ "จัดการระบบ"
   // ใน Dev Panel ซึ่งเรียก _vSysContent() ตรง ๆ (สิทธิ์เขียนฝั่ง DB ของ dev มาจาก policy is_dev()
-  // ใน supabase/create_dev_role.sql — แยกจาก is_admin() ของแอดมิน)
+  // ใน supabase/17_create_dev_role.sql — แยกจาก is_admin() ของแอดมิน)
   if(CU.role_code!=='ROLE-SYS') return '<div class="card-empty"><div class="card-empty-text">ไม่มีสิทธิ์เข้าถึง</div></div>';
   return await _vSysContent();
 }
@@ -15,7 +15,7 @@ async function vSys(){
 async function _vSysContent(opts){
   opts=opts||{};
   var _docNumCfgs=[], _docTypes=[], _settings=[], _emailTmpls=[], _wfTmpls=[], _projects=[];
-  // บอร์ดประกาศหน้า Home — null = อ่านตารางไม่ได้ (ยังไม่รัน create_announcements.sql) ให้การ์ดแสดงคำเตือน
+  // บอร์ดประกาศหน้า Home — null = อ่านตารางไม่ได้ (ยังไม่รัน 18_create_announcements.sql) ให้การ์ดแสดงคำเตือน
   var _anns=null;
   try{var _ar=await dg('announcements','?order=pinned.desc,created_at.desc&limit=50');if(Array.isArray(_ar))_anns=_ar;}catch(e){}
   try{_docNumCfgs=await dg('doc_number_settings','?order=year.desc');}catch(e){}
@@ -739,11 +739,11 @@ var _wfTplSteps=[];  // working steps array สำหรับ modal ที่�
 var _wfTplUsers=[];  // users list สำหรับ dropdown ใน modal
 
 function rWfTemplatesCard(templates){
-  var byType={incoming:[],outgoing:[],certificate:[],memo:[]};
+  var byType={incoming:[],outgoing:[]};
   (Array.isArray(templates)?templates:[]).forEach(function(t){
     if(byType[t.doc_type]) byType[t.doc_type].push(t);
   });
-  var dtLabels={incoming:'หนังสือขาเข้า',outgoing:'หนังสือขาออก',certificate:'หนังสือรับรอง',memo:'บันทึกข้อความ'};
+  var dtLabels={incoming:'หนังสือขาเข้า',outgoing:'หนังสือขาออก'};
 
   var sections=Object.keys(byType).map(function(dt){
     var tmpls=byType[dt];
@@ -762,7 +762,7 @@ function rWfTemplatesCard(templates){
       '</div>';
     }).join(''):'<div style="font-size:12px;color:#a89e99;padding:12px 0">ยังไม่มี template — กด "+ เพิ่ม" เพื่อสร้าง</div>';
 
-    var dtIcoMap={incoming:'doc',outgoing:'sign',certificate:'ok',memo:'edit'};
+    var dtIcoMap={incoming:'doc',outgoing:'sign'};
     return '<div style="padding:16px 20px;border-bottom:1px solid #F5F3F0">'+
       '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">'+
         '<div style="width:22px;height:22px;border-radius:6px;background:#F5F3F0;display:flex;align-items:center;justify-content:center;color:#6b6560;flex-shrink:0">'+svg(dtIcoMap[dt]||'doc',12)+'</div>'+
@@ -798,7 +798,7 @@ async function showWfTemplateModal(tmplId, docType){
       _wfTplSteps=await dg('workflow_template_steps','?template_id=eq.'+safeId(tmplId)+'&order=step_number');
     }catch(e){}
   }
-  var dtLabels={incoming:'หนังสือขาเข้า',outgoing:'หนังสือขาออก',certificate:'หนังสือรับรอง',memo:'บันทึกข้อความ'};
+  var dtLabels={incoming:'หนังสือขาเข้า',outgoing:'หนังสือขาออก'};
   w.innerHTML=[
     '<div class="mo"><div class="modal" style="max-width:580px">',
     '<div class="modal-head"><span class="modal-title">'+svg('refresh',14)+(tmplId?' แก้ไข':' สร้าง')+' Workflow Template — '+esc(dtLabels[docType]||docType)+'</span>',
@@ -1364,21 +1364,36 @@ function _rdCanCard(){
   var allRoles=[
     {code:'ROLE-SGN',label:'ผู้ลงนาม'},
     {code:'ROLE-REV',label:'ผู้ตรวจทาน'},
-    {code:'ROLE-ADV',label:'อาจารย์กิจการ'},
+    {code:'ROLE-ADV',label:'อาจารย์ที่ปรึกษาชมรม'},
     {code:'ROLE-STF',label:'เจ้าหน้าที่'},
     {code:'ROLE-CRT',label:'ผู้จัดทำ'},
     {code:'ROLE-SYS',label:'ผู้ดูแลระบบ'},
     {code:'ROLE-DEV',label:'นักพัฒนา'}
   ];
+  var allRolesFull=allRoles.map(function(r){return r.code});
   var curSg=(Array.isArray(SETT.can_sign_roles_json)&&SETT.can_sign_roles_json)||['ROLE-SGN','ROLE-ADV','ROLE-SYS','ROLE-DEV'];
   var curRv=(Array.isArray(SETT.can_review_roles_json)&&SETT.can_review_roles_json)||['ROLE-REV','ROLE-SGN','ROLE-ADV','ROLE-SYS','ROLE-DEV'];
+  // สร้างขาเข้า/ขาออก — ไม่เคยตั้งค่ามาก่อน = เปิดให้ทุก role (ตรงกับ CAN.ci/CAN.co ค่าเริ่มต้นใน config.js)
+  var curCi=(Array.isArray(SETT.can_create_incoming_roles_json)&&SETT.can_create_incoming_roles_json.length&&SETT.can_create_incoming_roles_json)||allRolesFull;
+  var curCo=(Array.isArray(SETT.can_create_outgoing_roles_json)&&SETT.can_create_outgoing_roles_json.length&&SETT.can_create_outgoing_roles_json)||allRolesFull;
+
+  // ตำแหน่ง (แยกจาก role) — เลขานุการ/หัวหน้านิสิต มัก role_code เดียวกัน (ROLE-CRT) แต่ต้องคุมสิทธิ์สร้างขาเข้า/ขาออกแยกกันได้
+  var allPositions=[
+    {code:'GNK-SEC',label:'เลขานุการ'},
+    {code:'GNK-PRE',label:'หัวหน้านิสิต'}
+  ];
+  var allPosFull=allPositions.map(function(p){return p.code});
+  var curCiPos=(Array.isArray(SETT.can_create_incoming_positions_json)&&SETT.can_create_incoming_positions_json.length&&SETT.can_create_incoming_positions_json)||allPosFull;
+  var curCoPos=(Array.isArray(SETT.can_create_outgoing_positions_json)&&SETT.can_create_outgoing_positions_json.length&&SETT.can_create_outgoing_positions_json)||allPosFull;
 
   var rows=allRoles.map(function(r){
     // ROLE-SYS และ ROLE-DEV ล็อกเสมอ — แอดมินมีสิทธิ์ทุกอย่าง, นักพัฒนาต้องทดสอบระบบได้ทุก flow
     var isSys=r.code==='ROLE-SYS'||r.code==='ROLE-DEV';
     var sgChk=isSys||curSg.includes(r.code);
     var rvChk=isSys||curRv.includes(r.code);
-    return '<div style="display:grid;grid-template-columns:1fr 80px 80px;gap:8px;align-items:center;padding:10px 16px;border-top:1px solid #F9F8F7">'+
+    var ciChk=isSys||curCi.includes(r.code);
+    var coChk=isSys||curCo.includes(r.code);
+    return '<div style="display:grid;grid-template-columns:1fr 64px 64px 64px 64px;gap:8px;align-items:center;padding:10px 16px;border-top:1px solid #F9F8F7">'+
       '<span style="font-size:12px;font-weight:600;color:#18120E">'+r.label+
         (isSys?'<span style="font-size:10px;color:#a89e99;margin-left:6px">ล็อกเสมอ</span>':'')+
       '</span>'+
@@ -1390,6 +1405,33 @@ function _rdCanCard(){
         '<input type="checkbox" id="can-rv-'+r.code+'" value="'+r.code+'"'+(rvChk?' checked':'')+(isSys?' disabled':'')+
           ' style="width:16px;height:16px;accent-color:#2563EB;cursor:'+(isSys?'default':'pointer')+'">'+
       '</label>'+
+      '<label style="display:flex;justify-content:center;align-items:center;cursor:'+(isSys?'default':'pointer')+'">'+
+        '<input type="checkbox" id="can-ci-'+r.code+'" value="'+r.code+'"'+(ciChk?' checked':'')+(isSys?' disabled':'')+
+          ' style="width:16px;height:16px;accent-color:#7C3AED;cursor:'+(isSys?'default':'pointer')+'">'+
+      '</label>'+
+      '<label style="display:flex;justify-content:center;align-items:center;cursor:'+(isSys?'default':'pointer')+'">'+
+        '<input type="checkbox" id="can-co-'+r.code+'" value="'+r.code+'"'+(coChk?' checked':'')+(isSys?' disabled':'')+
+          ' style="width:16px;height:16px;accent-color:#16A34A;cursor:'+(isSys?'default':'pointer')+'">'+
+      '</label>'+
+    '</div>';
+  }).join('');
+
+  var posRows=allPositions.map(function(p){
+    var ciChk=curCiPos.includes(p.code);
+    var coChk=curCoPos.includes(p.code);
+    return '<div style="display:grid;grid-template-columns:1fr 64px 64px 64px 64px;gap:8px;align-items:center;padding:10px 16px;border-top:1px solid #F9F8F7">'+
+      '<span style="font-size:12px;font-weight:600;color:#18120E">'+p.label+
+        '<span style="font-size:10px;color:#a89e99;margin-left:6px">ตำแหน่ง</span>'+
+      '</span>'+
+      '<span></span><span></span>'+
+      '<label style="display:flex;justify-content:center;align-items:center;cursor:pointer">'+
+        '<input type="checkbox" id="can-ci-pos-'+p.code+'" value="'+p.code+'"'+(ciChk?' checked':'')+
+          ' style="width:16px;height:16px;accent-color:#7C3AED;cursor:pointer">'+
+      '</label>'+
+      '<label style="display:flex;justify-content:center;align-items:center;cursor:pointer">'+
+        '<input type="checkbox" id="can-co-pos-'+p.code+'" value="'+p.code+'"'+(coChk?' checked':'')+
+          ' style="width:16px;height:16px;accent-color:#16A34A;cursor:pointer">'+
+      '</label>'+
     '</div>';
   }).join('');
 
@@ -1397,19 +1439,23 @@ function _rdCanCard(){
     '<div class="card-head">'+
       '<div style="width:26px;height:26px;border-radius:7px;background:#FFF5EE;display:flex;align-items:center;justify-content:center;color:#E83A00;flex-shrink:0">'+svg('lock',13)+'</div>'+
       '<div><div class="card-head-title">สิทธิ์การใช้งาน (CAN)</div>'+
-        '<div style="font-size:10px;color:#a89e99;margin-top:1px">กำหนดว่า role ไหนสามารถลงนามหรือตรวจทานเอกสารได้</div>'+
+        '<div style="font-size:10px;color:#a89e99;margin-top:1px">กำหนดว่า role ไหนลงนาม/ตรวจทาน/สร้างหนังสือขาเข้า-ขาออกได้</div>'+
       '</div>'+
       '<button class="btn btn-primary sm ml-auto" onclick="_rdSaveCAN()">'+svg('ok',12)+' บันทึก</button>'+
     '</div>'+
     '<div id="rd-can-al"></div>'+
-    '<div style="display:grid;grid-template-columns:1fr 80px 80px;gap:8px;padding:8px 16px 6px;border-bottom:1px solid #F5F3F0">'+
+    '<div style="display:grid;grid-template-columns:1fr 64px 64px 64px 64px;gap:8px;padding:8px 16px 6px;border-bottom:1px solid #F5F3F0">'+
       '<span style="font-size:10px;font-weight:700;color:#a89e99;text-transform:uppercase;letter-spacing:.5px">Role</span>'+
       '<span style="font-size:10px;font-weight:700;color:#E83A00;text-align:center;text-transform:uppercase;letter-spacing:.5px">ลงนาม</span>'+
       '<span style="font-size:10px;font-weight:700;color:#2563EB;text-align:center;text-transform:uppercase;letter-spacing:.5px">ตรวจทาน</span>'+
+      '<span style="font-size:10px;font-weight:700;color:#7C3AED;text-align:center;text-transform:uppercase;letter-spacing:.5px">สร้างขาเข้า</span>'+
+      '<span style="font-size:10px;font-weight:700;color:#16A34A;text-align:center;text-transform:uppercase;letter-spacing:.5px">สร้างขาออก</span>'+
     '</div>'+
     rows+
+    '<div style="padding:8px 16px 4px;font-size:10px;font-weight:700;color:#a89e99;text-transform:uppercase;letter-spacing:.5px;border-top:1px solid #F5F3F0;margin-top:4px">แยกตามตำแหน่ง (นอกเหนือจาก role — GNK-SEC/GNK-PRE มัก role เดียวกันแต่คุมสิทธิ์แยกกันได้ที่นี่)</div>'+
+    posRows+
     '<div style="padding:10px 16px;background:#FAFAF8;border-top:1px solid #F5F3F0;font-size:10px;color:#a89e99;border-radius:0 0 16px 16px">'+
-      svg('warn',11)+' ผู้ดูแลระบบ (ROLE-SYS) และนักพัฒนา (ROLE-DEV) มีสิทธิ์เสมอ ไม่สามารถเปลี่ยนแปลงได้ — นักพัฒนาต้องใช้ทดสอบระบบได้ทุกขั้นตอน'+
+      svg('warn',11)+' ผู้ดูแลระบบ (ROLE-SYS) และนักพัฒนา (ROLE-DEV) มีสิทธิ์เสมอ ไม่สามารถเปลี่ยนแปลงได้ — นักพัฒนาต้องใช้ทดสอบระบบได้ทุกขั้นตอน · "สร้างขาเข้า/ขาออก" คุมว่าใครเห็นการ์ดประเภทเอกสารนั้นตอนสร้างเอกสารใหม่ (role หรือตำแหน่ง เข้าเงื่อนไขใดเงื่อนไขหนึ่งก็พอ)'+
     '</div>'+
   '</div>';
 }
@@ -1417,14 +1463,23 @@ function _rdCanCard(){
 async function _rdSaveCAN(){
   var al=$e('rd-can-al');
   var roles=['ROLE-SGN','ROLE-REV','ROLE-ADV','ROLE-STF','ROLE-CRT','ROLE-SYS','ROLE-DEV'];
+  var positions=['GNK-SEC','GNK-PRE'];
   try{
     var sgRoles=roles.filter(function(r){var el=$e('can-sg-'+r);return el&&el.checked;});
     var rvRoles=roles.filter(function(r){var el=$e('can-rv-'+r);return el&&el.checked;});
-    if(!sgRoles.includes('ROLE-SYS')) sgRoles.push('ROLE-SYS');
-    if(!rvRoles.includes('ROLE-SYS')) rvRoles.push('ROLE-SYS');
-    if(!sgRoles.includes('ROLE-DEV')) sgRoles.push('ROLE-DEV');
-    if(!rvRoles.includes('ROLE-DEV')) rvRoles.push('ROLE-DEV');
-    var pairs=[{key:'can_sign_roles_json',val:sgRoles},{key:'can_review_roles_json',val:rvRoles}];
+    var ciRoles=roles.filter(function(r){var el=$e('can-ci-'+r);return el&&el.checked;});
+    var coRoles=roles.filter(function(r){var el=$e('can-co-'+r);return el&&el.checked;});
+    var ciPos=positions.filter(function(p){var el=$e('can-ci-pos-'+p);return el&&el.checked;});
+    var coPos=positions.filter(function(p){var el=$e('can-co-pos-'+p);return el&&el.checked;});
+    [sgRoles,rvRoles,ciRoles,coRoles].forEach(function(arr){
+      if(!arr.includes('ROLE-SYS')) arr.push('ROLE-SYS');
+      if(!arr.includes('ROLE-DEV')) arr.push('ROLE-DEV');
+    });
+    var pairs=[
+      {key:'can_sign_roles_json',val:sgRoles},{key:'can_review_roles_json',val:rvRoles},
+      {key:'can_create_incoming_roles_json',val:ciRoles},{key:'can_create_outgoing_roles_json',val:coRoles},
+      {key:'can_create_incoming_positions_json',val:ciPos},{key:'can_create_outgoing_positions_json',val:coPos}
+    ];
     for(var i=0;i<pairs.length;i++){
       var k=pairs[i].key, v=JSON.stringify(pairs[i].val);
       var ex=await dg('app_settings','?key=eq.'+encodeURIComponent(k)+'&select=key&limit=1');
@@ -1437,7 +1492,11 @@ async function _rdSaveCAN(){
     /* apply immediately */
     var _sg=sgRoles.slice(); CAN.sg=function(r){return _sg.includes(r);};
     var _rv=rvRoles.slice(); CAN.rv=function(r){return _rv.includes(r);};
+    var _ci=ciRoles.slice(), _ciP=ciPos.slice(); CAN.ci=function(r,p){return _ci.includes(r)||_ciP.includes(p);};
+    var _co=coRoles.slice(), _coP=coPos.slice(); CAN.co=function(r,p){return _co.includes(r)||_coP.includes(p);};
     SETT.can_sign_roles_json=sgRoles; SETT.can_review_roles_json=rvRoles;
+    SETT.can_create_incoming_roles_json=ciRoles; SETT.can_create_outgoing_roles_json=coRoles;
+    SETT.can_create_incoming_positions_json=ciPos; SETT.can_create_outgoing_positions_json=coPos;
     if(al) al.innerHTML='<div class="al al-ok" style="margin:0 16px 8px"><span class="al-icon">'+svg('ok',13)+'</span><span>บันทึกสิทธิ์เรียบร้อย — มีผลทันที</span></div>';
     setTimeout(function(){if(al)al.innerHTML='';},3500);
   }catch(e){

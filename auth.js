@@ -72,38 +72,36 @@ function showAuth(){
   var loginB = [
     '<div id="lal"></div>',
     '<div class="fg"><label class="fl">ชื่อผู้ใช้ / รหัสนิสิต / อีเมล</label>',
-    '<input id="lu" class="fi" autocomplete="username" placeholder="กนค.: รหัสนิสิต | อ./จนท.: อีเมล " value="'+esc(_luDraft)+'"></div>',
+    '<input id="lu" class="fi auth-fi" autocomplete="username" placeholder="กนค.: รหัสนิสิต | อ./จนท.: อีเมล " value="'+esc(_luDraft)+'"></div>',
     '<div class="fg"><label class="fl">รหัสผ่าน</label>',
-    '<div style="position:relative">',
-    '<input id="lp" class="fi" type="password" autocomplete="current-password" placeholder="••••••••" style="padding-right:44px">',
-    '<button type="button" id="lp-eye" onclick="_togglePwVis()" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;padding:4px;cursor:pointer;color:#a89e99;display:flex;align-items:center;line-height:1;border-radius:6px" title="แสดง/ซ่อนรหัสผ่าน">'+_authSvgEye(16)+'</button>',
+    '<div class="auth-pw-wrap">',
+    '<input id="lp" class="fi auth-fi" type="password" autocomplete="current-password" placeholder="••••••••">',
+    '<button type="button" id="lp-eye" class="auth-pw-eye" onclick="_togglePwVis()" title="แสดง/ซ่อนรหัสผ่าน">'+_authSvgEye(16)+'</button>',
     '</div>',
-    '<div style="text-align:right;margin-top:6px">',
-    /* [UX] เปลี่ยน label ให้ตรงกับ behavior จริง (ต้องใส่รหัสเดิม ไม่ใช่ reset) */
-    '<button type="button" style="font-size:12px;background:transparent;color:#E83A00;border:none;padding:0;cursor:pointer;font-weight:600" data-action="showChangePwPopup">เปลี่ยนรหัสผ่าน</button>',
+    '<div class="auth-pw-actions">',
+    '<button type="button" class="auth-link" data-action="showChangePwPopup">เปลี่ยนรหัสผ่าน</button>',
     '</div></div>',
-    '<button type="button" id="btn-login" class="btn btn-primary fw py-[13px] mt-1" data-action="login">เข้าสู่ระบบ</button>',
-    '<div class="divider">ยังไม่มีบัญชี?</div>',
-    /* [UX] เพิ่ม sub-caption ใต้ปุ่มสมัครเพื่อบอกว่าแต่ละปุ่มสำหรับใคร */
-    '<div class="grid grid-cols-2 gap-[9px]">',
-    '<div class="flex flex-col items-center gap-1">',
-    '<button class="btn btn-ghost fw" data-action="showRegGnkPopup">สมัคร กนค.</button>',
-    '<span style="font-size:11px;color:#a89e99">สำหรับนิสิต กนค.</span>',
+    '<button type="button" id="btn-login" class="btn btn-primary fw auth-login-btn" data-action="login">เข้าสู่ระบบ</button>',
+    '<div class="auth-divider"><span>ยังไม่มีบัญชี?</span></div>',
+    '<div class="auth-reg-grid">',
+    '<div class="auth-reg-col">',
+    '<button type="button" class="btn btn-ghost fw auth-reg-btn" data-action="showRegGnkPopup">สมัคร กนค.</button>',
+    '<span class="auth-reg-hint">สำหรับนิสิต กนค.</span>',
     '</div>',
-    '<div class="flex flex-col items-center gap-1">',
-    '<button class="btn btn-ghost fw" data-action="showRegStaffPopup">สมัคร อ./จนท.</button>',
-    '<span style="font-size:11px;color:#a89e99">สำหรับอาจารย์และเจ้าหน้าที่</span>',
-    '</div></div>',
-
+    '<div class="auth-reg-col">',
+    '<button type="button" class="btn btn-ghost fw auth-reg-btn" data-action="showRegStaffPopup">สมัคร อ./จนท.</button>',
+    '<span class="auth-reg-hint">สำหรับอาจารย์และเจ้าหน้าที่</span>',
+    '</div>',
+    '</div>',
   ].join('');
 
   rdr([
     '<div class="auth-root">',
     '<div class="auth-card">',
     '<div class="auth-header">',
-    '<div class="auth-orb"></div>',
+    '<div class="auth-orb" aria-hidden="true"></div>',
     '<div class="auth-logo-ring">',
-    '<div class="auth-logo-wrap"><img src="img/logo.png" alt="Logo กนค." class="auth-logo" onerror="this.style.display=\'none\';this.nextSibling.style.display=\'flex\'"><div class="auth-badge hidden"></div></div>',
+    '<div class="auth-logo-wrap"><img src="img/Logo.png" alt="Logo กนค." class="auth-logo" onerror="this.style.display=\'none\';this.nextSibling.style.display=\'flex\'"><div class="auth-badge hidden">กนค.</div></div>',
     '</div>',
     '<div class="auth-title">SAEDU Flow</div>',
     '<div class="auth-sub">ระบบเสนอเอกสาร คณะกรรมการนิสิต</div>',
@@ -111,8 +109,8 @@ function showAuth(){
     '<div class="auth-body">',
     loginB,
     '</div></div>',
-    '<p class="text-[11px] text-[#a89e99] mt-5">SAEDUFLOW © 2569</p>',
-    '<a href="manual.html?from=login" style="margin-top:10px;font-size:12px;color:#C42E00;text-decoration:none;display:inline-flex;align-items:center;gap:5px;opacity:.8;transition:opacity .15s" onmouseover="this.style.opacity=\'1\'" onmouseout="this.style.opacity=\'.8\'">',
+    '<p class="auth-copy">SAEDUFLOW © 2569</p>',
+    '<a href="manual.html?v=3&from=login" class="auth-manual">',
     '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>',
     'คู่มือการใช้งาน</a>',
     '</div>'
@@ -135,7 +133,7 @@ function showAuth(){
 
 /* ─── Popup ประกาศหน้า Login ───
    ค่าอยู่ใน app_settings (key ขึ้นต้น login_announcement) — anon อ่านได้เฉพาะ key กลุ่มนี้
-   ผ่าน policy app_settings_login_announce (supabase/create_dev_role.sql)
+   ผ่าน policy app_settings_login_announce (supabase/17_create_dev_role.sql)
    จัดการเปิด/ปิด/แก้ข้อความได้ในแท็บ "ตั้งค่า & ประกาศ" ของ Dev Panel */
 async function _showLoginAnnouncement(){
   try{
@@ -196,9 +194,44 @@ function chkSid(){
 function _setLoginBusy(busy){
   _loginBusy=busy;
   var btn=$e('btn-login');
-  if(!btn) return;
-  btn.disabled=busy;
-  btn.innerHTML=busy?'กำลังตรวจสอบ...':'เข้าสู่ระบบ';
+  if(btn){
+    btn.disabled=busy;
+    btn.innerHTML=busy?'<span class="sp" style="margin-right:8px"></span>กำลังเข้าสู่ระบบ...':'เข้าสู่ระบบ';
+  }
+  ['lu','lp','lp-eye'].forEach(function(id){
+    var el=$e(id); if(el) el.disabled=!!busy;
+  });
+  document.querySelectorAll('.auth-body [data-action="showChangePwPopup"],.auth-body .auth-reg-btn').forEach(function(el){
+    el.disabled=!!busy;
+    el.style.pointerEvents=busy?'none':'';
+    el.style.opacity=busy?'0.55':'';
+  });
+  if(busy) _showLoginBusyPopup();
+  else _hideLoginBusyPopup();
+}
+
+/* Popup ระหว่างยืนยันตัวตน — ปิดเองเมื่อสำเร็จ/ล้มเหลว ห้ามคลิกปิด */
+function _showLoginBusyPopup(){
+  if(document.getElementById('login-busy')) return;
+  var el=document.createElement('div');
+  el.id='login-busy';
+  el.className='cpopup-overlay login-busy-overlay';
+  el.setAttribute('role','status');
+  el.setAttribute('aria-live','polite');
+  el.setAttribute('aria-busy','true');
+  el.innerHTML=
+    '<div class="cpopup-box login-busy-box">'+
+      '<div class="cpopup-body login-busy-body">'+
+        '<div class="login-busy-spin" aria-hidden="true"><span class="sp sp-dark login-busy-sp"></span></div>'+
+        '<div class="login-busy-title">กำลังเข้าสู่ระบบ</div>'+
+        '<div class="login-busy-msg">กำลังตรวจสอบบัญชีของคุณ กรุณารอสักครู่…</div>'+
+      '</div>'+
+    '</div>';
+  document.body.appendChild(el);
+}
+function _hideLoginBusyPopup(){
+  var el=document.getElementById('login-busy');
+  if(el) el.remove();
 }
 
 async function doLogin(){
@@ -260,6 +293,7 @@ async function doLogin(){
     localStorage.setItem('_la','0');
     localStorage.removeItem('_llu');
     try{sessionStorage.removeItem('_luDraft');}catch(e){}
+    _hideLoginBusyPopup(); // สำเร็จแล้ว — ลบ popup ออกจาก body (rdr ไม่ลบ element นอก #app)
   }catch(e){
     console.error('doLogin:',e);
     a.innerHTML=_authAlrtH('er','เกิดข้อผิดพลาด กรุณาลองใหม่');
@@ -270,17 +304,28 @@ async function doLogin(){
 /* ─── เข้าสู่แอปจริงหลังยืนยันตัวตนสำเร็จแล้ว (ใช้ทั้ง doLogin และ boot.js ตอน restore session) ─── */
 async function _enterAppAsUser(row,opts){
   opts=opts||{};
-  if(!row||row.approval_status==='pending'){await sb.auth.signOut();showPend();return false}
+  if(!row||row.approval_status==='pending'){
+    _hideLoginBusyPopup();
+    await sb.auth.signOut();showPend();return false
+  }
   if(row.approval_status!=='approved'||!row.is_active){
     await sb.auth.signOut();
     if(opts.onError)opts.onError('บัญชีนี้ไม่สามารถใช้งานได้ กรุณาติดต่อผู้ดูแลระบบ');
     return false
   }
-  if(row.user_type==='gnk'&&row.expires_at&&new Date(row.expires_at)<new Date()){
-    if(row.is_active) try{await dpa('users',row.id,{is_active:false});}catch(e){}
-    await sb.auth.signOut();
-    if(opts.onError)opts.onError('บัญชีนี้หมดอายุแล้ว กรุณาติดต่อเจ้าหน้าที่เพื่อต่ออายุการใช้งาน');
-    return false
+  if(row.user_type==='gnk'){
+    var _gnkStart=typeof gnkAccountStartDate==='function'?gnkAccountStartDate():null;
+    if(_gnkStart&&new Date()<_gnkStart){
+      await sb.auth.signOut();
+      if(opts.onError)opts.onError('บัญชี กนค. เริ่มใช้งานได้ตั้งแต่วันที่ 20 พฤษภาคม 2569');
+      return false
+    }
+    if(row.expires_at&&new Date(row.expires_at)<new Date()){
+      if(row.is_active) try{await dpa('users',row.id,{is_active:false});}catch(e){}
+      await sb.auth.signOut();
+      if(opts.onError)opts.onError('บัญชีนี้หมดอายุแล้ว กรุณาติดต่อเจ้าหน้าที่เพื่อต่ออายุการใช้งาน');
+      return false
+    }
   }
   CU=row;
   if(opts.logLogin){try{await dp('document_history',{action:'login',performed_by:CU.id,note:'เข้าสู่ระบบ'});}catch(e){}}
@@ -405,7 +450,7 @@ function showRegStaffPopup() {
           '<input id="snm" class="fi" placeholder="ชื่อ นามสกุล"></div>'+
           '<div class="fg"><label class="fl">ประเภท <span class="req">*</span></label>'+
           '<select id="stp" class="fi">'+
-            '<option value="advisor">อาจารย์กิจการนิสิต</option>'+
+            '<option value="advisor">อาจารย์ที่ปรึกษาชมรม</option>'+
             '<option value="staff">เจ้าหน้าที่กิจการ</option>'+
           '</select></div>'+
         '</div>'+

@@ -101,32 +101,33 @@ function _openMobileMenu(){
 
 /* ─── MAIN LAYOUT ─── */
 
+/* อวตาร: โทนอุ่นเป็นหลัก — จุดบทบาทใช้สีเล็กๆ ตาม DESIGN (staff teal / advisor violet) */
 var _ROLE_GRAD = {
-  'ROLE-SYS': 'linear-gradient(135deg,#3D1A0A,#6B3320)',
+  'ROLE-SYS': 'linear-gradient(135deg,#3A332E,#5C4F45)',
   'ROLE-SGN': 'linear-gradient(135deg,#C42800,#E83A00)',
-  'ROLE-REV': 'linear-gradient(135deg,#B45309,#D97706)',
-  'ROLE-ADV': 'linear-gradient(135deg,#6D28D9,#7C3AED)',
-  'ROLE-STF': 'linear-gradient(135deg,#0369A1,#0891B2)',
-  'ROLE-CRT': 'linear-gradient(135deg,#1D4ED8,#2563EB)',
+  'ROLE-REV': 'linear-gradient(135deg,#8B6914,#B8860B)',
+  'ROLE-ADV': 'linear-gradient(135deg,#5B4B6E,#6B5B7A)',
+  'ROLE-STF': 'linear-gradient(135deg,#3D4F4A,#4A5C56)',
+  'ROLE-CRT': 'linear-gradient(135deg,#5C534A,#6B6157)',
   'ROLE-DEV': 'linear-gradient(135deg,#18120E,#3A332E)'
 };
 var _ROLE_DOT = {
-  'ROLE-SYS':'#F59E0B','ROLE-SGN':'#E83A00','ROLE-REV':'#D97706',
-  'ROLE-CRT':'#3B82F6','ROLE-STF':'#06B6D4','ROLE-ADV':'#A855F7',
-  'ROLE-DEV':'#10B981'
+  'ROLE-SYS':'#D97706','ROLE-SGN':'#E83A00','ROLE-REV':'#B45309',
+  'ROLE-CRT':'#6B6157','ROLE-STF':'#0F766E','ROLE-ADV':'#7C3AED',
+  'ROLE-DEV':'#5C534A'
 };
 
 function _navItem(n, active) {
   return '<div class="nav-it'+(active?' on':'')+'" data-action="nav" data-view="'+n.k+'">' +
     (active ? '<span class="nav-bar"></span>' : '') +
-    '<div class="ni-ic" style="color:'+(active?'#E83A00':'#a89e99')+'">'+svg(n.i,16)+'</div>' +
+    '<div class="ni-ic">'+svg(n.i,16)+'</div>' +
     '<span class="ni-lb">'+esc(n.l)+'</span>' +
     (n.b ? '<span class="ni-bd">'+n.b+'</span>' : '') +
     '</div>';
 }
 
 function _userFooter() {
-  var grad = _ROLE_GRAD[CU.role_code] || 'linear-gradient(135deg,#1D4ED8,#2563EB)';
+  var grad = _ROLE_GRAD[CU.role_code] || 'linear-gradient(135deg,#5C534A,#6B6157)';
   var dot  = _ROLE_DOT[CU.role_code]  || '#a89e99';
   var personSVG = '<svg width="18" height="18" viewBox="0 0 16 16" fill="none">' +
     '<circle cx="8" cy="5.5" r="2.8" fill="rgba(255,255,255,0.95)"/>' +
@@ -135,13 +136,13 @@ function _userFooter() {
   return '<div class="app-foot">' +
     '<div class="app-foot-av" style="background:'+grad+'">' +
       personSVG +
-      '<span style="position:absolute;bottom:0;right:0;width:10px;height:10px;border-radius:50%;background:'+dot+';border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.2)"></span>' +
+      '<span style="position:absolute;bottom:0;right:0;width:10px;height:10px;border-radius:50%;background:'+dot+';border:2px solid #100800;box-shadow:0 1px 3px rgba(0,0,0,.35)"></span>' +
     '</div>' +
     '<div class="app-foot-info">' +
       '<div class="app-foot-name">'+esc(CU.full_name)+'</div>' +
       '<div class="app-foot-role">'+(RTH[CU.role_code]||'')+'</div>' +
     '</div>' +
-    '<button style="width:30px;height:30px;border-radius:9px;border:none;background:#F5F3F0;color:#a89e99;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;transition:all .15s" data-action="logout" title="ออกจากระบบ" onmouseover="this.style.background=\'#FFF0EB\';this.style.color=\'#E83A00\'" onmouseout="this.style.background=\'#F5F3F0\';this.style.color=\'#a89e99\'">'+svg('out',15)+'</button>' +
+    '<button style="width:30px;height:30px;border-radius:9px;border:none;background:rgba(255,255,255,.08);color:rgba(244,242,239,.6);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;transition:all .15s" data-action="logout" title="ออกจากระบบ" onmouseover="this.style.background=\'rgba(232,58,0,.22)\';this.style.color=\'#FF8A4C\'" onmouseout="this.style.background=\'rgba(255,255,255,.08)\';this.style.color=\'rgba(244,242,239,.6)\'">'+svg('out',15)+'</button>' +
   '</div>';
 }
 
@@ -154,18 +155,29 @@ async function nav(view, id) {
       var pr = await dg('documents', '?status=in.(pending,rejected)&select=id');
       PC = pr.length || 0;
     } else {
-      var results = await Promise.all([
-        dg('documents',      '?status=in.(pending,rejected)&select=id,created_by'),
-        dg('workflow_steps', '?assigned_to=eq.'+safeId(CU.id)+'&select=document_id'),
-        dg('documents',      '?forwarded_to_id=eq.'+safeId(CU.id)+'&status=eq.completed&select=id&limit=99')
-      ]);
+      var _fwdQ='?or=(forwarded_to_id.eq.'+safeId(CU.id)+(CU.role_code==='ROLE-STF'?',forwarded_to_staff.eq.true':'')+')&status=eq.completed&select=id,forwarded_to_id,forwarded_to_staff&limit=99';
+      var results;
+      try{
+        results = await Promise.all([
+          dg('documents',      '?status=in.(pending,rejected)&select=id,created_by'),
+          dg('workflow_steps', '?assigned_to=eq.'+safeId(CU.id)+'&select=document_id'),
+          dg('documents',      _fwdQ)
+        ]);
+        if(!Array.isArray(results[2])) throw new Error('fwd query failed');
+      }catch(_e){
+        results = await Promise.all([
+          dg('documents',      '?status=in.(pending,rejected)&select=id,created_by'),
+          dg('workflow_steps', '?assigned_to=eq.'+safeId(CU.id)+'&select=document_id'),
+          dg('documents',      '?forwarded_to_id=eq.'+safeId(CU.id)+'&status=eq.completed&select=id&limit=99')
+        ]);
+      }
       var psIds = results[1].map(function(s){ return s.document_id; });
       var pendCount = results[0].filter(function(d){ return d.created_by===CU.id || psIds.indexOf(d.id)!==-1; }).length || 0;
-      var fwdDocs = results[2]; var fwdCount = 0;
+      var fwdDocs = results[2]||[]; var fwdCount = 0;
       if(fwdDocs.length){
         var _actedHist=await dg('document_history',
           '?document_id=in.('+fwdDocs.map(function(d){return safeId(d.id)}).join(',')+')'
-          +'&action=eq.เจ้าหน้าที่รับเอกสาร&performed_by=eq.'+safeId(CU.id)+'&select=document_id');
+          +'&action=eq.เจ้าหน้าที่รับเอกสาร&select=document_id');
         var _actedIds=new Set((_actedHist||[]).map(function(h){return h.document_id}));
         fwdCount=fwdDocs.filter(function(d){return !_actedIds.has(d.id)}).length;
       }
@@ -186,7 +198,7 @@ async function nav(view, id) {
     _annHtml='<div class="al '+_annCls+' mb-4" style="margin-bottom:16px"><span class="al-icon">'+svg(_annIco,14)+'</span><span>'+esc(SETT.system_announcement)+'</span></div>';
   }
   if(window._schemaWarning){
-    _annHtml+='<div class="al al-wa mb-4" style="margin-bottom:16px"><span class="al-icon">'+svg('warn',14)+'</span><span>ระบบยังไม่ได้รัน SQL ล่าสุด (schema v'+REQUIRED_SCHEMA_VERSION+') — รัน <code>user_signatures.sql</code> (ลายเซ็นส่วนตัว), <code>scale_hardening.sql</code>, <code>workflow_ops_rpc.sql</code>, <code>private_storage_bucket.sql</code> ใน Supabase Dashboard</span></div>';
+    _annHtml+='<div class="al al-wa mb-4" style="margin-bottom:16px"><span class="al-icon">'+svg('warn',14)+'</span><span>ระบบยังไม่ได้รัน SQL ล่าสุด (schema v'+REQUIRED_SCHEMA_VERSION+') — รัน <code>19_user_signatures.sql</code> (ลายเซ็นส่วนตัว), <code>22_scale_hardening.sql</code>, <code>23_workflow_ops_rpc.sql</code>, <code>24_private_storage_bucket.sql</code> ใน Supabase Dashboard</span></div>';
   }
 
   // แสดง loading state ทันทีก่อนดึงข้อมูล
@@ -230,9 +242,9 @@ async function nav(view, id) {
   var ni = [
     {k:'dash', i:'home', l:'ภาพรวม'},
     {k:'todo', i:'tasks', l:'งานของฉัน', b: activeSteps || null},
-    {k:'docs', i:'doc',  l:'เอกสาร',    b: PC || null},
-    {k:'tmpl', i:'folder', l:'แบบฟอร์ม'}
+    {k:'docs', i:'doc',  l:'เอกสาร',    b: PC || null}
   ];
+  if (CU.role_code !== 'ROLE-ADV') ni.push({k:'tmpl', i:'folder', l:'แบบฟอร์ม'});
   // ระบบนักพัฒนาแยกจากแอดมิน: เมนู "จัดการระบบ" ของแอดมินเท่านั้น / เมนู "นักพัฒนา" ของ ROLE-DEV เท่านั้น
   // (นักพัฒนาแก้ตั้งค่าระบบผ่านแท็บ "จัดการระบบ" ภายใน Dev Panel — เนื้อหาเดียวกัน คนละประตู)
   var isDev = CU.role_code === 'ROLE-DEV';
@@ -252,11 +264,11 @@ async function nav(view, id) {
     '<aside id="sidebar" class="app-side">' +
       '<div class="app-side-head">' +
         '<div class="app-side-logo">' +
-          '<img src="img/logo.png" alt="Logo">' +
+          '<img src="img/Logo.png" alt="Logo">' +
         '</div>' +
         '<div class="app-side-brand">' +
-          '<div style="font-size:16px;font-weight:800;letter-spacing:-.2px;color:#18120E;line-height:1.4">'+(SETT&&SETT.org_name||'Saedu Flow')+'</div>' +
-          '<div style="font-size:11px;margin-top:3px;color:#a89e99;line-height:1.65">'+(SETT&&SETT.system_name||'ระบบเสนอเอกสาร')+'</div>' +
+          '<div style="font-size:16px;font-weight:800;letter-spacing:-.2px;color:#fff;line-height:1.4">'+(SETT&&SETT.org_name||'Saedu Flow')+'</div>' +
+          '<div style="font-size:11px;margin-top:3px;color:rgba(244,242,239,.5);line-height:1.65">'+(SETT&&SETT.system_name||'ระบบเสนอเอกสาร')+'</div>' +
         '</div>' +
       '</div>' +
       '<div class="app-side-label">เมนูหลัก</div>' +
@@ -273,7 +285,7 @@ async function nav(view, id) {
         '</div>' +
         '<div style="display:flex;align-items:center;gap:8px">' +
           _buildNotifBell(activeSteps, PC) +
-          '<a href="manual.html" target="_blank" style="width:36px;height:36px;border-radius:10px;border:1.5px solid #EBEBEB;background:#F9F9F9;display:flex;align-items:center;justify-content:center;color:#a89e99;transition:all .15s;text-decoration:none" title="คู่มือการใช้งาน" onmouseover="this.style.background=\'#FFF5F0\';this.style.color=\'#E83A00\'" onmouseout="this.style.background=\'#F9F9F9\';this.style.color=\'#a89e99\'">'+svg('book',16)+'</a>' +
+          '<a href="manual.html?v=3" target="_blank" style="width:36px;height:36px;border-radius:10px;border:1.5px solid #EBEBEB;background:#F9F9F9;display:flex;align-items:center;justify-content:center;color:#a89e99;transition:all .15s;text-decoration:none" title="คู่มือการใช้งาน" onmouseover="this.style.background=\'#FFF5F0\';this.style.color=\'#E83A00\'" onmouseout="this.style.background=\'#F9F9F9\';this.style.color=\'#a89e99\'">'+svg('book',16)+'</a>' +
         '</div>' +
       '</header>' +
       '<main class="app-body">'+_annHtml+content+'</main>' +

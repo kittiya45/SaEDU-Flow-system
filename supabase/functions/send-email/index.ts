@@ -8,6 +8,9 @@ import { corsHeaders, json } from '../_shared/cors.ts';
 import { requireAuth } from '../_shared/requireAuth.ts';
 import { validateEmailSend } from '../_shared/validateNotify.ts';
 import { sendBrevoEmail } from '../_shared/brevo.ts';
+import { checkNotifyRateLimit } from '../_shared/rateLimit.ts';
+
+const RATE_LIMIT_PER_HOUR = 50;
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
@@ -23,6 +26,7 @@ Deno.serve(async (req: Request) => {
 
     const { caller, admin } = await requireAuth(req);
     await validateEmailSend(admin, caller, { to, documentId, recipientUserId, testSelf });
+    await checkNotifyRateLimit(admin, caller, 'email', RATE_LIMIT_PER_HOUR);
 
     const result = await sendBrevoEmail({ to, subject, html });
     if (!result.ok) {

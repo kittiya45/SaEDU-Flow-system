@@ -1,6 +1,6 @@
 -- ============================================================================
 -- SAEDU Flow — ลายเซ็นส่วนตัว (1 รายการต่อผู้ใช้)
--- Run in Supabase Dashboard → SQL Editor (หลัง migration_auth_rls.sql)
+-- Run in Supabase Dashboard → SQL Editor (หลัง 01_migration_auth_rls.sql)
 -- Safe to re-run.
 -- ============================================================================
 --

@@ -1,9 +1,9 @@
 -- ============================================================================
--- SAEDU Flow — atomic forward decline + recall (รันหลัง scale_hardening.sql)
+-- SAEDU Flow — atomic forward decline + recall (รันหลัง 22_scale_hardening.sql)
 -- ============================================================================
 --   1. forward_decline()  — ไม่อนุมัติเอกสารที่ส่งต่อ (atomic)
 --   2. recall_document()  — ผู้จัดทำดึงกลับเป็นฉบับร่าง (atomic)
---   3. app_settings.schema_version = '3' (ถ้ายังไม่ถึง v3 จาก cron_overdue.sql)
+--   3. app_settings.schema_version = '3' (ถ้ายังไม่ถึง v3 จาก 29_cron_overdue.sql)
 -- รันใน Supabase Dashboard → SQL Editor (idempotent)
 
 -- ── 1. Forward decline (ส่งคืนผู้จัดทำ) ─────────────────────────────────────

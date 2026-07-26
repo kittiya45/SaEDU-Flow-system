@@ -11,7 +11,7 @@
 -- for which existing documents still count toward the running sequence.
 --
 -- No RLS change needed — doc_number_settings_all (gated by is_admin()) in
--- migration_auth_rls.sql already covers this new column.
+-- 01_migration_auth_rls.sql already covers this new column.
 -- Safe to re-run (idempotent ADD COLUMN IF NOT EXISTS).
 -- ============================================================================
 

@@ -26,14 +26,15 @@ async function vDocs(){
   MSTEPS=_mySteps.filter(function(s){return s.status==='active'}).map(function(s){return s.document_id});
   var _allDocs;
   var _paginated=false;
-  if(CU.role_code==='ROLE-SYS'||CU.position_code==='GNK-SEC'){
+  if(CU.role_code==='ROLE-SYS'||CU.role_code==='ROLE-STF'||CU.position_code==='GNK-SEC'){
     _paginated=true;
     _allDocs=await dg('documents','?order=created_at.desc'+_docPageSuffix());
     try{_DOC_TOTAL=await dgCount('documents','?order=created_at.desc')}catch(e){_DOC_TOTAL=null}
-  } else if(['ROLE-STF','ROLE-ADV'].includes(CU.role_code)){
-    var _stfOr='created_by.eq.'+safeId(CU.id)+',forwarded_to_id.eq.'+safeId(CU.id)+',status.eq.numbering';
-    if(_myStepDocIds.length) _stfOr+=',id.in.('+_myStepDocIds.map(safeId).join(',')+')'
-    _allDocs=await dg('documents','?or=('+_stfOr+')&order=created_at.desc&limit=500');
+  } else if(CU.role_code==='ROLE-ADV'){
+    // อาจารย์ที่ปรึกษาเห็นเฉพาะเอกสารที่ตนมีรายชื่ออยู่ (สร้างเอง/ถูกส่งต่อมา/มี workflow step) ไม่เห็นภาพรวมทั้งหมดเหมือน ROLE-STF
+    var _advOr='created_by.eq.'+safeId(CU.id)+',forwarded_to_id.eq.'+safeId(CU.id);
+    if(_myStepDocIds.length) _advOr+=',id.in.('+_myStepDocIds.map(safeId).join(',')+')'
+    _allDocs=await dg('documents','?or=('+_advOr+')&order=created_at.desc&limit=500');
   } else if(_myStepDocIds.length){
     _allDocs=await dg('documents','?or=(created_by.eq.'+safeId(CU.id)+',id.in.('+_myStepDocIds.map(safeId).join(',')+'),forwarded_to_id.eq.'+safeId(CU.id)+')&order=created_at.desc&limit=500');
   } else {
@@ -55,74 +56,81 @@ async function vDocs(){
     (_aSteps||[]).forEach(function(s){if(s.document_id&&s.assigned_to)_ACTIVE_STEPS[s.document_id]=_stepUmap[s.assigned_to]||''});
   }
 
-  // ── ตรวจสอบการตัดสินใจ รับ/ไม่รับ สำหรับเอกสารที่ถูก forward มาหาฉัน ──
+  // ── ตรวจสอบการตัดสินใจ รับ/ไม่รับ สำหรับเอกสารที่ถูก forward มาหาฉัน / คิวกลุ่ม ──
   _FWD_ACT={};
-  // เฉพาะเอกสาร completed ที่ถูกส่งมาหาฉัน (หลังลงนามและออกเลขเสร็จสิ้นแล้ว)
-  var _fwdToMe=ADOCS.filter(function(d){return d.forwarded_to_id===CU.id&&d.status==='completed'});
+  var _fwdToMe=ADOCS.filter(function(d){return _isFwdInboxForMe(d)});
   if(_fwdToMe.length){
     var _fwdHist=await dg('document_history',
       '?document_id=in.('+_fwdToMe.map(function(d){return safeId(d.id)}).join(',')+')'
-      +'&action=eq.เจ้าหน้าที่รับเอกสาร&performed_by=eq.'+safeId(CU.id)
+      +'&action=eq.เจ้าหน้าที่รับเอกสาร'
       +'&select=document_id,action&order=performed_at.desc');
     (_fwdHist||[]).forEach(function(h){
-      if(!_FWD_ACT[h.document_id]) // keep first (latest) action only
+      if(!_FWD_ACT[h.document_id]) // คนใดคนหนึ่งรับแล้ว = คิวกลุ่มปิด
         _FWD_ACT[h.document_id]='accepted';
     });
   }
 
-  DTAB='all'; _PROJ_FILTER='';
+  _PROJ_FILTER='';
 
   // ── คำนวณจำนวน tab ──
   // เอกสาร "ของฉัน" = ไม่ใช่ forwarded-to-me ที่ declined, และ forwarded ที่ accepted ก็นับเป็นของฉัน
   var _docsForMain=ADOCS.filter(function(d){
     // docs created by self always visible (e.g. numbering status returns forwarded_to_id=creator)
     if(d.forwarded_to_id===CU.id&&d.created_by!==CU.id) return _FWD_ACT[d.id]==='accepted';
+    if(_isStaffPoolFwd(d)&&CU.role_code==='ROLE-STF'&&d.created_by!==CU.id) return _FWD_ACT[d.id]==='accepted';
     return true;
   });
   var _pendingFwd=_fwdToMe.filter(function(d){return !_FWD_ACT[d.id]}).length;
+  var _fwdTabCount=_fwdToMe.length;
+  var _showFwdTab=['ROLE-SYS','ROLE-DEV','ROLE-STF','ROLE-ADV'].includes(CU.role_code)||_fwdToMe.length>0;
   var _myRejectedIds=_docsForMain.filter(function(d){return d.status==='rejected'&&d.created_by===CU.id}).map(function(d){return d.id});
-  /* [UX] รวม mine+numbering+fwd เป็น 1 กลุ่ม "ต้องดำเนินการ" ลด cognitive load */
-  var tc={all:_docsForMain.length,pending:0,signed:0,draft:0,rejected:0,numbering:0,completed:0,
-          mine:MSTEPS.length+_myRejectedIds.length,fwd:_pendingFwd};
+  /* [UX] "ต้องดำเนินการ" = งาน workflow + ออกเลข — เอกสารส่งมาถึงแยกแท็บ fwd */
+  var tc={all:_docsForMain.length,pending:0,signed:0,draft:0,rejected:0,numbering:0,awaiting_submit:0,completed:0,
+          mine:MSTEPS.length+_myRejectedIds.length,fwd:_fwdTabCount};
   _docsForMain.forEach(function(d){if(tc[d.status]!==undefined)tc[d.status]++});
-  // กลุ่มรวม "ต้องดำเนินการ" = mine + fwd ที่ยังไม่ตอบ + numbering ที่ทำได้
   var _canNumCount=_docsForMain.filter(function(d){return d.status==='numbering'&&(d.created_by===CU.id||CU.role_code==='ROLE-SYS'||CU.role_code==='ROLE-STF')}).length;
-  tc.action=tc.mine+_pendingFwd+_canNumCount;
+  tc.action=tc.mine+_canNumCount;
 
-  // รวบรวมชื่อโครงการจาก outgoing docs
-  var _projSet=[...new Set(ADOCS.filter(function(d){return d.doc_type==='outgoing'&&d.description}).map(function(d){return d.description}))].sort();
+  /* [UX] เปิดหน้ามาให้เห็นแท็บ "ต้องดำเนินการ" ทันทีถ้ามีงานค้าง แทนที่จะเป็น "ทั้งหมด" เฉยๆ */
+  DTAB=tc.action>0?'action':'all';
+  var _initialDocs=DTAB==='action'?_actionFilterDocs():_docsForMain;
+  _curFilteredDocs=_initialDocs;
+
+  // รวบรวมชื่อโครงการจาก project_name — รวมทั้งขาเข้า+ขาออก
+  var _projSet=[...new Set(ADOCS.filter(function(d){return d.project_name}).map(function(d){return d.project_name}))].sort();
   var _projOpts='<option value="">ทุกโครงการ</option>'+_projSet.map(function(p){return '<option value="'+esc(p)+'">'+esc(p)+'</option>'}).join('');
 
   var _dtypeOpts='<option value="">ทุกประเภท</option>'+Object.entries(DTYPES).map(function(e){return '<option value="'+e[0]+'">'+e[1]+'</option>'}).join('');
 
   var html=['<div class="page-toolbar">'];
-  html.push('<div class="search-wrap"><span class="search-icon">'+svg('srch',14)+'</span><input class="fi min-w-[220px]" id="dsrch" placeholder="ค้นหาชื่อเรื่อง เลขที่ หรือ จาก/ถึง..." oninput="fDocsDebounced()"></div>');
+  html.push('<div class="search-wrap"><span class="search-icon">'+svg('srch',14)+'</span><input class="fi min-w-[220px]" id="dsrch" placeholder="ค้นหาชื่อเรื่อง เลขที่ หรือ จาก/เรียน..." oninput="fDocsDebounced()"></div>');
   html.push('<select class="fi text-[13px]" id="ddtype" style="max-width:160px" onchange="_DTYPE_FILTER=this.value;fDocs()">'+_dtypeOpts+'</select>');
   html.push('<select class="fi text-[13px]" id="dproj" style="max-width:180px'+(_projSet.length?'':';display:none')+'" onchange="_PROJ_FILTER=this.value;fDocs()">'+_projOpts+'</select>');
   if(CAN.cr(CU.role_code)) html.push('<button class="btn btn-primary sm ml-auto" data-action="nav" data-view="new">'+svg('plus',13)+' สร้างเอกสาร</button>');
   html.push('<button class="btn btn-soft sm" data-action="exportCSV" title="ส่งออกรายงาน CSV">'+svg('chart',13)+' ส่งออก CSV</button>');
   html.push('</div>');
 
-  /* [UX] ลด tabs จาก 8 → 5 กลุ่ม เพื่อลด cognitive load
-     - "ต้องดำเนินการ" = mine + fwd + numbering (ที่ทำได้)
-     - "กำลังดำเนินการ" = pending
-     - "เสร็จสิ้น" = completed
-     - "ร่าง" = draft
-     - "ทั้งหมด" = all                                          */
+  /* tabs: ทั้งหมด | ร่าง | ต้องดำเนินการ | ส่งมาถึงฉัน | อยู่ระหว่างดำเนินการ | รออัพเข้าระบบ | เสร็จสิ้น */
   html.push('<div class="page-tabs" id="dtabs">');
-  [['all','ทั้งหมด'],['action','ต้องดำเนินการ'],['pending','กำลังดำเนินการ'],
-   ['completed','เสร็จสิ้น'],['draft','ร่าง']].forEach(function(x){
+  var _tabDefs=[['all','ทั้งหมด'],['draft','ร่าง'],['action','ต้องดำเนินการ']];
+  if(_showFwdTab) _tabDefs.push(['fwd','ส่งมาถึงฉัน']);
+  _tabDefs.push(['pending','อยู่ระหว่างดำเนินการ'],['awaiting_submit','รออัพเข้าระบบ'],['completed','เสร็จสิ้น']);
+  _tabDefs.forEach(function(x){
     var cnt=tc[x[0]]||0;
-    var chipMod=(x[0]==='action'&&cnt>0)?' tab-count-action':(cnt===0?' tab-count-zero':'');
-    html.push('<div class="ptab'+(x[0]==='all'?' on':'')+'" data-action="setDT" data-tab="'+x[0]+'">'+x[1]+'<span class="tab-count'+chipMod+'">'+cnt+'</span></div>')
+    var chipMod=(x[0]==='action'&&cnt>0)?' tab-count-action'
+      :(x[0]==='fwd'&&_pendingFwd>0)?' tab-count-action'
+      :(x[0]==='awaiting_submit'&&cnt>0)?' tab-count-action'
+      :(cnt===0?' tab-count-zero':'');
+    html.push('<div class="ptab'+(x[0]===DTAB?' on':'')+'" data-action="setDT" data-tab="'+x[0]+'">'+x[1]+'<span class="tab-count'+chipMod+'">'+cnt+'</span></div>')
   });
   html.push('</div>');
+
   // แสดง banner แจ้งเตือนถ้ามีงานรอออกเลข
   if(_canNumCount>0){
     html.push('<div class="al al-wa mb-3" style="cursor:pointer" data-action="setDT" data-tab="action">'+
       '<span class="al-icon">'+svg('pen',14)+'</span><span><strong>'+_canNumCount+'</strong> เอกสารรอให้คุณออกเลขที่หนังสือ — <u>คลิกเพื่อดู</u></span></div>');
   }
-  html.push('<div class="card mb-0" id="dtbl">'+rDocTbl(_docsForMain)+'</div>');
+  html.push('<div class="card mb-0" id="dtbl">'+rDocTbl(_initialDocs)+'</div>');
   if(_paginated&&_DOC_TOTAL!=null&&_DOC_TOTAL>DOC_LIST_LIMIT){
     var _from=_DOC_PAGE*DOC_LIST_LIMIT+1;
     var _to=Math.min((_DOC_PAGE+1)*DOC_LIST_LIMIT,_DOC_TOTAL);
@@ -136,6 +144,20 @@ async function vDocs(){
     html.push('<div class="al al-wa mt-3"><span class="al-icon">'+svg('info',13)+'</span><span>แสดง 500 รายการล่าสุด — ใช้ช่องค้นหาหรือตัวกรองเพื่อแคบผลลัพธ์</span></div>');
   }
   return html.join('')
+}
+
+/* ── ตัวกรองแท็บ "ต้องดำเนินการ" — ใช้ร่วมกันทั้งตอน render ครั้งแรกและตอนสลับแท็บ กันตรรกะเพี้ยนสองที่ ── */
+function _actionFilterDocs(q){
+  q=q||'';
+  return ADOCS.filter(function(d){
+    var _isMyTask=MSTEPS.indexOf(d.id)!==-1;
+    var _isMyRej=d.status==='rejected'&&d.created_by===CU.id;
+    var _isMyNum=d.status==='numbering'&&(d.created_by===CU.id||CU.role_code==='ROLE-SYS'||CU.role_code==='ROLE-STF');
+    var _isAwait=d.status==='awaiting_submit'&&['ROLE-STF','ROLE-SYS','ROLE-DEV'].includes(CU.role_code);
+    if(!(_isMyTask||_isMyRej||_isMyNum||_isAwait)) return false;
+    if(_DTYPE_FILTER&&d.doc_type!==_DTYPE_FILTER) return false;
+    return _matchQ(d,q);
+  });
 }
 
 function setDT(t){
@@ -162,32 +184,41 @@ function _matchQ(d,q){
 function fDocs(){
   var q=(($e('dsrch')||{value:''}).value||'').toLowerCase();
 
-  /* [UX] tab 'action' — รวม mine + fwd ที่รอตัดสินใจ + numbering ที่ทำได้
-     ส่วน fwd ที่ pending decision แสดงใน rFwdTbl ด้านล่าง main table */
+  /* tab 'action' — งาน workflow + ออกเลข (ไม่รวมเอกสารส่งมาถึง — ดูแท็บ fwd) */
   if(DTAB==='action'){
-    var _actionDocs=ADOCS.filter(function(d){
-      var _isMyTask=MSTEPS.indexOf(d.id)!==-1;
-      var _isMyRej=d.status==='rejected'&&d.created_by===CU.id;
-      var _isMyNum=d.status==='numbering'&&(d.created_by===CU.id||CU.role_code==='ROLE-SYS'||CU.role_code==='ROLE-STF');
-      var _isFwd=d.forwarded_to_id===CU.id&&d.status==='completed'&&!_FWD_ACT[d.id];
-      if(!(_isMyTask||_isMyRej||_isMyNum||_isFwd)) return false;
+    var _actionDocs=_actionFilterDocs(q);
+    _curFilteredDocs=_actionDocs;
+    var w=$e('dtbl'); if(!w) return;
+    w.innerHTML=rDocTbl(_actionDocs);
+    return;
+  }
+
+  /* tab 'fwd' — เอกสารที่ส่งมาถึงเจ้าหน้าที่ (completed + forwarded_to_id = ฉัน) */
+  if(DTAB==='fwd'){
+    var _fwdDocs=ADOCS.filter(function(d){
+      if(!_isFwdInboxForMe(d)) return false;
       if(_DTYPE_FILTER&&d.doc_type!==_DTYPE_FILTER) return false;
       return _matchQ(d,q);
     });
-    var _fwdOnly=_actionDocs.filter(function(d){return d.forwarded_to_id===CU.id&&d.status==='completed'&&!_FWD_ACT[d.id]});
-    var _mainOnly=_actionDocs.filter(function(d){return _fwdOnly.indexOf(d)===-1});
-    _curFilteredDocs=_actionDocs;
-    var w=$e('dtbl'); if(!w) return;
-    var html2=(_mainOnly.length||!_fwdOnly.length)?rDocTbl(_mainOnly):'';
-    if(_fwdOnly.length) html2+='<div class="px-4 pt-4 pb-1 text-[11px] font-bold tracking-wide text-[#a89e99] uppercase">เอกสารที่ส่งมาให้คุณ</div>'+rFwdTbl(_fwdOnly);
-    w.innerHTML=html2;
+    var _fwdPending=_fwdDocs.filter(function(d){return !_FWD_ACT[d.id]});
+    var _fwdDone=_fwdDocs.filter(function(d){return _FWD_ACT[d.id]==='accepted'});
+    _curFilteredDocs=_fwdDocs;
+    var w2=$e('dtbl'); if(!w2) return;
+    var html3='';
+    if(_fwdPending.length) html3+=rFwdTbl(_fwdPending);
+    if(_fwdDone.length){
+      if(_fwdPending.length) html3+='<div class="px-4 pt-4 pb-1 text-[11px] font-bold tracking-wide text-[#a89e99] uppercase">รับแล้ว</div>';
+      html3+=rDocTbl(_fwdDone);
+    }
+    if(!html3) html3='<div style="padding:64px 20px;display:flex;flex-direction:column;align-items:center;gap:10px"><div style="opacity:.3;color:#a89e99">'+svg('inbox',40)+'</div><div style="font-size:14px;font-weight:500;color:#a89e99">ไม่มีเอกสารที่ส่งมาถึง</div></div>';
+    w2.innerHTML=html3;
     return;
   }
 
   var f=ADOCS.filter(function(d){
     if(d.forwarded_to_id===CU.id&&d.created_by!==CU.id&&_FWD_ACT[d.id]!=='accepted') return false;
     var matchTab=DTAB==='all'||(d.status===DTAB);
-    var matchProj=!_PROJ_FILTER||(d.doc_type==='outgoing'&&d.description===_PROJ_FILTER);
+    var matchProj=!_PROJ_FILTER||d.project_name===_PROJ_FILTER;
     var matchType=!_DTYPE_FILTER||d.doc_type===_DTYPE_FILTER;
     return matchTab&&matchProj&&matchType&&_matchQ(d,q);
   });
@@ -195,7 +226,7 @@ function fDocs(){
   var w=$e('dtbl'); if(w)w.innerHTML=rDocTbl(f)
 }
 
-/* ── ตารางเอกสาร — Registry Ledger style ── */
+/* ── ตารางเอกสาร — ledger กระชับ (meta ชิดขวา ไม่ยืดช่องว่าง) ── */
 function rDocTbl(docs){
   if(!docs.length) return '<div style="padding:64px 20px;display:flex;flex-direction:column;align-items:center;gap:10px"><div style="opacity:.3;color:#a89e99">'+svg('srch',40)+'</div><div style="font-size:14px;font-weight:500;color:#a89e99">ไม่พบเอกสาร</div></div>';
   var _todayMs=new Date().setHours(0,0,0,0);
@@ -208,165 +239,129 @@ function rDocTbl(docs){
     var pg=Math.floor(idx/LIMIT);
     var _isMyTask=MSTEPS.indexOf(d.id)!==-1;
     var _isOverdue=d.due_date&&d.due_date<_todayStr&&d.status!=='completed';
-    var _rowBg=_isMyTask?'#FFFBF8':_isOverdue?'#FFF9F9':'';
+    var rowCls='doc-ledger-row'+(_isMyTask?' is-mine':'')+(_isOverdue?' is-overdue':'');
 
-    var _dueHtml='<span style="color:#EBEBEB;font-size:11px">—</span>';
-    if(d.due_date){
+    var dueCls='doc-ledger-due is-empty',dueTxt='—';
+    if(d.due_date&&d.status!=='completed'){
       var _days=Math.ceil((new Date(d.due_date+'T00:00:00')-_todayMs)/86400000);
-      if(_isOverdue)
-        _dueHtml='<span style="color:#DC2626;font-size:11px;font-weight:700">เกิน '+Math.abs(_days)+' วัน</span>';
-      else if(_days===0)
-        _dueHtml='<span style="color:#EA580C;font-size:11px;font-weight:700">วันนี้</span>';
-      else if(_days<=3)
-        _dueHtml='<span style="color:#D97706;font-size:11px;font-weight:600">'+_days+' วัน</span>';
-      else
-        _dueHtml='<span style="color:#a89e99;font-size:11px">'+_days+' วัน</span>';
+      if(_isOverdue){dueCls='doc-ledger-due is-late';dueTxt='เกิน '+Math.abs(_days)+' วัน'}
+      else if(_days===0){dueCls='doc-ledger-due is-today';dueTxt='วันนี้'}
+      else if(_days<=3){dueCls='doc-ledger-due is-soon';dueTxt=_days+' วัน'}
+      else{dueCls='doc-ledger-due is-ok';dueTxt=_days+' วัน'}
     }
 
-    var _whoHtml=d.status==='pending'&&_ACTIVE_STEPS[d.id]
-      ?'<div style="font-size:10px;color:#a89e99;margin-top:3px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">รอ: '+esc(_ACTIVE_STEPS[d.id])+'</div>':'';
+    var who=d.status==='pending'&&_ACTIVE_STEPS[d.id]
+      ?'<div class="doc-ledger-who tip" data-tip="'+esc(_ACTIVE_STEPS[d.id])+'">รอ: '+esc(_ACTIVE_STEPS[d.id])+'</div>':'';
+    var proj=d.project_name
+      ?'<div class="doc-ledger-sub">'+esc(d.project_name)+'</div>':'';
+    var canEdit=CAN.ed(CU.role_code)&&(d.status==='draft'||(d.status==='rejected'&&d.created_by===CU.id));
 
-    var _projHtml=d.doc_type==='outgoing'&&d.description
-      ?'<div style="font-size:10px;color:#a89e99;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(d.description)+'</div>':'';
-
-    return '<tr data-pg="'+pg+'" style="'+(pg>0?'display:none;':'')+'background:'+(_rowBg||'transparent')+';cursor:pointer" '+
-      'data-action="nav" data-view="det" data-id="'+d.id+'" '+
-      'onmouseover="if(!\''+_rowBg+'\')this.style.background=\'#FDFBF9\';" '+
-      'onmouseout="this.style.background=\''+(_rowBg||'')+'\'">' +
-      '<td style="width:44px;padding:14px 6px 14px 18px;text-align:right;font-size:11px;font-family:\'IBM Plex Mono\',monospace;color:#d0cac6;font-weight:500;vertical-align:top;padding-top:16px">'+(idx+1)+'</td>'+
-      '<td style="padding:12px 16px;max-width:0">'+
-        '<div style="display:flex;align-items:center;gap:7px;margin-bottom:5px">'+
-          '<span class="mono" style="font-size:11px;background:#F5F3F0;color:#18120E;padding:2px 8px;border-radius:5px;border:1px solid rgba(0,0,0,.06);flex-shrink:0;letter-spacing:.3px">'+esc(d.doc_number||'—')+'</span>'+
+    return '<div class="'+rowCls+'" data-pg="'+pg+'" style="'+(pg>0?'display:none':'')+'" '+
+      'data-action="nav" data-view="det" data-id="'+d.id+'">'+
+      '<div class="doc-ledger-idx">'+(idx+1)+'</div>'+
+      '<div class="doc-ledger-main">'+
+        '<div class="doc-ledger-tags">'+
+          '<span class="mono">'+esc(d.doc_number||'—')+'</span>'+
           tBadge(d.doc_type)+
         '</div>'+
-        '<div style="font-size:13px;font-weight:600;color:#18120E;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(d.title)+'</div>'+
-        _projHtml+
-      '</td>'+
-      '<td style="width:148px;padding:12px 16px;vertical-align:top">'+sBadge(d.status)+_whoHtml+'</td>'+
-      '<td style="width:88px;padding:12px 16px;text-align:right;vertical-align:top">'+_dueHtml+'</td>'+
-      '<td style="width:72px;padding:12px 18px 12px 8px;text-align:right;vertical-align:top">'+
-        '<div style="display:flex;gap:5px;justify-content:flex-end">'+
-          (CAN.ed(CU.role_code)&&(d.status==='draft'||(d.status==='rejected'&&d.created_by===CU.id))
-            ?'<button class="btn btn-soft xs btn-icon" data-action="nav" data-view="edit" data-id="'+d.id+'" title="แก้ไข">'+svg('edit',13)+'</button>'
-            :'')+
-          '<button style="width:30px;height:30px;border-radius:8px;background:#F5F3F0;color:#6b6560;display:inline-flex;align-items:center;justify-content:center;border:none;cursor:pointer;flex-shrink:0" data-action="nav" data-view="det" data-id="'+d.id+'" title="ดูรายละเอียด">'+svg('eye',13)+'</button>'+
-        '</div>'+
-      '</td>'+
-    '</tr>';
-  }
-
-  var allRows=docs.map(function(d,i){return mkDocRow(d,i);}).join('');
-
-  var pgBar='';
-  if(totalPages>1){
-    var _bs='height:30px;border-radius:7px;font-size:11px;font-weight:700;border:1px solid #E8E5E2;cursor:pointer;padding:0 14px;background:#F5F3F0;';
-    pgBar='<tbody id="'+uid+'pg"><tr><td colspan="5" style="padding:10px 18px 12px;border-top:1px solid #F5F3F0">'+
-      '<div style="display:flex;align-items:center;gap:10px">'+
-        '<button id="'+uid+'prev" onclick="_docPg(\''+uid+'\', -1, '+totalPages+')" disabled '+
-        'style="'+_bs+'color:#C8C3BE" onmouseover="if(!this.disabled)this.style.background=\'#ECEAE7\'" onmouseout="if(!this.disabled)this.style.background=\'#F5F3F0\'">◂ ก่อนหน้า</button>'+
-        '<span id="'+uid+'lbl" style="font-size:11px;font-weight:600;color:#a89e99;min-width:72px;text-align:center">หน้า 1 / '+totalPages+'</span>'+
-        '<button id="'+uid+'next" onclick="_docPg(\''+uid+'\', 1, '+totalPages+')" '+
-        'style="'+_bs+'color:#18120E" onmouseover="if(!this.disabled)this.style.background=\'#ECEAE7\'" onmouseout="if(!this.disabled)this.style.background=\'#F5F3F0\'">ถัดไป ▸</button>'+
+        '<div class="doc-ledger-title tip" data-tip="'+esc(d.title)+'">'+esc(d.title)+'</div>'+
+        proj+
       '</div>'+
-    '</td></tr></tbody>';
+      '<div class="doc-ledger-side">'+
+        '<div class="doc-ledger-status">'+sBadge(d.status)+who+'</div>'+
+        '<div class="'+dueCls+'">'+dueTxt+'</div>'+
+        '<div class="doc-ledger-acts doc-row-acts">'+
+          (canEdit?'<button type="button" class="doc-row-act is-edit" data-action="nav" data-view="edit" data-id="'+d.id+'" title="แก้ไข" aria-label="แก้ไข">'+svg('edit',15)+'</button>':'')+
+          '<button type="button" class="doc-row-act is-view" data-action="nav" data-view="det" data-id="'+d.id+'" title="ดูรายละเอียด" aria-label="ดูรายละเอียด">'+svg('eye',15)+'</button>'+
+        '</div>'+
+      '</div>'+
+    '</div>';
   }
 
-  return '<div class="tbl-wrap">'+
-    '<table id="'+uid+'" data-pg="0" style="table-layout:fixed;width:100%">'+
-      '<thead><tr>'+
-        '<th style="width:44px;padding:10px 6px 10px 18px;text-align:right">#</th>'+
-        '<th style="padding:10px 16px">เลขที่ / ชื่อเรื่อง</th>'+
-        '<th style="width:148px;padding:10px 16px">สถานะ</th>'+
-        '<th style="width:88px;padding:10px 16px;text-align:right">กำหนด</th>'+
-        '<th style="width:72px;padding:10px 18px 10px 8px"></th>'+
-      '</tr></thead>'+
-      '<tbody>'+allRows+'</tbody>'+
-      pgBar+
-    '</table>'+
+  var rows=docs.map(function(d,i){return mkDocRow(d,i)}).join('');
+  var foot='';
+  if(totalPages>1){
+    foot='<div class="doc-ledger-foot" id="'+uid+'pg">'+
+      '<button type="button" class="doc-pg-btn" id="'+uid+'prev" onclick="_docPg(\''+uid+'\',-1,'+totalPages+')" disabled>ก่อนหน้า</button>'+
+      '<span class="doc-pg-lbl" id="'+uid+'lbl">หน้า 1 / '+totalPages+'</span>'+
+      '<button type="button" class="doc-pg-btn" id="'+uid+'next" onclick="_docPg(\''+uid+'\',1,'+totalPages+')">ถัดไป</button>'+
+    '</div>';
+  }
+
+  return '<div class="doc-ledger" id="'+uid+'" data-pg="0">'+
+    '<div class="doc-ledger-head">'+
+      '<span class="doc-ledger-idx">#</span>'+
+      '<span>เลขที่ / ชื่อเรื่อง</span>'+
+      '<div class="doc-ledger-head-side"><span>สถานะ</span><span>กำหนด</span><span></span></div>'+
+    '</div>'+
+    rows+foot+
   '</div>';
 }
 
 function _docPg(uid, delta, totalPages){
-  var tbl=document.getElementById(uid);
-  if(!tbl)return;
-  var cur=parseInt(tbl.dataset.pg||0);
+  var root=document.getElementById(uid);
+  if(!root)return;
+  var cur=parseInt(root.dataset.pg||0,10);
   var next=Math.max(0,Math.min(totalPages-1,cur+delta));
   if(next===cur)return;
-  tbl.dataset.pg=next;
-  var rows=tbl.querySelectorAll('tbody tr[data-pg]');
+  root.dataset.pg=next;
+  var rows=root.querySelectorAll('.doc-ledger-row[data-pg]');
   for(var i=0;i<rows.length;i++){
-    rows[i].style.display=parseInt(rows[i].dataset.pg)===next?'':'none';
+    rows[i].style.display=parseInt(rows[i].dataset.pg,10)===next?'':'none';
   }
   var lbl=document.getElementById(uid+'lbl');
   if(lbl)lbl.textContent='หน้า '+(next+1)+' / '+totalPages;
   var prev=document.getElementById(uid+'prev');
   var nxt=document.getElementById(uid+'next');
-  if(prev){prev.disabled=next===0;prev.style.color=next===0?'#C8C3BE':'#18120E';}
-  if(nxt){nxt.disabled=next===totalPages-1;nxt.style.color=next===totalPages-1?'#C8C3BE':'#18120E';}
+  if(prev)prev.disabled=next===0;
+  if(nxt)nxt.disabled=next===totalPages-1;
 }
 
-/* ── ตาราง "ส่งมาให้ฉัน" — ส่งต่อเอกสารรอตัดสินใจ ── */
+/* ── รายการ "ส่งมาให้ฉัน" — ส่งต่อเอกสารรอตัดสินใจ ── */
 function rFwdTbl(docs){
   if(!docs.length) return '<div style="padding:56px 20px;display:flex;flex-direction:column;align-items:center;gap:10px"><div style="opacity:.3;color:#a89e99">'+svg('inbox',40)+'</div><div style="font-size:14px;font-weight:500;color:#a89e99">ไม่มีเอกสารที่รอการตัดสินใจ</div></div>';
 
   var LIMIT=7;
   function mkFwdRow(d,idx){
-    return '<tr style="background:#F2F6FF" '+
-      'onmouseover="this.style.background=\'#E9F0FD\'" onmouseout="this.style.background=\'#F2F6FF\'">'+
-      '<td style="width:44px;padding:14px 6px 14px 18px;text-align:right;font-size:11px;font-family:\'IBM Plex Mono\',monospace;color:#b8c4e0;font-weight:500;vertical-align:top;padding-top:16px">'+(idx+1)+'</td>'+
-      '<td style="padding:12px 16px;max-width:0">'+
-        '<div style="display:flex;align-items:center;gap:7px;margin-bottom:5px">'+
-          '<span class="mono" style="font-size:11px;background:rgba(255,255,255,.85);color:#1D4ED8;padding:2px 8px;border-radius:5px;border:1px solid rgba(29,78,216,.12);flex-shrink:0;letter-spacing:.3px">'+esc(d.doc_number||'—')+'</span>'+
+    return '<div class="doc-ledger-row is-fwd" data-action="nav" data-view="det" data-id="'+d.id+'">'+
+      '<div class="doc-ledger-idx">'+(idx+1)+'</div>'+
+      '<div class="doc-ledger-main">'+
+        '<div class="doc-ledger-tags">'+
+          '<span class="mono" style="background:rgba(255,255,255,.9);color:#1D4ED8;border:1px solid rgba(29,78,216,.12)">'+esc(d.doc_number||'—')+'</span>'+
           tBadge(d.doc_type)+
         '</div>'+
-        '<div style="font-size:13px;font-weight:600;color:#18120E;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(d.title)+'</div>'+
-        '<div style="font-size:10px;color:#2563EB;margin-top:3px">ส่งมาให้คุณ · '+fd(d.forwarded_at)+'</div>'+
-      '</td>'+
-      '<td style="width:148px;padding:12px 16px;vertical-align:top">'+sBadge(d.status)+'</td>'+
-      '<td style="width:104px;padding:12px 16px;text-align:right;vertical-align:top;font-size:11px;color:#a89e99">'+fd(d.forwarded_at)+'</td>'+
-      '<td style="width:160px;padding:10px 14px;text-align:right;vertical-align:top">'+
-        '<div style="display:flex;gap:5px;justify-content:flex-end">'+
-          '<button style="width:28px;height:28px;border-radius:7px;background:#fff;color:#6b6560;display:inline-flex;align-items:center;justify-content:center;border:1px solid #EBEBEB;cursor:pointer;flex-shrink:0" data-action="nav" data-view="det" data-id="'+d.id+'" title="ดูเอกสาร">'+svg('eye',13)+'</button>'+
+        '<div class="doc-ledger-title tip" data-tip="'+esc(d.title)+'">'+esc(d.title)+'</div>'+
+        '<div class="doc-ledger-sub is-fwd">'+(_isStaffPoolFwd(d)?'ส่งเข้ากิจการทั้งหมด':'ส่งมาให้คุณ')+' · '+fd(d.forwarded_at)+'</div>'+
+      '</div>'+
+      '<div class="doc-ledger-side" style="grid-template-columns:150px auto">'+
+        '<div class="doc-ledger-status">'+sBadgeFwd(true)+'</div>'+
+        '<div class="doc-row-acts" style="gap:6px">'+
+          '<button type="button" class="doc-row-act is-view" data-action="nav" data-view="det" data-id="'+d.id+'" title="ดูเอกสาร" aria-label="ดูเอกสาร">'+svg('eye',15)+'</button>'+
           '<button class="btn btn-primary xs" data-action="acceptFwd" data-id="'+d.id+'">'+svg('ok',12)+' รับ</button>'+
           '<button class="btn btn-soft xs" style="color:#DC2626;border-color:#FECACA" data-action="showDeclineFwdModal" data-id="'+d.id+'">'+svg('x',12)+' ไม่รับ</button>'+
         '</div>'+
-      '</td>'+
-    '</tr>';
+      '</div>'+
+    '</div>';
   }
 
   var recent=docs.slice(0,LIMIT);
   var older=docs.slice(LIMIT);
-
-  var recentRows=recent.map(function(d,i){return mkFwdRow(d,i);}).join('');
-
-  var olderTbody='';
-  var toggleTbody='';
-  if(older.length){
-    var olderRows=older.map(function(d,i){return mkFwdRow(d,LIMIT+i);}).join('');
-    var uid='fwdOld'+Date.now();
-    olderTbody='<tbody id="'+uid+'" style="display:none">'+olderRows+'</tbody>';
-    toggleTbody='<tbody><tr><td colspan="5" style="padding:6px 18px 10px;border-top:1px solid #F5F3F0">'+
-      '<button data-fwd-toggle="'+uid+'" data-fwd-count="'+older.length+'" onclick="_fwdToggle(this)" '+
-      'style="font-size:11px;font-weight:600;color:#E83A00;background:none;border:none;cursor:pointer;padding:0;display:inline-flex;align-items:center;gap:5px">'+
-        '▸ ดูรายการก่อนหน้า ('+older.length+' รายการ)'+
-      '</button>'+
-    '</td></tr></tbody>';
-  }
-
-  return '<div class="tbl-wrap">'+
-    '<table style="table-layout:fixed;width:100%">'+
-      '<thead><tr>'+
-        '<th style="width:44px;padding:10px 6px 10px 18px;text-align:right">#</th>'+
-        '<th style="padding:10px 16px">เลขที่ / ชื่อเรื่อง</th>'+
-        '<th style="width:148px;padding:10px 16px">สถานะ</th>'+
-        '<th style="width:104px;padding:10px 16px;text-align:right">วันที่ส่ง</th>'+
-        '<th style="width:160px;padding:10px 14px;text-align:right">ดำเนินการ</th>'+
-      '</tr></thead>'+
-      '<tbody>'+recentRows+'</tbody>'+
-      olderTbody+
-      toggleTbody+
-    '</table>'+
+  var html='<div class="doc-ledger">'+
+    '<div class="doc-ledger-head">'+
+      '<span class="doc-ledger-idx">#</span>'+
+      '<span>เลขที่ / ชื่อเรื่อง</span>'+
+      '<div class="doc-ledger-head-side" style="grid-template-columns:150px auto"><span>สถานะ</span><span style="text-align:right">การดำเนินการ</span></div>'+
+    '</div>'+
+    recent.map(mkFwdRow).join('')+
   '</div>';
+
+  if(older.length){
+    html+='<details style="border-top:1px solid #F0EEEB">'+
+      '<summary style="padding:12px 18px;font-size:12px;font-weight:600;color:#6B6560;cursor:pointer;list-style:none">แสดงอีก '+older.length+' รายการ</summary>'+
+      '<div class="doc-ledger">'+older.map(function(d,i){return mkFwdRow(d,i+LIMIT)}).join('')+'</div>'+
+    '</details>';
+  }
+  return html;
 }
 
 function _fwdToggle(btn){

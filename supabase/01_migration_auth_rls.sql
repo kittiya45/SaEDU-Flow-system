@@ -3,9 +3,9 @@
 -- Run this entire file in: Supabase Dashboard → SQL Editor → New query → Run
 -- Uses your own dashboard session (DB owner) — never needs the service_role key.
 -- Safe to run now: this script creates policies but does NOT enable RLS on
--- any table (see enable_rls.sql, a separate file, for that — run it later,
+-- any table (see 02_enable_rls.sql, a separate file, for that — run it later,
 -- only once accounts are backfilled & verified per Phase D of the plan).
--- The live app keeps working exactly as before until enable_rls.sql runs.
+-- The live app keeps working exactly as before until 02_enable_rls.sql runs.
 -- ============================================================================
 
 -- ── STEP 0: duplicate-email audit — MUST be empty before continuing ─────────
@@ -215,7 +215,7 @@ create policy doc_type_fields_write on public.doc_type_fields for all
   using (public.is_admin()) with check (public.is_admin());
 
 -- workflow_templates / workflow_template_steps, email_templates, app_settings:
--- SKIPPED here — see create_admin_config_tables.sql, a separate later script
+-- SKIPPED here — see 07_create_admin_config_tables.sql, a separate later script
 -- that creates these four tables (the frontend already called them —
 -- sysAdmin.js, docForm.js, notif.js, config.js — but they didn't exist, so
 -- "จัดการระบบ" → ตั้งค่าระบบ/แบบฟอร์มอีเมล/เทมเพลต workflow were non-functional
@@ -234,6 +234,6 @@ create policy doc_number_settings_all on public.doc_number_settings for all
 --
 -- Next: run the Phase D backfill (creates real Supabase Auth accounts for
 -- everyone, linked via the trigger above), verify a couple of test logins
--- work end-to-end, THEN run enable_rls.sql together with deploying the new
+-- work end-to-end, THEN run 02_enable_rls.sql together with deploying the new
 -- frontend in the same window. Flipping RLS on without the new frontend
 -- deployed (or vice versa) will show an empty app to real users.

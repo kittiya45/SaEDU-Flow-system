@@ -1,5 +1,5 @@
 -- ════════════════════════════════════════════════════════════════════════
--- check_rls_status.sql — ตรวจสอบว่า Row Level Security เปิดจริงทุกตาราง
+-- 30_check_rls_status.sql — ตรวจสอบว่า Row Level Security เปิดจริงทุกตาราง
 --
 -- anon key ฝังอยู่ใน config.js (เปิดเผยต่อทุกคนที่เข้าหน้าเว็บ) ความปลอดภัย
 -- ทั้งระบบจึงพึ่ง RLS ล้วน ถ้าตารางใด RLS ไม่ได้เปิด = ใครก็อ่าน/เขียนตารางนั้น
@@ -9,7 +9,7 @@
 -- ════════════════════════════════════════════════════════════════════════
 
 -- ── 1. ตารางไหนใน public ที่ RLS ยัง"ปิด" อยู่ (ต้องไม่มีแถวคืนมา) ──
--- ถ้ามีแถวคืนมา = ตารางนั้นเปิดโล่ง ต้องรีบรัน supabase/enable_rls.sql
+-- ถ้ามีแถวคืนมา = ตารางนั้นเปิดโล่ง ต้องรีบรัน supabase/02_enable_rls.sql
 SELECT n.nspname AS schema, c.relname AS table_name, c.relrowsecurity AS rls_enabled
 FROM pg_class c
 JOIN pg_namespace n ON n.oid = c.relnamespace

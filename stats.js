@@ -6,17 +6,18 @@ async function vStat(){
   var _since=new Date();
   _since.setMonth(_since.getMonth()-24);
   var _sinceStr=_since.toISOString().substring(0,10);
-  var docs=await dg('documents','?created_at=gte.'+_sinceStr+'&select=id,status,doc_type,urgency,created_at,updated_at,due_date,title,doc_number,description,from_department&order=updated_at.desc,created_at.desc&limit=5000');
+  var docs=await dg('documents','?created_at=gte.'+_sinceStr+'&select=id,status,doc_type,urgency,created_at,updated_at,due_date,title,doc_number,description,project_name,from_department&order=updated_at.desc,created_at.desc&limit=5000');
   var today=new Date().toISOString().substring(0,10);
   var total=docs.length;
-  var byStatus={draft:0,pending:0,completed:0,rejected:0,signed:0};
-  var byType={incoming:0,outgoing:0,certificate:0,memo:0};
-  var byUrg={normal:0,urgent:0,very_urgent:0};
+  var byStatus={draft:0,pending:0,awaiting_submit:0,completed:0,rejected:0,signed:0,numbering:0};
+  var byType={incoming:0,outgoing:0};
+  var byUrg={normal:0,urgent:0};
   var overdueCnt=0;
   docs.forEach(function(d){
     if(byStatus[d.status]!==undefined) byStatus[d.status]++;
     if(byType[d.doc_type]!==undefined) byType[d.doc_type]++;
-    if(byUrg[d.urgency]!==undefined) byUrg[d.urgency]++;
+    if(d.urgency==='very_urgent') byUrg.urgent++;
+    else if(byUrg[d.urgency]!==undefined) byUrg[d.urgency]++;
     if(d.due_date&&d.due_date<today&&(d.status==='pending'||d.status==='draft')) overdueCnt++;
   });
 
@@ -72,7 +73,7 @@ async function vStat(){
      ico:'doc_f', grad:'linear-gradient(135deg,#1D4ED8 0%,#3B82F6 100%)', shadow:'rgba(29,78,216,.30)'},
     {label:'รอลงนาม', val:byStatus.pending, sub:'รอการอนุมัติ',
      ico:'pen_f', grad:'linear-gradient(135deg,#D97706 0%,#F59E0B 100%)', shadow:'rgba(217,119,6,.30)'},
-    {label:'เสร็จสิ้น', val:byStatus.completed, sub:'ผ่านทุกขั้นตอน',
+    {label:'เสร็จสมบูรณ์', val:byStatus.completed, sub:'ดำเนินการครบแล้ว',
      ico:'check_f', grad:'linear-gradient(135deg,#15803D 0%,#22C55E 100%)', shadow:'rgba(21,128,61,.30)'},
     {label:'เลยกำหนด', val:overdueCnt, sub:'ต้องเร่งดำเนินการ',
      ico:'warn_f', grad:'linear-gradient(135deg,#DC2626 0%,#EF4444 100%)', shadow:'rgba(220,38,38,.30)'}
@@ -105,10 +106,8 @@ async function vStat(){
 
   /* ── ประเภทเอกสาร ── */
   var typeRows=[
-    {l:'หนังสือขาเข้า', v:byType.incoming,    c:'#E83A00'},
-    {l:'หนังสือขาออก',  v:byType.outgoing,    c:'#F59E0B'},
-    {l:'หนังสือรับรอง', v:byType.certificate, c:'#3B82F6'},
-    {l:'บันทึกข้อความ', v:byType.memo,        c:'#22C55E'}
+    {l:'หนังสือขาเข้า', v:byType.incoming, c:'#E83A00'},
+    {l:'หนังสือขาออก',  v:byType.outgoing, c:'#F59E0B'}
   ];
   var maxT=Math.max.apply(null,typeRows.map(function(r){return r.v}))||1;
   html.push(
@@ -133,9 +132,8 @@ async function vStat(){
 
   /* ── ระดับความเร่งด่วน ── */
   var urgRows=[
-    {l:'ปกติ',    v:byUrg.normal,      dot:'#15803D'},
-    {l:'เร่งด่วน', v:byUrg.urgent,     dot:'#B45309'},
-    {l:'ด่วนมาก', v:byUrg.very_urgent, dot:'#DC2626'}
+    {l:'ปกติ',    v:byUrg.normal, dot:'#15803D'},
+    {l:'เร่งด่วน', v:byUrg.urgent, dot:'#B45309'}
   ];
   html.push(
     '<div style="'+CS+'">'+
@@ -248,7 +246,7 @@ if(!recentLimited.length){
         /* preview */
         (
           hasFls
-          ? '<button data-action="openViewer" data-path="'+esc(firstFile.path)+'" data-name="'+esc(firstFile.name)+'" title="พรีวิวเอกสาร" '+
+          ? '<button data-action="openViewer" data-path="'+esc(firstFile.path)+'" data-name="'+esc(firstFile.name)+'" data-ext="'+esc((firstFile.name||'').split('.').pop().toLowerCase())+'" title="พรีวิวเอกสาร" '+
               'style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:8px;border:1px solid #EBEBEB;background:#F5F3F0;color:#6b6560;cursor:pointer">'+
                 svg('eye',12)+
             '</button>'
@@ -282,7 +280,7 @@ html.push('</div>');
   /* ── ภาพรวมสถานะ ── */
   var statusRows=[
     {l:'รอลงนาม',     v:byStatus.pending,   c:'#F59E0B'},
-    {l:'เสร็จสิ้น',   v:byStatus.completed, c:'#22C55E'},
+    {l:'เสร็จสมบูรณ์', v:byStatus.completed, c:'#22C55E'},
     {l:'ลงนามแล้ว',   v:byStatus.signed,    c:'#3B82F6'},
     {l:'ส่งคืนแก้ไข', v:byStatus.rejected,  c:'#EF4444'},
     {l:'ร่างเอกสาร',  v:byStatus.draft,     c:'#C0BAB4'}
@@ -316,8 +314,8 @@ html.push('</div>');
 
   html.push('</div>'); /* row 3 */
 
-  /* ══ ROW 4 — สรุปโครงการประจำปี (เฉพาะ ROLE-STF, ROLE-ADV, ROLE-SYS) ══ */
-  if(!CU||!['ROLE-STF','ROLE-ADV','ROLE-SYS'].includes(CU.role_code)) return html.join('');
+  /* ══ ROW 4 — สรุปโครงการประจำปี (เฉพาะ ROLE-STF, ROLE-SYS) ══ */
+  if(!CU||!['ROLE-STF','ROLE-SYS'].includes(CU.role_code)) return html.join('');
 
   var _nowCE=new Date().getFullYear();
   var _selYear=window._statYear||_nowCE;
@@ -325,15 +323,15 @@ html.push('</div>');
   var _yearStart=_selYear+'-01-01T00:00:00';
   var _yearEnd=(_selYear+1)+'-01-01T00:00:00';
 
-  // กรองเฉพาะ outgoing docs ในปีที่เลือก
+  // รวมเอกสารทั้งขาเข้า+ขาออกที่มีชื่อโครงการ (project_name) ในปีที่เลือก
   var _yrDocs=docs.filter(function(d){
-    return d.doc_type==='outgoing'&&(d.created_at||'')>=_yearStart&&(d.created_at||'')<_yearEnd;
+    return d.project_name&&(d.created_at||'')>=_yearStart&&(d.created_at||'')<_yearEnd;
   });
 
-  // จัดกลุ่มตาม description (ชื่อโครงการ)
+  // จัดกลุ่มตาม project_name (ชื่อโครงการ)
   var _projMap={};
   _yrDocs.forEach(function(d){
-    var key=(d.description||'').trim()||'(ไม่ระบุโครงการ)';
+    var key=(d.project_name||'').trim()||'(ไม่ระบุโครงการ)';
     if(!_projMap[key]) _projMap[key]={name:key,docs:[]};
     _projMap[key].docs.push(d);
   });
@@ -354,7 +352,7 @@ html.push('</div>');
   html.push('<div style="'+CS+'">');
   html.push(cardHead(
     'สรุปโครงการประจำปี',
-    'หนังสือขาออกทั้งหมด ปีพ.ศ. '+_selThYear,
+    'เอกสารที่มีข้อมูลโครงการ (ขาเข้า+ขาออก) ปีพ.ศ. '+_selThYear,
     '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'+
       (_yrDocs.length>0?'<span style="font-size:11px;color:#a89e99">'+_yrDocs.length+' เอกสาร · '+_projects.length+' โครงการ</span>':'')+
       '<select onchange="window._statYear=+this.value;nav(\'stat\')" style="height:28px;padding:0 8px 0 10px;border-radius:8px;border:1.5px solid #EBEBEB;background:#fff;font-size:12px;cursor:pointer;color:#18120E;outline:none">'+_yearOpts+'</select>'+
@@ -424,7 +422,7 @@ async function _downloadStatProjZip(selYear){
     await _loadJSZip();
     var yearStart=selYear+'-01-01T00:00:00';
     var yearEnd=(selYear+1)+'-01-01T00:00:00';
-    var raw=await dg('documents','?doc_type=eq.outgoing&status=eq.completed&select=id,title,doc_number,description,created_at&order=created_at.desc');
+    var raw=await dg('documents','?status=eq.completed&project_name=not.is.null&select=id,title,doc_number,project_name,created_at&order=created_at.desc');
     var yearDocs=(Array.isArray(raw)?raw:[]).filter(function(d){
       return (d.created_at||'')>=yearStart&&(d.created_at||'')<yearEnd;
     });
@@ -435,7 +433,7 @@ async function _downloadStatProjZip(selYear){
 
     for(var i=0;i<yearDocs.length;i++){
       var doc=yearDocs[i];
-      var proj=(doc.description||'ไม่ระบุโครงการ').replace(/[\/\\:*?"<>|]/g,'_').trim()||'ไม่ระบุโครงการ';
+      var proj=(doc.project_name||'ไม่ระบุโครงการ').replace(/[\/\\:*?"<>|]/g,'_').trim()||'ไม่ระบุโครงการ';
       var num=(doc.doc_number||'doc').replace(/[\/\\:*?"<>|]/g,'-').trim();
 
       var files=await dg('document_files','?document_id=eq.'+doc.id+'&order=version.desc&limit=20');

@@ -376,8 +376,7 @@ function tmplFileClear(){
 }
 
 function tmplPreview(urlOrPath, name, ext){
-  var displayName=name+(ext&&!name.toLowerCase().endsWith('.'+ext.toLowerCase())?'.'+ext:'');
-  resolveFileUrl(urlOrPath).then(function(u){openViewer(u,displayName)}).catch(function(){openViewer(urlOrPath,displayName)});
+  previewFile(urlOrPath, name, ext);
 }
 
 async function doTmplUpload(){

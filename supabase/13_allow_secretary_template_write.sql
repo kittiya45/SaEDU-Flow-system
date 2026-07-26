@@ -5,7 +5,7 @@
 --
 -- Bug fixed: templates.js gates the "อัปโหลดแบบฟอร์ม"/edit/delete buttons with
 --   CU.role_code in ('ROLE-SYS','ROLE-STF') OR CU.position_code==='GNK-SEC'
--- but the DB-side form_templates_write policy (migration_auth_rls.sql) only
+-- but the DB-side form_templates_write policy (01_migration_auth_rls.sql) only
 -- checked is_admin(), which is role_code in ('ROLE-SYS','ROLE-STF') — it never
 -- included the GNK-SEC carve-out. A เลขานุการ with the default ROLE-CRT role
 -- could see and click the buttons, but every write was silently rejected by

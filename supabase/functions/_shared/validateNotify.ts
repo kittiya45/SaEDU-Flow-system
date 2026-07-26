@@ -25,7 +25,7 @@ export function isSelfTest(caller: Caller, to: string | string[]): boolean {
   return emailMatchesRecipient(to, caller.email, caller.contact_email);
 }
 
-/** ตรวจสิทธิ์ส่งแจ้งเตือน — สอดคล้อง can_log_notification() ใน scale_hardening.sql */
+/** ตรวจสิทธิ์ส่งแจ้งเตือน — สอดคล้อง can_log_notification() ใน 22_scale_hardening.sql */
 export async function canNotifyDocument(
   admin: SupabaseClient,
   senderId: string,
