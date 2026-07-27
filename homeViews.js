@@ -651,7 +651,8 @@ async function _downloadProjZip(){
 /* ─── MY TASKS ─── */
 async function vTodo(){
   var _numAll=await dg('documents','?status=eq.numbering&select=id,title,doc_type,doc_number,from_department,created_by,updated_at,forwarded_at,created_at');
-  var _awaitAll=await dg('documents','?status=eq.awaiting_submit&select=id,title,doc_type,doc_number,from_department,created_by,updated_at,forwarded_at,created_at');
+  // คิว "รออัพเข้าระบบ" = จนท.รับแล้วรอยื่น + ส่งถึง จนท.แล้วแต่ยังไม่มีใครกดรับ (ตรงกับ _isAwaitQueueDoc ใน docList.js)
+  var _awaitAll=await dg('documents','?or=(status.eq.awaiting_submit,and(status.eq.completed,or(forwarded_to_staff.is.true,forwarded_to_id.not.is.null)))&select=id,title,doc_type,doc_number,from_department,created_by,updated_at,forwarded_at,created_at,status,accepted_by,forwarded_to_staff,forwarded_to_id');
   var mySteps=await dg('workflow_steps','?assigned_to=eq.'+CU.id+'&status=eq.active&order=created_at');
   var numDocs=(Array.isArray(_numAll)?_numAll:[]).filter(function(d){
     return d.created_by===CU.id||CU.role_code==='ROLE-SYS'||CU.role_code==='ROLE-STF';
@@ -733,6 +734,10 @@ async function vTodo(){
             '<div class="list-row-title">'+esc(d.title)+'</div>'+
             '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">'+
               tBadge(d.doc_type)+
+              // คิวรออัพเข้าระบบมี 2 ระยะ — แยกให้เห็นว่าต้องกดรับก่อน หรือรับแล้วรอยื่น
+              (d.status==='completed'&&(d.forwarded_to_staff||d.forwarded_to_id)
+                ?'<span style="font-size:11px;font-weight:700;color:#D97706">รอกดรับเอกสาร</span>'
+                :d.status==='awaiting_submit'?'<span style="font-size:11px;font-weight:700;color:#0F766E">รับแล้ว รอยื่นในระบบ</span>':'')+
               (d.from_department?'<span style="font-size:11px;color:var(--text-3)">'+esc(d.from_department)+'</span>':'')+
             '</div>'+
           '</div>'+

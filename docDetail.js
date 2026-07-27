@@ -108,6 +108,7 @@ async function vDet(docId){
   if(doc.created_by&&_aIds.indexOf(doc.created_by)===-1) _aIds.push(doc.created_by);
   if(doc.forwarded_to_id&&_aIds.indexOf(doc.forwarded_to_id)===-1) _aIds.push(doc.forwarded_to_id);
   if(doc.final_recipient_id&&_aIds.indexOf(doc.final_recipient_id)===-1) _aIds.push(doc.final_recipient_id);
+  if(doc.accepted_by&&_aIds.indexOf(doc.accepted_by)===-1) _aIds.push(doc.accepted_by);
   var _aMap={};
   if(_aIds.length){
     var _aus=await dg('user_directory','?id=in.('+_aIds.map(safeId).join(',')+')'+'&select=id,full_name,contact_email,email');
@@ -126,7 +127,9 @@ async function vDet(docId){
   // ตรวจสอบว่ามีการส่งคืนแก้ไขในอดีตหรือไม่
   var hasRejectedHistory=wf.some(function(s){return s.status==='rejected'});
 
-  var _fwdAcceptedEarly=hist.some(function(h){return h.action&&h.action.indexOf('เจ้าหน้าที่รับเอกสาร')>=0});
+  var _fwdAcceptedEarly=hist.some(function(h){
+    return h.action&&h.action.indexOf('เจ้าหน้าที่รับเอกสาร')>=0&&acceptIsCurrent(h.performed_at,doc.forwarded_at);
+  });
   var _fwdPendingEarly=doc.status==='completed'&&!_fwdAcceptedEarly&&(!!doc.forwarded_to_id||!!doc.forwarded_to_staff);
   var html=['<div class="detail-toolbar">'];
   html.push('<button class="btn-back" data-action="nav" data-view="docs">'+svg('back',15)+' กลับรายการ</button>');
@@ -134,7 +137,15 @@ async function vDet(docId){
   // Status banners — เก็บแยกไว้ก่อน แสดงเป็นแถบเต็มความกว้างใต้ toolbar (ไม่ปนกับปุ่ม action)
   var banners=[];
   if(doc.status==='completed'&&_fwdPendingEarly) banners.push('<div class="al al-wa"><span class="al-icon">'+svg('inbox',13)+'</span><span><strong>'+FWD_STATUS_LABEL+'</strong> — รอเจ้าหน้าที่รับเอกสาร</span></div>');
-  else if(doc.status==='awaiting_submit') banners.push('<div class="al al-wa"><span class="al-icon">'+svg('clock',13)+'</span><span><strong>รอเจ้าหน้าที่ยื่นในระบบ</strong> — หลังยื่นในระบบมหาวิทยาลัยแล้ว ให้อัปโหลดฉบับประทับกลับมา สถานะจะเป็นเสร็จสมบูรณ์</span></div>');
+  else if(doc.status==='awaiting_submit'){
+    // ระบุตัวคนที่ถืออยู่ — เดิม forward_accept ล้างผู้รับทิ้ง ทำให้ไม่รู้ว่าเอกสารอยู่กับใคร
+    var _accUser=doc.accepted_by?_aMap[doc.accepted_by]:null;
+    var _accHead=_accUser
+      ?'<strong>เจ้าหน้าที่รับเอกสารแล้ว</strong> — '+esc(_accUser.full_name)+(doc.accepted_at?' รับเมื่อ '+fdTime(doc.accepted_at):'')
+      :'<strong>เจ้าหน้าที่รับเอกสารแล้ว</strong>';
+    banners.push('<div class="al al-ok"><span class="al-icon">'+svg('ok',13)+'</span><span>'+_accHead+
+      '<div style="margin-top:3px">ขณะนี้อยู่ระหว่าง<strong>รอเจ้าหน้าที่ยื่นในระบบมหาวิทยาลัย</strong> — เมื่อยื่นเสร็จและอัปโหลดฉบับประทับกลับมา สถานะจะเป็นเสร็จสมบูรณ์</div></span></div>');
+  }
   else if(doc.status==='completed') banners.push('<div class="al al-ok"><span class="al-icon">'+svg('ok',13)+'</span><span><strong>เสร็จสมบูรณ์</strong> — เอกสารดำเนินการครบแล้ว</span></div>');
   var _canNum=doc.status==='numbering'&&(doc.created_by===CU.id||['ROLE-SYS','ROLE-STF'].includes(CU.role_code));
   if(doc.status==='numbering') banners.push('<div class="al al-wa"><span class="al-icon">'+svg('pen',13)+'</span><span>'+(_canNum?'<strong>ลายเซ็นครบทุกขั้นตอนแล้ว</strong> กดปุ่ม “ออกเลขหนังสือ” ด้านบนเพื่อกำหนดเลขที่และวันที่':'<strong>รอผู้จัดทำออกเลขที่หนังสือ</strong> เอกสารผ่านการลงนามครบแล้ว')+'</span></div>');
@@ -189,6 +200,10 @@ async function vDet(docId){
   }
   // Secondary
   if(CAN.up(CU.role_code)){
+    // แจ้งผู้จัดทำซ้ำได้ — สำหรับเอกสารที่ จนท. รับไปแล้วแต่ผู้จัดทำยังไม่เคยได้รับแจ้ง
+    if(doc.status==='awaiting_submit'&&canAcceptDoc(doc)){
+      html.push('<button class="btn btn-soft sm" data-action="notifyAccepted" data-id="'+docId+'">'+svg('bell',13)+' แจ้งผู้จัดทำ</button>');
+    }
     var _upLbl=doc.status==='awaiting_submit'?'อัปโหลดฉบับประทับ':'อัปโหลด';
     html.push('<button class="btn '+(doc.status==='awaiting_submit'?'btn-primary':'btn-soft')+' sm" data-action="detUp">'+svg('up',13)+' '+_upLbl+'</button>');
     html.push('<input type="file" id="dup" class="hidden" multiple accept=".pdf,.doc,.docx,.png,.jpg">');
@@ -207,9 +222,10 @@ async function vDet(docId){
     }
   }
   // Accept / Decline — คนที่ถูกส่งต่อ หรือ จนท.ใดก็ได้เมื่อเป็นคิวกลุ่ม
-  var _canAcceptFwd=doc.status==='completed'&&!_fwdAcceptedEarly&&(
+  // ผู้จัดทำกดรับเอกสารของตัวเองไม่ได้ (canAcceptDoc) — ต้องผ่านมือ จนท.จริงเสมอ
+  var _canAcceptFwd=doc.status==='completed'&&!_fwdAcceptedEarly&&canAcceptDoc(doc)&&(
     (doc.forwarded_to_id&&doc.forwarded_to_id===CU.id)||
-    (doc.forwarded_to_staff&&CU.role_code==='ROLE-STF')
+    (doc.forwarded_to_staff&&_canActStaffPool())
   );
   if(_canAcceptFwd){
     html.push('<button class="btn btn-success sm" data-action="acceptFwd" data-id="'+docId+'">'+svg('ok',13)+' รับเอกสาร / อนุมัติ</button>');
@@ -255,7 +271,12 @@ async function vDet(docId){
    ['กำหนดเสร็จ','<span class="detail-val-warn">'+fd(doc.due_date)+(doc.deadline_datetime?' '+new Date(doc.deadline_datetime).toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'}):'')+'</span>'],
    ['ผู้จัดทำ','<span class="detail-val">'+esc(creator.full_name)+'</span>'],
    ['ผู้รับเอกสารเสร็จสิ้น',doc.final_recipient_id&&_aMap[doc.final_recipient_id]?'<span class="detail-val">'+esc(_aMap[doc.final_recipient_id].full_name)+'</span>':'<span class="detail-val-muted">ผู้จัดทำ (ค่าเริ่มต้น)</span>']
-  ].forEach(function(r){html.push(_scell(r[0],r[1]))});
+  ].concat(
+   // เจ้าหน้าที่ที่กดรับเอกสาร — แสดงเฉพาะเมื่อรับแล้ว (awaiting_submit / completed)
+   doc.accepted_by&&_aMap[doc.accepted_by]
+     ? [['เจ้าหน้าที่ผู้รับเอกสาร','<span class="detail-val">'+esc(_aMap[doc.accepted_by].full_name)+'</span>'+(doc.accepted_at?'<div style="font-size:11px;color:#a89e99;margin-top:2px">'+fdTime(doc.accepted_at)+'</div>':'')]]
+     : []
+  ).forEach(function(r){html.push(_scell(r[0],r[1]))});
   html.push('</div>');
   // โซน 3: รายละเอียดเพิ่มเติม — ข้อความยาว แยกเป็นบล็อกอ่านง่าย line-height สูง
   var _descBoxText=doc.description?((doc.description==='เรื่องอื่น ๆ'&&doc.subject_line)?'เรื่องอื่น ๆ: '+doc.subject_line:doc.description):'';
@@ -562,10 +583,57 @@ function doAcceptFwd(docId){
 async function _doAcceptFwdConfirmed(docId){
   try{
     await acceptForwardedDoc(docId);
-    var a=$e('dal');if(a)a.innerHTML=alrtH('ok','รับเอกสารแล้ว — สถานะ: รอเจ้าหน้าที่ยื่นในระบบ');
+    try{await notifyDocAccepted(docId,CU.id,CU.full_name)}catch(ne){console.warn('Accept notify failed:',ne)}
+    var a=$e('dal');if(a)a.innerHTML=alrtH('ok','รับเอกสารแล้ว — แจ้งผู้จัดทำแล้ว · สถานะ: รอเจ้าหน้าที่ยื่นในระบบ');
     if(CV==='docs'){try{fDocs();}catch(e){nav('docs')}}
     else setTimeout(function(){nav('det',docId)},900);
   }catch(e){showAlert('เกิดข้อผิดพลาด: '+e.message,'er')}
+}
+
+/* แจ้งผู้จัดทำว่าเจ้าหน้าที่รับเอกสารแล้ว — อีเมล + LINE (ทั้งคู่ fail-open ไม่บล็อกการรับเอกสาร)
+   ใช้ทั้งตอนกดรับจริง และตอนแอดมินกด "แจ้งผู้จัดทำอีกครั้ง" กับเอกสารที่รับไปแล้ว */
+async function notifyDocAccepted(docId, staffId, staffName){
+  var doc=(await dg('documents','?id=eq.'+safeId(docId)))[0]; if(!doc||!doc.created_by) return false;
+  var cr=(await dg('user_directory','?id=eq.'+safeId(doc.created_by)+'&select=id,full_name,email,contact_email&limit=1'))[0];
+  if(!cr) return false;
+  var who=staffName||'เจ้าหน้าที่';
+  var whenStr=fdTime(doc.accepted_at||new Date().toISOString());
+  var subj=(SETT.email_prefix||'[กนค.]')+' เจ้าหน้าที่รับเอกสารแล้ว: '+(doc.title||'');
+  var bodyTxt='เรียน '+cr.full_name+', เอกสารเรื่อง "'+(doc.title||'')+'"'+(doc.doc_number?' เลขที่ '+doc.doc_number:'')+
+    ' ได้รับการรับเอกสารโดย '+who+' เมื่อ '+whenStr+
+    ' — ขณะนี้อยู่ระหว่างรอเจ้าหน้าที่ยื่นในระบบมหาวิทยาลัย เมื่อยื่นเสร็จและอัปโหลดฉบับประทับกลับมา สถานะจะเปลี่ยนเป็นเสร็จสมบูรณ์';
+  var em=cr.contact_email||cr.email||'';
+  var emailOk=!!em&&em.indexOf('@gnk.student')<0;
+  var st='skipped';
+  try{
+    if(emailOk){
+      var r=await sendEmailEdge({to:em,subject:subj,html:bodyTxt,documentId:docId,recipientUserId:cr.id});
+      st=r.ok?'sent':'failed';
+      if(r.ok&&typeof showEmailToast==='function') showEmailToast(em,subj);
+    }
+    if(emailOk) await logNotifRow({document_id:docId,recipient_id:cr.id,recipient_email:em,subject:subj,body:bodyTxt,notification_type:'accepted',status:st,sent_at:new Date().toISOString()});
+  }catch(e){console.warn('Accept email failed:',e)}
+  try{
+    var lineTxt=(SETT.email_prefix||'[กนค.]')+' ✅ เจ้าหน้าที่รับเอกสารแล้ว\n'+
+      'เรียน '+cr.full_name+'\nเรื่อง: '+(doc.title||'')+(doc.doc_number?'\nเลขที่: '+doc.doc_number:'')+
+      '\nผู้รับเอกสาร: '+who+'\nเมื่อ: '+whenStr+
+      '\nสถานะ: รอเจ้าหน้าที่ยื่นในระบบมหาวิทยาลัย\n\n'+
+      (SETT.app_url?('เข้าสู่ระบบ: '+SETT.app_url):'กรุณาเข้าสู่ระบบ SAEDU Flow เพื่อติดตามสถานะ');
+    await sendLineWithLog(docId,cr.id,em,subj,lineTxt,'accepted',null);
+  }catch(e){console.warn('Accept LINE failed:',e)}
+  return true;
+}
+
+/* ปุ่มสำหรับ จนท./แอดมิน — ส่งข้อความ "เจ้าหน้าที่รับเอกสารแล้ว" ให้ผู้จัดทำอีกครั้ง */
+async function doNotifyAccepted(docId){
+  var btn=document.querySelector('[data-action="notifyAccepted"]');
+  if(btn){btn.disabled=true;btn.innerHTML='<span class="sp"></span>'}
+  try{
+    var ok=await notifyDocAccepted(docId,CU.id,CU.full_name);
+    var a=$e('dal');
+    if(a)a.innerHTML=alrtH(ok?'ok':'wa',ok?'แจ้งผู้จัดทำแล้วว่าเจ้าหน้าที่รับเอกสารแล้ว':'ไม่พบผู้จัดทำเอกสาร — ไม่ได้ส่งแจ้งเตือน');
+  }catch(e){showAlert('ส่งแจ้งเตือนไม่สำเร็จ: '+e.message,'er')}
+  if(btn){btn.disabled=false;btn.innerHTML=svg('bell',13)+' แจ้งผู้จัดทำ'}
 }
 
 function showDeclineFwdModal(docId){
@@ -796,7 +864,8 @@ async function doAct(action,docId){
           var _pgN=pdfDoc.getPageCount();
           for(var _mi=0;_mi<_marks.length;_mi++){
             var _mk=_marks[_mi];
-            var _pg=pdfDoc.getPage(Math.min(Math.max((_mk?_mk.page:_pgN),1),_pgN)-1);
+            // ไม่มีจุดวาง (preview โหลดไม่ได้) → มุมขวาล่าง "หน้าแรก" ให้ตรงกับจุดเริ่มต้นใน docSign.js
+            var _pg=pdfDoc.getPage(Math.min(Math.max((_mk?_mk.page:1),1),_pgN)-1);
             var pw=_pg.getWidth(),ph=_pg.getHeight();
             var _w=180,_h=60,_sx=pw-220,_sy=40;
             if(_mk&&typeof _mk.xFrac==='number'){

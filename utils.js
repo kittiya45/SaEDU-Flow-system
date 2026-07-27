@@ -104,7 +104,7 @@ function sBadge(s, labelOverride){
   var cls={draft:'b-draft',pending:'b-pending',signed:'b-signed',rejected:'b-rejected',numbering:'b-numbering',awaiting_submit:'b-awaiting',completed:'b-completed'};
   var txt={draft:'ร่างเอกสาร',pending:'รอลงนาม',signed:'ลงนามแล้ว',rejected:'ส่งคืนแก้ไข',numbering:'รอออกเลขหนังสือ',awaiting_submit:'รอเจ้าหน้าที่ยื่นในระบบ',completed:'เสร็จสมบูรณ์'};
   var label=labelOverride||txt[s]||s;
-  var wrap=(labelOverride||s==='awaiting_submit')?' style="white-space:normal;line-height:1.35;text-align:left;max-width:11.5rem"':'';
+  var wrap=(labelOverride||s==='awaiting_submit')?' style="white-space:normal;line-height:1.35;text-align:left;max-width:15.5rem"':'';
   return '<span class="badge '+(cls[s]||'b-draft')+'"'+wrap+'><span class="bdot"></span>'+esc(label)+'</span>'
 }
 /* สถานะแสดงเมื่อเอกสารออกเลขแล้วถูกส่งต่อไปยัง จนท./คณะ รอรับ */
@@ -327,7 +327,24 @@ function stepDeadline(deadlineDays){
   return d.toISOString();
 }
 
-/* รับเอกสารที่ส่งต่อ — atomic RPC (ล้าง forwarded_to_id) พร้อม fallback */
+/* ประวัติ "เจ้าหน้าที่รับเอกสาร" นับเป็นการรับของรอบปัจจุบันหรือไม่
+   document_history ลบไม่ได้ (append-only) ถ้าเอกสารถูกส่งต่อใหม่หลังจากนั้น
+   รายการรับเก่าต้องไม่ทำให้คิวปิด — เทียบเวลากับ forwarded_at รอบล่าสุด */
+function acceptIsCurrent(performedAt, forwardedAt){
+  if(!performedAt) return false;
+  if(!forwardedAt) return true;
+  return new Date(performedAt).getTime() >= new Date(forwardedAt).getTime();
+}
+
+/* ใครกดรับเอกสารได้ — เฉพาะ จนท./อาจารย์ที่ปรึกษา/แอดมิน และต้องไม่ใช่ผู้จัดทำเอกสารเอง
+   (ตรงกับ guard ฝั่ง DB ใน supabase/38_accepted_by_and_forward_guard.sql) */
+function canAcceptDoc(doc){
+  if(!CU||!doc) return false;
+  if(doc.created_by===CU.id&&CU.role_code!=='ROLE-SYS'&&CU.role_code!=='ROLE-DEV') return false;
+  return ['ROLE-STF','ROLE-ADV','ROLE-SYS','ROLE-DEV'].includes(CU.role_code);
+}
+
+/* รับเอกสารที่ส่งต่อ — atomic RPC (บันทึก accepted_by, ล้าง forwarded_to_id) พร้อม fallback */
 async function acceptForwardedDoc(docId, note){
   try{
     await drpc('forward_accept',{p_doc:docId,p_note:note||null});
@@ -335,7 +352,7 @@ async function acceptForwardedDoc(docId, note){
   }catch(e){
     if(!rpcFnMissing(e)) throw e;
   }
-  await dpa('documents',docId,{status:'awaiting_submit',forwarded_to_id:null,forwarded_to_staff:false,forwarded_at:null,updated_at:new Date().toISOString()});
+  await dpa('documents',docId,{status:'awaiting_submit',accepted_by:CU.id,accepted_at:new Date().toISOString(),forwarded_to_id:null,forwarded_to_staff:false,forwarded_at:null,updated_at:new Date().toISOString()});
   await dp('document_history',{document_id:docId,action:'เจ้าหน้าที่รับเอกสาร',performed_by:CU.id,note:note||'รับเอกสารแล้ว — รอเจ้าหน้าที่ยื่นในระบบมหาวิทยาลัย'});
 }
 

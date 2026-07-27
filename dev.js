@@ -150,7 +150,9 @@ var DEV_MIGRATIONS=[
    },
    desc2:'รันแล้วเปิดแท็บจัดการผู้ใช้ — ควรเห็นรายชื่อทั้งหมด (ไม่ใช่แค่บัญชีตัวเอง)'},
   {file:'29_cron_overdue.sql',order:14,title:'Cron ตรวจเลยกำหนด (pg_cron)',desc:'ตั้ง job เรียก check-overdue รายวัน 01:00 น. — ต้อง deploy Edge Function + ตั้ง OVERDUE_CRON_SECRET ก่อน',
-   optional:true,manual:true,desc2:'ทางเลือก: ใช้ Supabase Dashboard → Edge Functions → Schedule แทน pg_cron'}
+   optional:true,manual:true,desc2:'ทางเลือก: ใช้ Supabase Dashboard → Edge Functions → Schedule แทน pg_cron'},
+  {file:'38_accepted_by_and_forward_guard.sql',order:15,title:'ผู้รับเอกสาร + กันผู้จัดทำกดรับเอง',desc:'คอลัมน์ accepted_by/accepted_at และ forward_accept ที่ห้ามผู้สร้างรับเอกสารของตัวเอง — ต้องรันหลัง 31_forward_to_staff_pool.sql',
+   probe:async function(){return _devColExists('documents','accepted_by');}}
 ];
 
 async function _devRunMigrationProbes(){

@@ -126,6 +126,7 @@ document.addEventListener('click', function(e){
     if(p) dlFile(p,el.dataset.name);
   });
   else if(a==='acceptFwd') doAcceptFwd(id);
+  else if(a==='notifyAccepted') doNotifyAccepted(id);
   else if(a==='showDeclineFwdModal') showDeclineFwdModal(id);
   else if(a==='doDeclineFwd') doDeclineFwd(id).catch(function(e){_declineFwdBusy=false;console.error('doDeclineFwd error:',e)});
 });

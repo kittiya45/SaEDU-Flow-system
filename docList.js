@@ -3,6 +3,7 @@ var _PROJ_FILTER='';  // โครงการที่เลือก filter
 var _DTYPE_FILTER=''; // ประเภทเอกสารที่เลือก filter
 var _FWD_ACT={};      // {docId: 'accepted'|'declined'} — populated in vDocs
 var _ACTIVE_STEPS={}; // {docId: full_name} — ผู้รับผิดชอบขั้นตอน active ปัจจุบัน
+var _ACCEPTED_BY={};  // {docId: full_name} — จนท.ที่รับเอกสารไว้ (สถานะ awaiting_submit)
 var _curFilteredDocs=null; // รายการที่กำลังแสดงในตารางจริง (หลัง filter tab/ประเภท/โครงการ/คำค้น) — ใช้โดย exportCSV() ใน report.js จะได้ export ตรงกับที่เห็นบนจอ
 var _DOC_PAGE=0;
 var DOC_LIST_LIMIT=200;
@@ -56,6 +57,16 @@ async function vDocs(){
     (_aSteps||[]).forEach(function(s){if(s.document_id&&s.assigned_to)_ACTIVE_STEPS[s.document_id]=_stepUmap[s.assigned_to]||''});
   }
 
+  // ── เจ้าหน้าที่ที่รับเอกสารไว้ (awaiting_submit) — ให้รู้ว่าเอกสารอยู่กับใคร ──
+  _ACCEPTED_BY={};
+  var _accIds=[...new Set(ADOCS.filter(function(d){return d.status==='awaiting_submit'&&d.accepted_by}).map(function(d){return d.accepted_by}))];
+  if(_accIds.length){
+    var _accRes=await dg('user_directory','?id=in.('+_accIds.map(safeId).join(',')+')'+'&select=id,full_name');
+    var _accMap={};
+    (Array.isArray(_accRes)?_accRes:[]).forEach(function(u){_accMap[u.id]=u.full_name});
+    ADOCS.forEach(function(d){if(d.accepted_by&&_accMap[d.accepted_by])_ACCEPTED_BY[d.id]=_accMap[d.accepted_by]});
+  }
+
   // ── ตรวจสอบการตัดสินใจ รับ/ไม่รับ สำหรับเอกสารที่ถูก forward มาหาฉัน / คิวกลุ่ม ──
   _FWD_ACT={};
   var _fwdToMe=ADOCS.filter(function(d){return _isFwdInboxForMe(d)});
@@ -63,9 +74,12 @@ async function vDocs(){
     var _fwdHist=await dg('document_history',
       '?document_id=in.('+_fwdToMe.map(function(d){return safeId(d.id)}).join(',')+')'
       +'&action=eq.เจ้าหน้าที่รับเอกสาร'
-      +'&select=document_id,action&order=performed_at.desc');
+      +'&select=document_id,action,performed_at&order=performed_at.desc');
+    var _fwdAtMap={};
+    _fwdToMe.forEach(function(d){_fwdAtMap[d.id]=d.forwarded_at});
     (_fwdHist||[]).forEach(function(h){
-      if(!_FWD_ACT[h.document_id]) // คนใดคนหนึ่งรับแล้ว = คิวกลุ่มปิด
+      // นับเฉพาะการรับที่เกิดหลังการส่งต่อรอบล่าสุด — รายการเก่าที่ลบไม่ได้ต้องไม่ปิดคิว
+      if(!_FWD_ACT[h.document_id]&&acceptIsCurrent(h.performed_at,_fwdAtMap[h.document_id])) // คนใดคนหนึ่งรับแล้ว = คิวกลุ่มปิด
         _FWD_ACT[h.document_id]='accepted';
     });
   }
@@ -88,6 +102,10 @@ async function vDocs(){
   var tc={all:_docsForMain.length,pending:0,signed:0,draft:0,rejected:0,numbering:0,awaiting_submit:0,completed:0,
           mine:MSTEPS.length+_myRejectedIds.length,fwd:_fwdTabCount};
   _docsForMain.forEach(function(d){if(tc[d.status]!==undefined)tc[d.status]++});
+  // คิวรออัพเข้าระบบนับจาก ADOCS ทั้งหมด — เอกสารที่รอ จนท.รับยังไม่อยู่ใน _docsForMain
+  tc.awaiting_submit=ADOCS.filter(_isAwaitQueueDoc).length;
+  // เอกสารที่ยังรอ จนท.รับ ไม่นับเป็น "เสร็จสิ้น" — ไม่งั้นชิ้นเดียวโผล่สองแท็บ
+  tc.completed=_docsForMain.filter(function(d){return d.status==='completed'&&!_isAwaitQueueDoc(d)}).length;
   var _canNumCount=_docsForMain.filter(function(d){return d.status==='numbering'&&(d.created_by===CU.id||CU.role_code==='ROLE-SYS'||CU.role_code==='ROLE-STF')}).length;
   tc.action=tc.mine+_canNumCount;
 
@@ -146,6 +164,17 @@ async function vDocs(){
   return html.join('')
 }
 
+/* ── คิว "รออัพเข้าระบบ" — งานที่ต้องนำไปยื่นในระบบมหาวิทยาลัย ──
+   รวม 2 สถานะ เพราะเป็นงานชิ้นเดียวกันในมุมเจ้าหน้าที่:
+     1) awaiting_submit           — จนท.รับแล้ว รอยื่น
+     2) completed + ยัง forward อยู่ — ส่งถึง จนท.แล้วแต่ยังไม่มีใครกดรับ
+   (forward_accept ล้าง forwarded_to_id/staff ตอนรับ — ธงที่ยังค้างจึงแปลว่ายังไม่ถูกรับ) */
+function _isAwaitQueueDoc(d){
+  if(!d) return false;
+  if(d.status==='awaiting_submit') return true;
+  return d.status==='completed'&&(!!d.forwarded_to_staff||!!d.forwarded_to_id);
+}
+
 /* ── ตัวกรองแท็บ "ต้องดำเนินการ" — ใช้ร่วมกันทั้งตอน render ครั้งแรกและตอนสลับแท็บ กันตรรกะเพี้ยนสองที่ ── */
 function _actionFilterDocs(q){
   q=q||'';
@@ -153,7 +182,7 @@ function _actionFilterDocs(q){
     var _isMyTask=MSTEPS.indexOf(d.id)!==-1;
     var _isMyRej=d.status==='rejected'&&d.created_by===CU.id;
     var _isMyNum=d.status==='numbering'&&(d.created_by===CU.id||CU.role_code==='ROLE-SYS'||CU.role_code==='ROLE-STF');
-    var _isAwait=d.status==='awaiting_submit'&&['ROLE-STF','ROLE-SYS','ROLE-DEV'].includes(CU.role_code);
+    var _isAwait=_isAwaitQueueDoc(d)&&['ROLE-STF','ROLE-SYS','ROLE-DEV'].includes(CU.role_code);
     if(!(_isMyTask||_isMyRej||_isMyNum||_isAwait)) return false;
     if(_DTYPE_FILTER&&d.doc_type!==_DTYPE_FILTER) return false;
     return _matchQ(d,q);
@@ -215,9 +244,14 @@ function fDocs(){
     return;
   }
 
+  var _awaitTab=DTAB==='awaiting_submit';
   var f=ADOCS.filter(function(d){
-    if(d.forwarded_to_id===CU.id&&d.created_by!==CU.id&&_FWD_ACT[d.id]!=='accepted') return false;
-    var matchTab=DTAB==='all'||(d.status===DTAB);
+    // แท็บรออัพเข้าระบบต้องเห็นงานที่ยังรอ จนท.รับด้วย จึงข้าม guard ของแท็บอื่น
+    if(!_awaitTab&&d.forwarded_to_id===CU.id&&d.created_by!==CU.id&&_FWD_ACT[d.id]!=='accepted') return false;
+    var matchTab=DTAB==='all'
+      ||(_awaitTab?_isAwaitQueueDoc(d)
+        :DTAB==='completed'?(d.status==='completed'&&!_isAwaitQueueDoc(d))
+        :d.status===DTAB);
     var matchProj=!_PROJ_FILTER||d.project_name===_PROJ_FILTER;
     var matchType=!_DTYPE_FILTER||d.doc_type===_DTYPE_FILTER;
     return matchTab&&matchProj&&matchType&&_matchQ(d,q);
@@ -250,8 +284,14 @@ function rDocTbl(docs){
       else{dueCls='doc-ledger-due is-ok';dueTxt=_days+' วัน'}
     }
 
-    var who=d.status==='pending'&&_ACTIVE_STEPS[d.id]
-      ?'<div class="doc-ledger-who tip" data-tip="'+esc(_ACTIVE_STEPS[d.id])+'">รอ: '+esc(_ACTIVE_STEPS[d.id])+'</div>':'';
+    var who='';
+    if(d.status==='pending'&&_ACTIVE_STEPS[d.id])
+      who='<div class="doc-ledger-who tip" data-tip="'+esc(_ACTIVE_STEPS[d.id])+'">รอ: '+esc(_ACTIVE_STEPS[d.id])+'</div>';
+    // ขึ้นบรรทัดเองด้วย <br> — ปล่อยให้เบราว์เซอร์ตัดคำไทยจะหั่นกลางชื่อคน (นันท/ปิยะ)
+    else if(d.status==='awaiting_submit'&&_ACCEPTED_BY[d.id])
+      who='<div class="doc-ledger-who is-held">เจ้าหน้าที่รับเอกสารแล้ว<br>'+esc(_ACCEPTED_BY[d.id])+'</div>';
+    else if(d.status==='completed'&&(d.forwarded_to_staff||d.forwarded_to_id))
+      who='<div class="doc-ledger-who is-wait">รอเจ้าหน้าที่กิจการนิสิต<br>กดรับเอกสาร</div>';
     var proj=d.project_name
       ?'<div class="doc-ledger-sub">'+esc(d.project_name)+'</div>':'';
     var canEdit=CAN.ed(CU.role_code)&&(d.status==='draft'||(d.status==='rejected'&&d.created_by===CU.id));
@@ -268,7 +308,7 @@ function rDocTbl(docs){
         proj+
       '</div>'+
       '<div class="doc-ledger-side">'+
-        '<div class="doc-ledger-status">'+sBadge(d.status)+who+'</div>'+
+        '<div class="doc-ledger-status">'+((d.status==='completed'&&(d.forwarded_to_staff||d.forwarded_to_id))?sBadgeFwd(true):sBadge(d.status))+who+'</div>'+
         '<div class="'+dueCls+'">'+dueTxt+'</div>'+
         '<div class="doc-ledger-acts doc-row-acts">'+
           (canEdit?'<button type="button" class="doc-row-act is-edit" data-action="nav" data-view="edit" data-id="'+d.id+'" title="แก้ไข" aria-label="แก้ไข">'+svg('edit',15)+'</button>':'')+

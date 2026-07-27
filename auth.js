@@ -101,7 +101,7 @@ function showAuth(){
     '<div class="auth-header">',
     '<div class="auth-orb" aria-hidden="true"></div>',
     '<div class="auth-logo-ring">',
-    '<div class="auth-logo-wrap"><img src="img/Logo.png" alt="Logo กนค." class="auth-logo" onerror="this.style.display=\'none\';this.nextSibling.style.display=\'flex\'"><div class="auth-badge hidden">กนค.</div></div>',
+    '<div class="auth-logo-wrap"><img src="img/logo.png" alt="Logo กนค." class="auth-logo" onerror="this.style.display=\'none\';this.nextSibling.style.display=\'flex\'"><div class="auth-badge hidden">กนค.</div></div>',
     '</div>',
     '<div class="auth-title">SAEDU Flow</div>',
     '<div class="auth-sub">ระบบเสนอเอกสาร คณะกรรมการนิสิต</div>',

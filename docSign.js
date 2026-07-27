@@ -301,7 +301,7 @@ async function _loadSigPosPreview(docId){
     var files=await dg('document_files','?document_id=eq.'+safeId(docId)+'&file_type=like.application%2Fpdf');
     var _sp=_signPdfWorkingCopy(files);
     if(!_sp||!_sp.working){
-      if(hint)hint.textContent='ไม่พบไฟล์ PDF — ลายเซ็นจะวางที่มุมขวาล่างอัตโนมัติ';
+      if(hint)hint.textContent='ไม่พบไฟล์ PDF — ลายเซ็นจะวางที่มุมขวาล่างหน้าแรกอัตโนมัติ';
       return;
     }
     var fileUrl=await resolveFilePath(_sp.working.file_path);
@@ -313,7 +313,7 @@ async function _loadSigPosPreview(docId){
     }
     _actSigPdf=await pdfjsLib.getDocument(fileUrl).promise;
     var N=_actSigPdf.numPages;
-    _actSigPage=N;
+    _actSigPage=1;
 
     var ctrl=$e('sig-page-ctrl');
     if(ctrl) ctrl.style.display='flex';
@@ -331,15 +331,15 @@ async function _loadSigPosPreview(docId){
     // รอให้คอลัมน์ preview มีความกว้างจริงก่อนเรนเดอร์รอบเดียว — เลิก setTimeout ซ้อนที่ทำให้กรอบหาย
     await _waitSigPreviewWidth();
     await _renderSigDoc(true);
-    // ตั้งค่าแถบ "ขนาดลายเซ็น" ตามค่าเริ่มต้นของหน้าสุดท้าย
-    var defPct=Math.round(_sigDefaultWFrac(N)*100);
+    // ตั้งค่าแถบ "ขนาดลายเซ็น" ตามค่าเริ่มต้นของหน้าแรก
+    var defPct=Math.round(_sigDefaultWFrac(1)*100);
     var sl=$e('sig-size'); if(sl)sl.value=defPct;
     var slv=$e('sig-size-val'); if(slv)slv.textContent=defPct+'%';
     _seedDefaultMark();
-    _sigRevealDefaultMark(N);
+    _sigRevealDefaultMark(1);
   }catch(e){
     console.warn('sig pos preview failed:',e);
-    if(hint)hint.textContent='ไม่สามารถโหลดเอกสารได้ — ลายเซ็นจะวางที่มุมขวาล่างอัตโนมัติ';
+    if(hint)hint.textContent='ไม่สามารถโหลดเอกสารได้ — ลายเซ็นจะวางที่มุมขวาล่างหน้าแรกอัตโนมัติ';
   }
 }
 
@@ -388,7 +388,7 @@ async function _renderSigDoc(keepPage){
     if(gen!==_actSigRenderGen)return;
     var vp0=page.getViewport({scale:1.0});
     _actSigPgDims[p]={w:vp0.width,h:vp0.height};
-    if(p===N){_actSigPdfW=vp0.width;_actSigPdfH=vp0.height;}
+    if(p===1){_actSigPdfW=vp0.width;_actSigPdfH=vp0.height;}
     var baseScale=(outerW/vp0.width)*_actSigZoom;
     var sv=page.getViewport({scale:baseScale});
     var canvas=document.createElement('canvas');
@@ -512,10 +512,11 @@ function _sigSizeAll(pct){
   _renderSigStamps();
 }
 
-/* จุดเริ่มต้น: มุมขวาล่างหน้าสุดท้าย (พฤติกรรมเดิมของระบบ) — ลากปรับต่อได้เลย */
+/* จุดเริ่มต้น: มุมขวาล่าง "หน้าแรก" — วางไว้หน้าแรกเพื่อให้เห็นทันทีตั้งแต่เปิด (เลือกลาก/ลบได้เลย
+   ไม่ต้องเลื่อนไปหาที่หน้าสุดท้ายแล้วลืมลบ) — ลากไปหน้าอื่นหรือคลิกวางจุดใหม่ได้ตามปกติ */
 function _seedDefaultMark(){
   if(_actSigMarks.length||!_actSigPdf)return;
-  var p=_actSigPdf.numPages;
+  var p=1;
   var wf=_sigDefaultWFrac(p),hf=_sigHFrac(wf,p),d=_sigPgDim(p);
   _actSigMarks.push({page:p,wFrac:wf,hFrac:hf,
     xFrac:Math.max(0,1-wf-40/d.w),
@@ -687,7 +688,7 @@ function _renderSigMarkList(){
   if(cnt)cnt.textContent=_actSigMarks.length+' จุด';
   if(!list)return;
   if(!_actSigMarks.length){
-    list.innerHTML='<div class="sig-mark-empty">ยังไม่มีจุดวาง · คลิกบนเอกสารเพื่อวางลายเซ็น<br>(ถ้าไม่วาง ระบบจะวางมุมขวาล่างหน้าสุดท้ายให้)</div>';
+    list.innerHTML='<div class="sig-mark-empty">ยังไม่มีจุดวาง · คลิกบนเอกสารเพื่อวางลายเซ็น<br>(ถ้าไม่วาง ระบบจะวางมุมขวาล่างหน้าแรกให้)</div>';
     return;
   }
   list.innerHTML=_actSigMarks.map(function(m,i){

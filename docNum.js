@@ -41,10 +41,26 @@ async function _nextDocNum(docId,docType,catPfx,club,thisYear,thaiYear){
   return gnkPfx+catPfx+String(mx+1).padStart(3,'0')+(club?'-'+club:'')+'/'+thaiYear;
 }
 
+/* ── การส่งต่อหลังออกเลข — บังคับส่งเข้าคิว จนท.กิจการนิสิตอัตโนมัติเสมอ ──
+   เดิมเป็น dropdown ที่เว้นว่างได้ (มีตัวเลือก "ไม่ส่งต่อ") ทำให้เอกสารเข้าสถานะ
+   "รอเจ้าหน้าที่ยื่นในระบบ" โดยไม่เคยผ่านมือ จนท. เลย — ตอนนี้ตัดการเลือกออกทั้งหมด
+   ผู้จัดทำจึงข้ามขั้นตอนเจ้าหน้าที่ไม่ได้อีก (ดู _doSetDocNumberConfirmed) */
+function _numFwdNoticeHtml(staffList){
+  var n=(staffList||[]).length;
+  return '<div class="al al-in" style="margin-top:4px;margin-bottom:12px;align-items:flex-start">'+
+    '<span class="al-icon">'+svg('sign',13)+'</span>'+
+    '<span style="font-size:12px;line-height:1.7"><strong>ส่งเข้ากิจการนิสิตอัตโนมัติ</strong> — เมื่อออกเลขแล้ว ระบบจะส่งเอกสารเข้าคิวเจ้าหน้าที่กิจการนิสิต'+
+    (n?' ทั้ง '+n+' คน':'')+' ทันที เจ้าหน้าที่คนใดคนหนึ่งกดรับแล้วนำไปยื่นในระบบมหาวิทยาลัยต่อ</span></div>';
+}
+
 async function showNumModal(docId){
   var w=$e('mwrap'); if(!w)return;
   var doc=(await dg('documents','?id=eq.'+safeId(docId)))[0]||{};
   var today=new Date().toISOString().slice(0,10);
+  // รายชื่อ จนท.กิจการนิสิต — ใช้ร่วมทั้งฟอร์มขาเข้าและขาออก (บังคับเลือกผู้รับก่อนออกเลข)
+  var _stfList=await dg('user_directory','?role_code=eq.ROLE-STF&is_active=eq.true&approval_status=eq.approved&order=full_name');
+  if(!Array.isArray(_stfList)) _stfList=[];
+  var _fwdFieldHtml=_numFwdNoticeHtml(_stfList);
 
   if(doc.doc_type==='incoming'){ /* สลับ 2026-07-22: incoming=ฟอร์มง่าย ใช้ตำแหน่งผู้สร้างเอง */
     var creator=(await dg('user_directory','?id=eq.'+safeId(doc.created_by)+'&select=position_code,full_name&limit=1'))[0]||{};
@@ -96,6 +112,9 @@ async function showNumModal(docId){
       '<div style="font-size:11px;color:#a89e99;margin-top:4px;line-height:1.6">เมื่อล็อคแล้วตำแหน่งจะไม่เลื่อน — เลื่อนดูเอกสารแต่ละหน้าได้ตามปกติ</div></div>',
       '<div class="fg"><label class="fl">ตัวอย่างเลขที่</label>',
       '<div class="fi" id="num-preview" style="background:#f9f7f5;color:#1261AB;font-size:12px;font-family:\TH Sarabun PSK\', Sarabun, sans-serif;font-weight:700;cursor:default;letter-spacing:.5px">—</div></div>',
+      _fwdFieldHtml,
+      '<div class="fg"><label class="fl">หมายเหตุ</label>',
+      '<textarea class="fi" id="num-note" rows="2" placeholder="หมายเหตุ (ถ้ามี)"></textarea></div>',
       '<div style="font-size:11px;color:#a89e99;margin-top:6px;line-height:1.7;display:flex;gap:6px;align-items:flex-start">',
       svg('info',12)+'<span>ลากกล่องเลขที่และวันที่บนตัวอย่างด้านขวาเพื่อปรับตำแหน่งก่อนบันทึก</span></div>',
       '</div>',
@@ -121,13 +140,6 @@ async function showNumModal(docId){
   }
 
   // หนังสือขาออก (สลับ 2026-07-22: มีขั้นตอนอนุมัติ): auto-generate เลขที่ (รูปแบบ กนค. SPPTNNN-CC/BBBB)
-  var allUsers=await dg('user_directory','?role_code=eq.ROLE-STF&is_active=eq.true&approval_status=eq.approved&order=full_name');
-  var uOpts='<option value="">— ไม่ส่งต่อ —</option>'+
-    '<option value="__staff_all__">ส่งเข้ากิจการทั้งหมด (แจ้ง จนท.ทุกคน)</option>'+
-    (allUsers.length?'<option disabled>──────── คนใดคนหนึ่ง ────────</option>':'')+
-    allUsers.map(function(u){
-    return '<option value="'+u.id+'">'+esc(u.full_name)+'</option>'
-  }).join('');
   var _ltIdx=LETTER_TYPES.indexOf(doc.description);
   var _ltCode=_ltIdx>=0?String(_ltIdx+1):'';
   var _sEntry=(SENDER_POS||[]).filter(function(p){return p.name===doc.addressed_to})[0]||null;
@@ -170,9 +182,7 @@ async function showNumModal(docId){
     '<div style="font-size:11px;color:#a89e99;margin-top:4px;line-height:1.6">เมื่อล็อคแล้วตำแหน่งจะไม่เลื่อน — เลื่อนดูเอกสารแต่ละหน้าได้ตามปกติ</div></div>',
     '<div class="fg"><label class="fl">ตัวอย่างเลขที่</label>',
       '<div class="fi" id="num-preview" style="background:#f9f7f5;color:#1261AB;font-size:12px;font-family:\TH Sarabun PSK\', Sarabun, sans-serif;font-weight:700;cursor:default;letter-spacing:.5px">—</div></div>',
-    '<div class="fg"><label class="fl">ส่งต่อให้ จนท.กิจนิสิต (ไม่บังคับ)</label>',
-    '<select class="fi" id="num-fwd">'+uOpts+'</select>',
-    '<div style="font-size:11px;color:#a89e99;margin-top:6px;line-height:1.65">เลือก «ส่งเข้ากิจการทั้งหมด» ได้โดยไม่ต้องระบุชื่อ — จนท.ทุกคนได้รับการแจ้งเตือนและเปิดดูไฟล์ได้ คนใดคนหนึ่งกดรับได้</div></div>',
+    _fwdFieldHtml,
     '<div class="fg"><label class="fl">หมายเหตุ</label>',
     '<textarea class="fi" id="num-note" rows="2" placeholder="หมายเหตุ (ถ้ามี)"></textarea></div>',
     '<div style="font-size:11px;color:#a89e99;margin-top:6px;line-height:1.7;display:flex;gap:6px;align-items:flex-start">',
@@ -456,8 +466,8 @@ function doSetDocNumber(docId){
     sendercode:($e('num-sendercode')||{}).value||'00',
     senderclub:($e('num-senderclub')||{}).value||'',
     note:(gv('num-note')||'').trim(),
-    fwdId:gv('num-fwd')||null,
-    fwdStaffAll:(gv('num-fwd')||'')==='__staff_all__',
+    fwdId:null,          // ไม่มีการเลือกผู้รับอีกแล้ว — ส่งเข้าคิวกลุ่ม จนท. เสมอ
+    fwdStaffAll:true,
     docnum:(gv('num-docnum')||'').trim(),
     fontsize:parseInt(($e('num-fontsize')||{}).value)||10,
     numPdfX:_numPdfX, numTopPdf:_numTopPdf,
@@ -476,7 +486,7 @@ function doSetDocNumber(docId){
       icon:'pen',
       iconBg:'#EFF6FF',
       iconColor:'#2563EB',
-      detail:'การออกเลขไม่สามารถเปลี่ยนแปลงได้ภายหลัง'
+      detail:'การออกเลขไม่สามารถเปลี่ยนแปลงได้ภายหลัง — เอกสารจะถูกส่งเข้าคิวเจ้าหน้าที่กิจการนิสิตทันที'
     }
   );
 }
@@ -494,12 +504,14 @@ async function _doSetDocNumberConfirmed(docId,cap){
       var pos=cap.poscode||'00';
       var lt=cap.lt||'';
       var club=cap.club||'';
+      note=cap.note||'';
+      fwdStaffAll=true; fwdId=null;   // ส่งเข้าคิว จนท.กิจการนิสิตเสมอ ไม่มีทางข้ามขั้นตอนนี้
       if(!lt){showAlert('กรุณาเลือกประเภทจดหมาย','wa');if(btn){btn.disabled=false;btn.innerHTML=svg('ok',13)+' ออกเลขและเสร็จสิ้น';}return}
       var thisYear=new Date().getFullYear();
       var thaiYear=String(thisYear+543);
       var catPfx=sem+pos+lt;
       docNum=await _nextDocNum(docId,'incoming',catPfx,club,thisYear,thaiYear);
-      note='ออกเลขหนังสือขาเข้า: '+docNum;
+      note=note||('ออกเลขหนังสือขาเข้า: '+docNum);
       _dateText=_fmtDateThai(docDate);
     } else if(doc.doc_type==='outgoing'){
       var sem=cap.sem||'1';
@@ -507,8 +519,7 @@ async function _doSetDocNumberConfirmed(docId,cap){
       var club=cap.senderclub||'';
       var lt=cap.lt||'';
       note=cap.note||'';
-      fwdStaffAll=!!(cap.fwdStaffAll||cap.fwdId==='__staff_all__');
-      fwdId=fwdStaffAll?null:(cap.fwdId||null);
+      fwdStaffAll=true; fwdId=null;   // ส่งเข้าคิว จนท.กิจการนิสิตเสมอ ไม่มีทางข้ามขั้นตอนนี้
       if(!lt){showAlert('กรุณาเลือกประเภทหนังสือ','wa');if(btn){btn.disabled=false;btn.innerHTML=svg('ok',13)+' ออกเลขและเสร็จสิ้น';}return}
       var thisYear=new Date().getFullYear();
       var thaiYear=String(thisYear+543);
@@ -521,6 +532,11 @@ async function _doSetDocNumberConfirmed(docId,cap){
       note=cap.note||'';
       fwdId=cap.fwdId||null;
       if(!docNum){showAlert('กรุณาระบุเลขที่หนังสือ','wa');if(btn){btn.disabled=false;btn.innerHTML=svg('ok',13)+' บันทึกและเสร็จสิ้น';}return}
+    }
+
+    // ด่านสุดท้าย: เอกสารขาเข้า/ขาออกต้องเข้าคิว จนท. เสมอ (กันกรณีค่าถูกแก้ผ่าน DOM/console)
+    if((doc.doc_type==='incoming'||doc.doc_type==='outgoing')&&!fwdStaffAll&&!fwdId){
+      fwdStaffAll=true; fwdId=null;
     }
 
     var upd={doc_number:docNum,doc_date:docDate,status:'completed',updated_at:new Date().toISOString()};
@@ -550,6 +566,11 @@ async function _doSetDocNumberConfirmed(docId,cap){
     await dp('document_history',{document_id:docId,action:'ออกเลขที่หนังสือ: '+docNum,performed_by:CU.id,note:note||'ออกเลขหนังสือและวันที่เรียบร้อยแล้ว'});
     if(fwdStaffAll){
       await dp('document_history',{document_id:docId,action:'ส่งเข้ากิจการทั้งหมด',performed_by:CU.id,note:note||'แจ้งเจ้าหน้าที่กิจการนิสิตทุกคน'});
+    } else if(fwdId){
+      // เดิมการส่งต่อตอนออกเลขไม่ถูกบันทึกไว้เลย ทำให้ไล่ไม่ได้ว่าเอกสารถูกส่งถึงใคร
+      var _fwdName='';
+      try{_fwdName=((await dg('user_directory','?id=eq.'+safeId(fwdId)+'&select=full_name&limit=1'))[0]||{}).full_name||''}catch(_fe){}
+      await dp('document_history',{document_id:docId,action:'ส่งต่อเอกสาร',performed_by:CU.id,note:'ส่งต่อให้เจ้าหน้าที่'+(_fwdName?': '+_fwdName:'')});
     }
 
     // ── ประทับเลขและวันที่ลงบน PDF (ขาออกและขาเข้า) ──
@@ -617,27 +638,11 @@ async function _doSetDocNumberConfirmed(docId,cap){
           }
         }
       }catch(ne){console.warn('Outgoing notify failed:',ne)}
+      await _notifyNumberForward(docId,docNum,note,fwdId,fwdStaffAll,'ขาเข้า');
       $e('mwrap').innerHTML='';
-      var a2=$e('dal');if(a2)a2.innerHTML='<div class="al al-ok"><span class="al-icon">'+svg('ok',13)+'</span><span>ออกเลขหนังสือขาเข้าเรียบร้อยแล้ว เลขที่: <strong class="mono">'+esc(docNum)+'</strong></span></div>';
+      var a2=$e('dal');if(a2)a2.innerHTML='<div class="al al-ok"><span class="al-icon">'+svg('ok',13)+'</span><span>ออกเลขหนังสือขาเข้าเรียบร้อยแล้ว เลขที่: <strong class="mono">'+esc(docNum)+'</strong>'+(fwdStaffAll?' และส่งเข้ากิจการทั้งหมดแล้ว':(fwdId?' และส่งต่อให้เจ้าหน้าที่แล้ว':''))+'</span></div>';
     } else {
-      if(fwdStaffAll){
-        try{await _notifyStaffPoolForward(docId,docNum,note);}catch(fe){console.warn('Staff-pool notify failed:',fe)}
-      } else if(fwdId){
-        var fwdUser=(await dg('user_directory','?id=eq.'+fwdId))[0];
-        var doc2=(await dg('documents','?id=eq.'+docId))[0]||{};
-        var fwdEmail=fwdUser?(fwdUser.contact_email||fwdUser.email):'';
-        var fwdSubj='[กนค.] ส่งต่อหนังสือขาออก: '+(doc2.title||'');
-        var fwdBody='เรียน '+(fwdUser?fwdUser.full_name:'')+', ท่านได้รับหนังสือขาออกเลขที่ '+docNum+' เรื่อง "'+(doc2.title||'')+'" ที่ผ่านการลงนามครบถ้วนแล้ว'+(note?' หมายเหตุ: '+note:'');
-        var fwdEmailStatus='skipped';
-        try{
-          if(fwdEmail&&!fwdEmail.includes('@gnk.student')){
-            var r=await sendEmailEdge({to:fwdEmail,subject:fwdSubj,html:fwdBody,documentId:docId,recipientUserId:fwdId});
-            fwdEmailStatus=r.ok?'sent':'failed';
-            if(r.ok) showEmailToast(fwdEmail,fwdSubj);
-          }
-          await logNotifRow({document_id:docId,recipient_id:fwdId,recipient_email:fwdEmail||'',subject:fwdSubj,body:fwdBody,notification_type:'forward',status:fwdEmailStatus,sent_at:new Date().toISOString()});
-        }catch(fe){console.warn('Forward notify failed:',fe)}
-      }
+      await _notifyNumberForward(docId,docNum,note,fwdId,fwdStaffAll,'ขาออก');
       $e('mwrap').innerHTML='';
       var a=$e('dal');if(a)a.innerHTML=alrtH('ok','ออกเลขเอกสารเรียบร้อยแล้ว เลขที่: <strong class="mono">'+esc(docNum)+'</strong>'+(fwdStaffAll?' และส่งเข้ากิจการทั้งหมดแล้ว':(fwdId?' และส่งต่อแล้ว':'')));
     }
@@ -645,8 +650,33 @@ async function _doSetDocNumberConfirmed(docId,cap){
   }catch(e){showAlert('เกิดข้อผิดพลาด: '+e.message,'er');if(btn){btn.disabled=false;btn.innerHTML=svg('ok',13)+' บันทึกและเสร็จสิ้น'}}
 }
 
+/* แจ้งผู้รับที่เลือกไว้ตอนออกเลข — คิวกลุ่ม จนท. หรือ จนท.คนใดคนหนึ่ง (ใช้ทั้งขาเข้า/ขาออก) */
+async function _notifyNumberForward(docId, docNum, note, fwdId, fwdStaffAll, lbl){
+  lbl=lbl||'ขาออก';
+  if(fwdStaffAll){
+    try{await _notifyStaffPoolForward(docId,docNum,note,lbl);}catch(fe){console.warn('Staff-pool notify failed:',fe)}
+    return;
+  }
+  if(!fwdId) return;
+  try{
+    var fwdUser=(await dg('user_directory','?id=eq.'+safeId(fwdId)))[0];
+    var doc2=(await dg('documents','?id=eq.'+safeId(docId)))[0]||{};
+    var fwdEmail=fwdUser?(fwdUser.contact_email||fwdUser.email):'';
+    var fwdSubj='[กนค.] ส่งต่อหนังสือ'+lbl+': '+(doc2.title||'');
+    var fwdBody='เรียน '+(fwdUser?fwdUser.full_name:'')+', ท่านได้รับหนังสือ'+lbl+'เลขที่ '+docNum+' เรื่อง "'+(doc2.title||'')+'" ที่ผ่านการลงนามครบถ้วนแล้ว'+(note?' หมายเหตุ: '+note:'');
+    var fwdEmailStatus='skipped';
+    if(fwdEmail&&!fwdEmail.includes('@gnk.student')){
+      var r=await sendEmailEdge({to:fwdEmail,subject:fwdSubj,html:fwdBody,documentId:docId,recipientUserId:fwdId});
+      fwdEmailStatus=r.ok?'sent':'failed';
+      if(r.ok&&typeof showEmailToast==='function') showEmailToast(fwdEmail,fwdSubj);
+    }
+    await logNotifRow({document_id:docId,recipient_id:fwdId,recipient_email:fwdEmail||'',subject:fwdSubj,body:fwdBody,notification_type:'forward',status:fwdEmailStatus,sent_at:new Date().toISOString()});
+  }catch(fe){console.warn('Forward notify failed:',fe)}
+}
+
 /* แจ้ง จนท.ทุกคนเมื่อส่งเข้ากิจการทั้งหมด — อีเมลเท่านั้น (LINE เฉพาะคิวเซ็น ROLE-STF) */
-async function _notifyStaffPoolForward(docId, docNum, note){
+async function _notifyStaffPoolForward(docId, docNum, note, lbl){
+  lbl=lbl||'ขาออก';
   var doc2=(await dg('documents','?id=eq.'+safeId(docId)))[0]||{};
   var staff=await dg('user_directory','?role_code=eq.ROLE-STF&is_active=eq.true&approval_status=eq.approved&select=id,full_name,email,contact_email');
   if(!Array.isArray(staff)) staff=[];
@@ -654,7 +684,7 @@ async function _notifyStaffPoolForward(docId, docNum, note){
   for(var i=0;i<staff.length;i++){
     var u=staff[i];
     var em=u.contact_email||u.email||'';
-    var body='เรียน '+u.full_name+', มีหนังสือขาออกเลขที่ '+docNum+' เรื่อง "'+(doc2.title||'')+'" ส่งเข้ากิจการนิสิตทั้งหมด'+(note?' หมายเหตุ: '+note:'')+' — ท่านหรือเจ้าหน้าที่ท่านอื่นสามารถเปิดดูไฟล์และกดรับเอกสารได้';
+    var body='เรียน '+u.full_name+', มีหนังสือ'+lbl+'เลขที่ '+docNum+' เรื่อง "'+(doc2.title||'')+'" ส่งเข้ากิจการนิสิตทั้งหมด'+(note?' หมายเหตุ: '+note:'')+' — ท่านหรือเจ้าหน้าที่ท่านอื่นสามารถเปิดดูไฟล์และกดรับเอกสารได้';
     try{
       var st='skipped';
       if(em&&em.indexOf('@gnk.student')<0){

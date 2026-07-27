@@ -214,7 +214,9 @@ textarea.fi{resize:vertical;min-height:80px}
 }
 .doc-ledger-head-side,.doc-ledger-side{
   display:grid;
-  grid-template-columns:148px 76px 64px;
+  /* คอลัมน์สถานะ 216px — กว้างพอให้ป้ายสถานะยาว ๆ อยู่บรรทัดเดียว
+     (ของเดิม 148px บีบจนข้อความอย่าง "นำส่งเข้ากภ.กิจการนิสิต /คณะ" ตัดกลาง) */
+  grid-template-columns:216px 76px 64px;
   gap:16px;
   align-items:center;
 }
@@ -268,6 +270,16 @@ textarea.fi{resize:vertical;min-height:80px}
   font-size:10px;color:#A89E99;margin-top:3px;line-height:1.35;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
 }
+/* คิวรออัพเข้าระบบมีสองระยะ — บรรทัดผู้ถือใช้สีตรงกับป้ายสถานะ และแสดงข้อความเต็ม
+   (ไม่ตัดด้วย … เพราะชื่อเจ้าหน้าที่ถูกตัดหายจนอ่านไม่รู้เรื่อง) */
+.doc-ledger-who.is-wait,
+.doc-ledger-who.is-held{
+  font-size:11px;font-weight:600;line-height:1.5;
+  white-space:nowrap;overflow:visible;text-overflow:clip;
+  max-width:none;text-align:right;margin-left:auto;
+}
+.doc-ledger-who.is-wait{color:#B45309}
+.doc-ledger-who.is-held{color:#0F766E}
 .doc-ledger-due{font-size:11px;white-space:nowrap;font-variant-numeric:tabular-nums}
 .doc-ledger-due.is-empty{color:#E0DBD5}
 .doc-ledger-due.is-ok{color:#A89E99}
@@ -471,7 +483,9 @@ tbody tr:hover{background:#FDFBF9}
 .b-signed{background:#DCFCE7;color:#166534}
 .b-rejected{background:#FEE2E2;color:#991B1B}
 .b-numbering{background:#FFF5F0;color:#C03200;border:1px solid #FFD4C2}
-.b-awaiting{background:#FEF3C7;color:#92400E;border:1px solid #FDE68A}
+/* รับแล้ว รอยื่นในระบบ — มีเจ้าภาพถืออยู่แล้ว ใช้โทน teal ให้ต่างจากเหลือง "ยังไม่มีใครรับ"
+   (โทนเดียวกับการ์ดคิว "รออัพเข้าระบบ" บนแดชบอร์ด — homeViews.js) */
+.b-awaiting{background:#F0FDFA;color:#0F766E;border:1px solid #99F6E4}
 .b-gnk{background:#FFF5F0;color:var(--orange)}
 .b-advisor{background:#F5F3FF;color:#7C3AED}
 .b-staff{background:#F0FDFA;color:#0F766E}

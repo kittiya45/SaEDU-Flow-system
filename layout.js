@@ -264,7 +264,7 @@ async function nav(view, id) {
     '<aside id="sidebar" class="app-side">' +
       '<div class="app-side-head">' +
         '<div class="app-side-logo">' +
-          '<img src="img/Logo.png" alt="Logo">' +
+          '<img src="img/logo.png" alt="Logo">' +
         '</div>' +
         '<div class="app-side-brand">' +
           '<div style="font-size:16px;font-weight:800;letter-spacing:-.2px;color:#fff;line-height:1.4">'+(SETT&&SETT.org_name||'Saedu Flow')+'</div>' +

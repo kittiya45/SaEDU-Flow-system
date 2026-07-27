@@ -28,6 +28,7 @@ const FILES = [
   '27_phase2_dev_ops.sql',
   '28_phase3_dev_users.sql',
   '29_cron_overdue.sql',
+  '38_accepted_by_and_forward_guard.sql',
 ];
 
 const bundle = {};

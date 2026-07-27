@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>ระบบเสนอเอกสาร กนค.</title>
-<link rel="icon" type="image/png" href="img/Logo.png">
+<link rel="icon" type="image/png" href="img/logo.png">
 <link rel="preconnect" href="https://jrubupvzltxqstzcpoov.supabase.co">
 <link rel="preconnect" href="https://cdnjs.cloudflare.com">
 <link rel="preconnect" href="https://cdn.jsdelivr.net">
@@ -16,7 +16,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <!-- คอมไพล์จาก tailwind.css ด้วย `npm run build` — ไม่ใช่ Tailwind CDN อีกต่อไป (ดู package.json) -->
 <link rel="stylesheet" href="styles.tailwind.css?v=5">
-<link rel="stylesheet" href="styles.css?v=57">
+<link rel="stylesheet" href="styles.css?v=61">
 </head>
 <body>
 <div id="app"></div>
@@ -28,19 +28,19 @@
 <script src="config.js?v=32" defer></script>
 
 <!-- รวมฟังก์ชันช่วยจัดการหน้าจอและแจ้งเตือน -->
-<script src="utils.js?v=31" defer></script>
+<script src="utils.js?v=35" defer></script>
 
 <!-- ตัวดักจับการคลิกและส่งคำสั่งจัดการหน้าเว็บ -->
-<script src="events.js?v=10" defer></script>
+<script src="events.js?v=11" defer></script>
 
 <!-- ระบบ Login และจัดการเซสชันผู้ใช้ -->
-<script src="auth.js?v=21" defer></script>
+<script src="auth.js?v=22" defer></script>
 
 <!-- หน้าสรุปผลและรายการงานล่าสุด (homeViews.js + dashboard.js สำรอง — ad blocker/cache มักบล็อกชื่อ dashboard.js) -->
-<script src="homeViews.js?v=21" defer></script>
+<script src="homeViews.js?v=22" defer></script>
 
 <!-- ตารางรายการเอกสารและการค้นหา -->
-<script src="docList.js?v=26" defer></script>
+<script src="docList.js?v=33" defer></script>
 
 <!-- ฟอร์มสร้าง/แก้ไขเอกสารและอัปโหลดไฟล์ -->
 <script src="docForm.js?v=37" defer></script>
@@ -52,15 +52,15 @@
 <script src="report.js?v=4" defer></script>
 
 <!-- modal อนุมัติ/ส่งคืน และ signature placement (ต้องโหลดก่อน docDetail) -->
-<script src="docSign.js?v=15" defer></script>
+<script src="docSign.js?v=16" defer></script>
 
 <script src="sigProfile.js?v=2" defer></script>
 
 <!-- หน้าแสดงรายละเอียดเอกสาร อนุมัติ/ตีกลับ และฝังลายเซ็นใน PDF -->
-<script src="docDetail.js?v=43" defer></script>
+<script src="docDetail.js?v=48" defer></script>
 
 <!-- ออกเลขที่หนังสือขาออก (สร้างเลขอัตโนมัติในรูปแบบ SPPTNNN หรือ SPPTNNN-CC) -->
-<script src="docNum.js?v=24" defer></script>
+<script src="docNum.js?v=26" defer></script>
 
 <!-- ส่งอีเมลแจ้งเตือนผ่าน Edge Function และตรวจเอกสารที่เลยกำหนด -->
 <script src="notif.js?v=15" defer></script>
@@ -78,8 +78,8 @@
 <script src="sysAdmin.js?v=30" defer></script>
 
 <!-- เครื่องมือนักพัฒนา (เฉพาะ ROLE-DEV — แยกจากแอดมิน): สุขภาพระบบ, log, ซ่อมเอกสาร, ทดสอบระบบ, จัดการระบบฝัง -->
-<script src="dev-sql-bundle.js?v=2" defer></script>
-<script src="dev.js?v=25" defer></script>
+<script src="dev-sql-bundle.js?v=3" defer></script>
+<script src="dev.js?v=26" defer></script>
 
 <!-- หน้าจัดการระบบ: ประเภทเอกสาร-->
 <script src="docTypeAdmin.js?v=2" defer></script>
@@ -94,7 +94,7 @@
 <script src="adminImport.js?v=2" defer></script>
 
 <!-- จัดการโครงสร้างเมนูและหน้าตาเว็บหลัก -->
-<script src="layout.js?v=20" defer></script>
+<script src="layout.js?v=21" defer></script>
 
 <!-- ตัวเริ่มรันระบบ — เช็ค session ที่ค้างไว้ก่อน (Supabase Auth) ถ้าไม่มีค่อยเรียกหน้า Login -->
 <script src="boot.js?v=3" defer></script>
