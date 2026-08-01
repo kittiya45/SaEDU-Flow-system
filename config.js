@@ -81,7 +81,9 @@ window.addEventListener('unhandledrejection',function(ev){
   if(typeof showAlert==='function') showAlert('เกิดข้อผิดพลาด: '+((ev.reason&&ev.reason.message)||ev.reason||'ไม่ทราบสาเหตุ'),'er');
 });
 async function upFile(path,file){
-  var r=await fetch(SU+'/storage/v1/object/documents/'+encodeURIComponent(path),{method:'POST',headers:{apikey:SK,'Authorization':H.Authorization,'x-upsert':'true'},body:file});
+  // cache-control: no-store — เดิม Storage ตั้ง max-age=3600 ให้อัตโนมัติ ทำให้ไฟล์ที่ถูกเขียนทับ
+  // ยังถูกเสิร์ฟฉบับเก่าจากแคชได้อีกเป็นชั่วโมง (ต้นเหตุลายเซ็นหาย — ดู _signedStablePath ใน docDetail.js)
+  var r=await fetch(SU+'/storage/v1/object/documents/'+encodeURIComponent(path),{method:'POST',headers:{apikey:SK,'Authorization':H.Authorization,'x-upsert':'true','cache-control':'no-store'},body:file});
   if(!r.ok){
     var e=await r.json().catch(function(){return{}});
     throw new Error((e&&e.message)||('อัปโหลดไฟล์ล้มเหลว ('+r.status+')'));
@@ -113,6 +115,14 @@ async function resolveFilePath(path,expiresSec){
     }
   }catch(e){console.warn('resolveFilePath failed',path,e)}
   return null;
+}
+/* ทิ้ง signed URL ของ path นี้ออกจาก _furlCache — เรียกหลังเขียนทับไฟล์เดิม
+   ไม่งั้นแท็บที่เปิดค้างอยู่จะได้ URL เดิม (แคชไว้ ~55 นาที) ที่ชี้ไปยังเนื้อไฟล์ก่อนแก้ */
+function _invalidateFileUrl(path){
+  if(!path) return;
+  Object.keys(_furlCache).forEach(function(k){
+    if(k.slice(0,k.lastIndexOf('|'))===path) delete _furlCache[k];
+  });
 }
 async function resolveFileUrl(urlOrPath,expiresSec){
   if(!urlOrPath) return urlOrPath;
@@ -163,13 +173,16 @@ async function upUserSig(file){
   var enc=path.split('/').map(encodeURIComponent).join('/');
   var r=await fetch(SU+'/storage/v1/object/'+USER_SIG_BUCKET+'/'+enc,{
     method:'POST',
-    headers:{apikey:SK,Authorization:H.Authorization,'x-upsert':'true','Content-Type':file.type||'image/png'},
+    headers:{apikey:SK,Authorization:H.Authorization,'x-upsert':'true','cache-control':'no-store','Content-Type':file.type||'image/png'},
     body:file
   });
   if(!r.ok){
     var e=await r.json().catch(function(){return{}});
     throw new Error((e&&e.message)||('บันทึกลายเซ็นล้มเหลว ('+r.status+')'));
   }
+  // path ลายเซ็นส่วนตัวคงที่ ({user}/signature.png) — ต้องล้าง signed URL เดิมทิ้ง
+  // ไม่งั้นบันทึกลายเซ็นใหม่แล้วยังหยิบรูปเก่ามาใช้ได้อีกเป็นชั่วโมง (เหมือนที่ deleteUserSigStorage ทำ)
+  Object.keys(_userSigUrlCache).forEach(function(k){if(k.indexOf(path)===0)delete _userSigUrlCache[k]});
   return path;
 }
 async function deleteUserSigStorage(path){

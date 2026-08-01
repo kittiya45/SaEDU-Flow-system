@@ -115,8 +115,8 @@ html.push('</div></div></div>');
     html.push('<div class="card" id="wf-card"'+(_wfHide?' style="display:none"':'')+'><div class="card-head">'+_ico('user','#FFF1E8','#E83A00')+'<span class="card-head-title">ผู้ดำเนินการตามลำดับ</span></div>');
     html.push('<div class="card-body">');
     var _draftFixed=_editDraftMode&&doc.doc_type==='outgoing'&&CU.role_code!=='ROLE-STF'&&CU.role_code!=='ROLE-SYS';
-    html.push('<div class="al al-in"><span class="al-icon">'+svg('info',14)+'</span><span id="wf-info">'+(_draftFixed?'ลำดับขั้นตอนตาม flow ระบบ — เปลี่ยนตัวผู้ลงนามในแต่ละขั้นได้ (ลบ/สลับลำดับไม่ได้)':'เลือกผู้ที่ต้องอนุมัติ / ตรวจสอบเอกสารตามลำดับ')+'</span></div>');
-    html.push('<div id="wfadd-row" style="display:'+(_draftFixed?'none':'flex')+';gap:8px;margin:14px 0 20px">');
+    html.push('<div class="al al-in"><span class="al-icon">'+svg('info',14)+'</span><span id="wf-info">'+(_draftFixed?'ระบบเติมลำดับขั้นตอนให้ตามประเภทหนังสือ — เปลี่ยนตัวผู้ลงนาม เพิ่ม ลบ หรือสลับลำดับได้':'เลือกผู้ที่ต้องอนุมัติ / ตรวจสอบเอกสารตามลำดับ')+'</span></div>');
+    html.push('<div id="wfadd-row" style="display:flex;gap:8px;margin:14px 0 20px">');
     html.push('<select class="fi" style="flex:1" id="wfadd">'+wfPersonOpts+'</select>');
     html.push('<button class="btn btn-primary sm" data-action="addWfPerson">'+svg('plus',12)+' เพิ่ม</button>');
     html.push('</div>');
@@ -355,14 +355,14 @@ function selectDocType(type){
       var curDoc={from_department:gv('ffromdept'),addressed_to:gv('fto'),subject_line:gv('fsubject'),doc_date:gv('fdate'),due_date:gv('feventdate'),description:gv('fdsc')};
       tf.innerHTML=renderTypeFields(type,curDoc);
     }
-    // Fixed Flow — หนังสือขาเข้า: ล็อกโครงลำดับ (ลบ/เพิ่ม/สลับไม่ได้) แต่เปลี่ยนตัวบุคคลในแต่ละขั้นได้
+    // Default Flow — ระบบเติมลำดับขั้นให้ตามประเภทหนังสือ แต่ผู้ใช้ยัง เพิ่ม/ลบ/สลับ/เปลี่ยนตัวบุคคล ได้ทุกขั้น
     // ROLE-STF และ ROLE-SYS ไม่เติมให้ (จัดขั้นตอนเองอิสระ + workflow template ทำงานเฉพาะกลุ่มนี้)
     var _staffBypass=CU.role_code==='ROLE-STF'||CU.role_code==='ROLE-SYS';
     var _fixedFlow=(type==='outgoing'&&!_staffBypass); /* สลับ 2026-07-22: outgoing=มีอนุมัติ */
     var _addRow=$e('wfadd-row');
-    if(_addRow) _addRow.style.display=_fixedFlow?'none':'flex';
+    if(_addRow) _addRow.style.display='flex';
     var _wfInfo=$e('wf-info');
-    if(_wfInfo) _wfInfo.innerHTML=_fixedFlow?'ขั้นตอนถูกกำหนดตามประเภทหนังสือ (ปรับอัตโนมัติเมื่อเลือกเรื่องเกี่ยวกับงบประมาณ) — เปลี่ยนตัวบุคคลในแต่ละขั้นได้':'เลือกผู้ที่ต้องอนุมัติ / ตรวจสอบเอกสารตามลำดับ';
+    if(_wfInfo) _wfInfo.innerHTML=_fixedFlow?'ระบบเติมขั้นตอนให้ตามประเภทหนังสือ (ปรับอัตโนมัติเมื่อเลือกเรื่องเกี่ยวกับงบประมาณ) — เพิ่ม ลบ สลับลำดับ หรือเปลี่ยนตัวบุคคลได้':'เลือกผู้ที่ต้องอนุมัติ / ตรวจสอบเอกสารตามลำดับ';
     // แก้ไขฉบับร่าง: คงขั้นตอนที่โหลดมาไว้ ไม่ล้าง/ไม่เติม default — กันการกดการ์ดประเภทซ้ำแล้วขั้นตอนหาย
     if(!_editDraftMode){
       // เอา step ที่ระบบเคยเติมอัตโนมัติออกก่อน กันซ้ำเมื่อสลับประเภทเอกสาร (ขั้น extra ที่ user เพิ่มเองรอด)

@@ -25,9 +25,14 @@ function _fileBaseName(f){
 function _isSignedFile(f){
   return f.file_name.indexOf('[ลงนาม]')>=0||f.file_path.indexOf('signed/')===0||/^signed_/.test(f.file_path||'');
 }
-function _signedStablePath(docId,baseName){
+/* path ของไฟล์ฉบับลงนาม — ต้อง "ไม่ซ้ำเดิม" ทุกครั้งที่เซ็นทับ
+   เดิมใช้ path คงที่ signed/{doc}/{name}.pdf แล้วอัปทับที่เดิม ทำให้ signed URL เดิม (แคชใน _furlCache
+   ~55 นาที) + cache-control ของ Storage (max-age 3600) ส่งไฟล์ "ก่อนเซ็น" กลับมา
+   → ผู้เซ็นคนถัดไปโหลดไบต์เก่าเข้า pdf-lib แล้วอัปทับ = ลายเซ็นคนก่อนหน้าหายถาวร
+   ใส่หมายเลขรอบไว้ใน path จึงได้ URL ใหม่เสมอ ไม่มีทางโดนแคชเก่า (ไฟล์รอบก่อนถูกลบทิ้งใน doAct) */
+function _signedStablePath(docId,baseName,ver){
   var safe=baseName.replace(/[^a-zA-Z0-9._-]/g,'_').slice(0,100);
-  return 'signed/'+docId+'/'+safe+'.pdf';
+  return 'signed/'+docId+'/v'+(ver||1)+'_'+Date.now()+'_'+safe+'.pdf';
 }
 async function _deleteStorage(path){
   if(!path) return;
@@ -738,6 +743,12 @@ async function doAct(action,docId){
   if(action==='approve'&&doc.doc_type==='outgoing'&&!sigSrc){
     showAlert('กรุณาวาดหรืออัปโหลดลายเซ็นก่อนยืนยัน','wa');_actBusy=false;return
   }
+  // ผู้ใช้ที่บันทึกลายเซ็นไว้แล้วแต่หยิบมาไม่ได้ (โหลดรูปไม่สำเร็จ/แท็บลายเซ็นว่าง) — เดิมอนุมัติผ่านไปเงียบ ๆ
+  // โดยไม่มีลายเซ็น ต้องเตือนก่อน ไม่ปล่อยให้เอกสารผ่านแบบไม่มีลายเซ็นโดยที่ผู้ใช้ไม่รู้ตัว
+  if(action==='approve'&&!sigSrc&&CU&&CU.signature_path){
+    showAlert('ยังไม่ได้เลือกลายเซ็น — โหลดลายเซ็นที่บันทึกไว้ไม่สำเร็จ กรุณาเลือกแท็บลายเซ็น แล้ววาดหรืออัปโหลดใหม่อีกครั้ง','wa');
+    _actBusy=false;return
+  }
   var mw=$e('mwrap'); if(mw) mw.innerHTML='<div class="mo"><div class="modal"><div class="modal-body text-center py-10"><div class="sp sp-dark w-8 h-8 border-[3px] mx-auto"></div><p class="mt-4 text-[#a89e99]">กำลังดำเนินการ...</p></div></div></div>';
   var wf,cur,ns,nst;
   var usedRpc=false;
@@ -836,6 +847,7 @@ async function doAct(action,docId){
     }
   }
   // Embed signature — ซ้อนลายเซ็นทับ PDF เดิม (อัปเดตไฟล์เดิม ไม่สร้างสำเนาใหม่ทุกขั้นตอน)
+  var _sigFailMsg=null;
   if(sigSrc&&action==='approve'){
     try{
       var allPdfs=await dg('document_files','?document_id=eq.'+safeId(docId)+'&file_type=like.application%2Fpdf');
@@ -847,7 +859,10 @@ async function doAct(action,docId){
         if(!window.PDFLib) await loadSc('https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js');
         if(sourceFile.file_size&&sourceFile.file_size>20*1024*1024)
           throw new Error('ไฟล์ PDF ขนาด '+Math.round(sourceFile.file_size/1024/1024)+'MB ใหญ่เกินไป กรุณาใช้ตัวแก้ไข PDF แนบลายเซ็นด้วยตนเอง');
-        var pdfResp=await fetch(await resolveFileUrl(sourceFile.file_path));
+        // cache:'reload' — บังคับดึงไบต์ล่าสุดจาก Storage เสมอ กันเบราว์เซอร์คืนฉบับก่อนเซ็นจากแคช
+        // (ทำให้ลายเซ็นของคนก่อนหน้าถูกเขียนทับหาย) — ใช้คู่กับ path ที่ไม่ซ้ำเดิมใน _signedStablePath
+        var pdfResp=await fetch(await resolveFileUrl(sourceFile.file_path),{cache:'reload'});
+        if(!pdfResp.ok) throw new Error('โหลดไฟล์ PDF ต้นฉบับไม่สำเร็จ (HTTP '+pdfResp.status+')');
         if(pdfResp.ok){
           var pdfBuf=await pdfResp.arrayBuffer();
           var pdfDoc=await PDFLib.PDFDocument.load(new Uint8Array(pdfBuf),{ignoreEncryption:true});
@@ -880,22 +895,27 @@ async function doAct(action,docId){
             _pg.drawImage(emb,{x:_sx+_fit.ox,y:_sy+_fit.oy,width:_fit.dw,height:_fit.dh});
           }
           var newBytes=await pdfDoc.save();
-          var stablePath=_signedStablePath(docId,baseName);
+          var _newVer=(signedRow?(signedRow.version||1):(sourceFile.version||1))+1;
+          var stablePath=_signedStablePath(docId,baseName,_newVer);
           var newBlob=new Blob([newBytes],{type:'application/pdf'});
           var oldPath=signedRow?signedRow.file_path:null;
           await upFile(stablePath,newBlob);
+          _invalidateFileUrl(oldPath); // ทิ้ง signed URL เดิมใน _furlCache กันหน้าอื่นในแท็บนี้เปิดฉบับก่อนเซ็น
           if(signedRow){
-            await dpa('document_files',signedRow.id,{file_path:stablePath,file_size:newBlob.size,uploaded_by:CU.id,version:(signedRow.version||1)+1});
+            await dpa('document_files',signedRow.id,{file_path:stablePath,file_size:newBlob.size,uploaded_by:CU.id,version:_newVer});
             if(oldPath&&oldPath!==stablePath) await _deleteStorage(oldPath);
           }else{
-            await dp('document_files',{document_id:docId,file_name:'[ลงนาม] '+baseName,file_path:stablePath,file_size:newBlob.size,file_type:'application/pdf',uploaded_by:CU.id,version:(sourceFile.version||1)+1});
+            await dp('document_files',{document_id:docId,file_name:'[ลงนาม] '+baseName,file_path:stablePath,file_size:newBlob.size,file_type:'application/pdf',uploaded_by:CU.id,version:_newVer});
           }
           await dp('document_history',{document_id:docId,action:'ฝังลายเซ็นในเอกสาร'+(_marks.length>1?' ('+_marks.length+' จุด)':'')+(signedRow?' (ซ้อนทับฉบับเดิม)':''),performed_by:CU.id})
         }
       }
     } catch(sigErr){
+      // เดิมเขียนข้อความเตือนลง #dal ตรงนี้ แต่ข้อความ "อนุมัติเรียบร้อย" ด้านล่างเขียนทับทันที
+      // ผู้ใช้จึงเห็นว่าสำเร็จทั้งที่ลายเซ็นไม่ถูกฝัง — เก็บไว้แสดงตอนท้ายแทน + ลงบันทึกให้ตรวจย้อนหลังได้
       console.warn('Signature embed failed:',sigErr.message);
-      var _sa=$e('dal');if(_sa)_sa.innerHTML=alrtH('wa','ฝังลายเซ็นไม่สำเร็จ: '+sigErr.message);
+      _sigFailMsg=sigErr.message||'ไม่ทราบสาเหตุ';
+      try{ await dp('document_history',{document_id:docId,action:'ฝังลายเซ็นไม่สำเร็จ',performed_by:CU.id,note:_sigFailMsg}); }catch(_he){}
     }
   }
   // Send email notification
@@ -904,6 +924,13 @@ async function doAct(action,docId){
   var a=$e('dal');
   var _slaD=SETT.sla_cascade_days||3;
   var _okMsg=nst==='numbering'?'ลายเซ็นครบทุกขั้นตอนแล้ว! ระบบส่งคืนผู้จัดทำเพื่อออกเลขที่หนังสือ':nst==='completed'?'เอกสารผ่านทุกขั้นตอนแล้ว! สถานะเปลี่ยนเป็น "เสร็จสิ้น" และส่งอีเมลแจ้งทุกคนแล้ว':action==='approve'?'อนุมัติเรียบร้อยแล้ว และส่งอีเมลแจ้งผู้รับผิดชอบขั้นตอนถัดไปแล้ว':'ส่งคืนพร้อมระบุส่วนที่แก้ไขแล้ว — แจ้งผู้จัดทำทางอีเมลแล้ว (SLA '+_slaD+' วัน)';
+  if(_sigFailMsg){
+    // ฝังลายเซ็นไม่สำเร็จ — ต้องบอกให้ชัด และไม่เด้งหน้าอัตโนมัติ เพื่อให้อ่านข้อความทัน
+    if(a) a.innerHTML=alrtH('wa','บันทึกผลการอนุมัติแล้ว แต่<strong>ฝังลายเซ็นลงไฟล์ไม่สำเร็จ</strong>: '+esc(_sigFailMsg)+
+      ' — กรุณาแนบไฟล์ที่ลงนามด้วยตนเอง หรือแจ้งผู้ดูแลระบบ (บันทึกไว้ในประวัติเอกสารแล้ว)');
+    _actBusy=false;
+    return;
+  }
   if(a) a.innerHTML=alrtH('ok',_okMsg);
   _actBusy=false;
   setTimeout(function(){nav('det',docId)},1200)

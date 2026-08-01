@@ -52,12 +52,13 @@ function rWfPeople(){
           '<select class="fi" style="font-size:12.5px;padding:7px 10px" onchange="_setWfAssignee('+i+',this.value)">'+_wfPersonOptsHtml(s.assigned_to||'','— เลือก'+s.step_name+' —')+'</select>'+
           (!s.assigned_to?'<div style="font-size:11px;color:#C77A1A;margin-top:4px">'+svg('warn',11)+' ยังไม่ได้เลือกผู้ลงนาม</div>':'');
       }
-      var tail=s.extra?
-        '<button style="width:32px;height:32px;border-radius:10px;border:1px solid #EAE4D8;background:#FFFDFA;display:flex;align-items:center;justify-content:center;color:#9A8F84;cursor:pointer;flex-shrink:0" data-action="rmWfPerson" data-id="'+i+'" title="ลบ">'+svg('x',14)+'</button>':
-        '<span style="color:#C9C0B8;flex-shrink:0;margin-top:2px" title="ขั้นตอนบังคับ — ลบไม่ได้">'+svg('lock',13)+'</span>';
+      // ขั้นที่ระบบเติมให้ลบได้เช่นกัน (ยกเว้นขั้นแรก = ผู้จัดทำ) — locked แปลว่า "ระบบเติมให้" ไม่ใช่ "ห้ามลบ"
+      var tail=i===0?'':
+        '<button style="width:32px;height:32px;border-radius:10px;border:1px solid #EAE4D8;background:#FFFDFA;display:flex;align-items:center;justify-content:center;color:#9A8F84;cursor:pointer;flex-shrink:0;transition:color .15s ease,border-color .15s ease,background-color .15s ease" onmouseover="this.style.color=\'#D04444\';this.style.borderColor=\'#F2C3C3\';this.style.background=\'#FCEAEA\'" onmouseout="this.style.color=\'#9A8F84\';this.style.borderColor=\'#EAE4D8\';this.style.background=\'#FFFDFA\'" data-action="rmWfPerson" data-id="'+i+'" title="ลบขั้นตอนนี้">'+svg('x',14)+'</button>';
       return '<div style="display:flex;align-items:flex-start;gap:12px;padding:14px 16px;border:1px solid '+cardBd+';background:'+cardBg+';border-radius:12px;margin-bottom:8px;box-shadow:0 1px 2px rgba(26,22,18,.03)">'+
         numBadge+
         '<div style="flex:1;min-width:0">'+body+'</div>'+
+        _wfMoveBtns(i)+
         tail+
       '</div>';
     }
@@ -99,17 +100,16 @@ function addAdvisorStep(){
 }
 
 function rmWfPerson(i){
-  if(i===0||!FS[i]||(FS[i].locked&&!FS[i].extra)) return; // ขั้นตอนบังคับลบไม่ได้ (ขั้น extra ที่ผู้ใช้เพิ่มเองลบได้)
+  if(i===0||!FS[i]) return; // ลบได้ทุกขั้นยกเว้นขั้นแรก (ผู้จัดทำ) — รวมขั้นที่ระบบเติมให้ (locked)
   FS.splice(i,1);
   var w=$e('wfwrap'); if(w) w.innerHTML=rWfPeople();
   calcDeadline()
 }
 
-/* สลับลำดับ — เฉพาะขั้นที่ไม่ได้ล็อก (staff/free-form); ขั้นแรกตรึงไว้ */
+/* สลับลำดับ — ขั้นแรก (ผู้จัดทำ) ตรึงไว้บนสุดเสมอ นอกนั้นสลับได้ทั้งหมด */
 function moveWfPerson(i,dir){
   var j=i+dir;
   if(i<=0||j<=0||i>=FS.length||j>=FS.length) return;
-  if((FS[i]&&FS[i].locked&&!FS[i].extra)||(FS[j]&&FS[j].locked&&!FS[j].extra)) return;
   var t=FS[i]; FS[i]=FS[j]; FS[j]=t;
   var w=$e('wfwrap'); if(w) w.innerHTML=rWfPeople();
   calcDeadline()
