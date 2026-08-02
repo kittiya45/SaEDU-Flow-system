@@ -280,6 +280,11 @@ textarea.fi{resize:vertical;min-height:80px}
 }
 .doc-ledger-who.is-wait{color:#B45309}
 .doc-ledger-who.is-held{color:#0F766E}
+/* เอกสารค้างที่คนเดิมเกินกำหนดลงนาม — สัญญาณคนละตัวกับ due-date (วันจัดกิจกรรม) ที่คอลัมน์ขวา */
+.doc-ledger-stall{
+  font-size:10px;font-weight:700;color:#DC2626;margin-top:2px;line-height:1.4;
+  white-space:nowrap;text-align:right;margin-left:auto;
+}
 .doc-ledger-due{font-size:11px;white-space:nowrap;font-variant-numeric:tabular-nums}
 .doc-ledger-due.is-empty{color:#E0DBD5}
 .doc-ledger-due.is-ok{color:#A89E99}
@@ -372,17 +377,20 @@ textarea.fi{resize:vertical;min-height:80px}
   line-height:1;
 }
 .al-icon svg,.al-icon i{display:block}
-.al>span:not(.al-icon),.al>div{
+/* span ข้อความยืดเต็มกล่อง — ต้องกัน .sp ออก ไม่งั้นวงกลมสปินเนอร์ 16px
+   โดน flex ยืดจนกลายเป็นเส้นทแยงพาดทั้งกล่อง แล้วดันข้อความไปชิดขวา */
+.al>span:not(.al-icon):not(.sp),.al>div{
   flex:1;
   min-width:0;
   padding-top:5px;
 }
+.al>.sp{flex:0 0 auto}
 .al strong{font-weight:700}
 .al code{font-size:.9em;background:rgba(0,0,0,.06);padding:1px 6px;border-radius:5px;font-family:ui-monospace,monospace}
 .al .sp{margin-top:7px}
 .al.text-xs,.al.al-sm{font-size:12px;padding:9px 12px 9px 14px;line-height:1.6}
 .al.text-xs .al-icon,.al.al-sm .al-icon{width:26px;height:26px;border-radius:8px}
-.al.text-xs>span:not(.al-icon),.al.text-xs>div,.al.al-sm>span:not(.al-icon),.al.al-sm>div{padding-top:3px}
+.al.text-xs>span:not(.al-icon):not(.sp),.al.text-xs>div,.al.al-sm>span:not(.al-icon):not(.sp),.al.al-sm>div{padding-top:3px}
 .al-ok{background:#ECFDF5;border-color:#4ADE80;color:#14532D}
 .al-ok::before{background:#15803D}
 .al-ok .al-icon{background:#DCFCE7;color:#15803D}
@@ -395,6 +403,11 @@ textarea.fi{resize:vertical;min-height:80px}
 .al-wa{background:#FFFBEB;border-color:#FBBF24;color:#78350F}
 .al-wa::before{background:#B45309}
 .al-wa .al-icon{background:#FEF3C7;color:#B45309}
+/* สถานะกำลังทำงาน (โหลด/อัปโหลด/บันทึก) — neutral อุ่น ไม่ใช้ฟ้าแบบ al-in
+   ซึ่งสงวนไว้ให้คำแนะนำ/สถานะร่างตาม DESIGN.md */
+.al-busy{background:#FAF8F5;border-color:#E8E4DE;color:#6B625C}
+.al-busy::before{background:var(--orange)}
+.al-busy .al-icon{background:#F0ECE7;color:#8c8279}
 
 /* ── SPINNER ── */
 .sp{width:16px;height:16px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .65s linear infinite;display:inline-block;vertical-align:middle;flex-shrink:0}
@@ -491,6 +504,8 @@ tbody tr:hover{background:#FDFBF9}
 .b-staff{background:#F0FDFA;color:#0F766E}
 .b-admin{background:#F5F3F0;color:#6b6560}
 .b-completed{background:#F0FDF4;color:#15803D;border:1px solid #BBF7D0}
+/* ยกเลิกแล้ว — ทางตัน ไม่ใช่ความผิดพลาด จึงใช้ neutral จาง ๆ ให้ถอยหลังฉาก ไม่แย่งสายตากับสถานะที่ยังต้องทำ */
+.b-cancelled{background:#F5F3F0;color:#8c8279;border:1px solid #E8E4DE;text-decoration:line-through;text-decoration-color:#c9c1ba}
 .mono{font-family:'IBM Plex Mono','Courier New',Courier,monospace;font-size:11px;padding:2px 8px;border-radius:6px;background:#F5F3F0;color:var(--text);letter-spacing:.3px}
 
 /* ── PAGE TOOLBAR (แถวค้นหา + ปุ่ม) ── */

@@ -1037,7 +1037,7 @@ async function addProject(){
   var name=(nameEl?nameEl.value:'').trim();
   var al=$e('proj-alert');
   if(!name){if(al)al.innerHTML=alrtH('er','กรุณาระบุชื่อโครงการ');return}
-  if(al)al.innerHTML='<div class="al al-in"><span class="sp sp-dark"></span><span> กำลังบันทึก...</span></div>';
+  if(al)al.innerHTML='<div class="al al-busy"><span class="sp sp-dark"></span><span> กำลังบันทึก...</span></div>';
   var res=await dp('projects',{name:name,is_active:true,sort_order:0,created_by:CU.id});
   if(!Array.isArray(res)||!res.length){
     var msg=(res&&res.message)||'บันทึกไม่สำเร็จ กรุณาตรวจสอบ RLS หรือว่าสร้างตาราง projects แล้วหรือยัง';

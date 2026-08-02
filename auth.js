@@ -341,6 +341,9 @@ async function _enterAppAsUser(row,opts){
   await nav(CU.role_code==='ROLE-DEV'?'dev':'dash');
   // overdue: cron รายวัน (check-overdue) — fallback ตอน login เฉพาะเมื่อปิด cron ใน app_settings
   try{await sendOverdueNotifs();}catch(e){console.warn('Overdue check failed:',e)}
+  // ขั้นตอนค้างเกินกำหนดลงนาม → แจ้ง LINE (คนละเงื่อนไขกับ overdue ข้างบน ซึ่งดู due_date)
+  // ไม่ผูกกับสวิตช์ cron — dedup อยู่ในตาราง notifications ทั้งสองฝั่ง รันซ้อนกันก็ไม่ส่งซ้ำ
+  try{await sendStepStallLineNotifs();}catch(e){console.warn('Step-stall check failed:',e)}
   return true
 }
 

@@ -335,11 +335,24 @@ function _makeStampDraggable(el,container){
   });
 }
 
+/* ไฟล์ที่จะถูกปั๊มเลข = "ฉบับทำงาน" ตัวเดียวกับที่ใช้ตอนลงนาม (_signPdfWorkingCopy ใน utils.js)
+   เดิมใช้ order=version.desc&limit=1 ซึ่งหยิบ version สูงสุดของทั้งเอกสาร ไม่ใช่ฉบับที่ลงนามแล้ว —
+   พอผู้จัดทำอัปไฟล์เพิ่มระหว่างทาง (version เดินต่อ) หรือ version เสมอกัน ระบบจะไปปั๊มเลขลงฉบับเปล่า
+   แล้ว insert แถวใหม่ที่ uploaded_at ใหม่สุด → _fileGroups() โชว์ฉบับไม่มีลายเซ็นเป็น "ฉบับปัจจุบัน"
+   ส่วนฉบับที่เซ็นครบตกไปอยู่ประวัติเวอร์ชัน (เห็นเฉพาะ จนท./admin) = ผู้ใช้เห็นว่า "ลายเซ็นหาย" */
+async function _numTargetPdf(docId){
+  var pdfs=await dg('document_files','?document_id=eq.'+safeId(docId)+'&file_type=like.application%2Fpdf');
+  if(!Array.isArray(pdfs)||!pdfs.length) return null;
+  var sp=_signPdfWorkingCopy(pdfs);
+  return (sp&&sp.working)||null;
+}
+
 /* ─── โหลด PDF ทุกหน้า + stamp บนหน้า 1 (เลื่อนดูแต่ละหน้าได้) ─── */
 async function _loadNumPDFPreview(docId){
   var wrap=$e('num-pdf-wrap'); if(!wrap) return;
   try{
-    var files=await dg('document_files','?document_id=eq.'+safeId(docId)+'&file_type=like.application%2Fpdf&order=version.desc&limit=1');
+    var _tgt=await _numTargetPdf(docId);
+    var files=_tgt?[_tgt]:[];
     if(!files||!files.length){
       wrap.innerHTML='<div style="color:rgba(255,255,255,.6);font-size:12px;padding:20px;text-align:center">ไม่พบไฟล์ PDF<br>ระบบจะประทับที่ตำแหน่งเริ่มต้น</div>';
       return;
@@ -576,12 +589,12 @@ async function _doSetDocNumberConfirmed(docId,cap){
     // ── ประทับเลขและวันที่ลงบน PDF (ขาออกและขาเข้า) ──
     if(_dateText){
       try{
-        var _pdfFiles=await dg('document_files','?document_id=eq.'+safeId(docId)+'&file_type=like.application%2Fpdf&order=version.desc&limit=1');
-        if(_pdfFiles&&_pdfFiles.length){
-          var _pf=_pdfFiles[0];
+        var _pf=await _numTargetPdf(docId);
+        if(_pf){
           if(!window.PDFLib) await loadSc('https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js');
           if(!window.fontkit) await loadSc('https://unpkg.com/@pdf-lib/fontkit/dist/fontkit.umd.min.js');
-          var _pdfResp=await fetch(await resolveFileUrl(_pf.file_path));
+          // cache:'reload' — กันเบราว์เซอร์คืนไบต์ "ก่อนเซ็น" จากแคช แล้วปั๊มเลขทับฉบับเก่า (ปัญหาเดียวกับตอนลงนาม)
+          var _pdfResp=await fetch(await resolveFileUrl(_pf.file_path),{cache:'reload'});
           if(_pdfResp.ok){
             var _pdfBuf=await _pdfResp.arrayBuffer();
             var _pdfDoc=await PDFLib.PDFDocument.load(new Uint8Array(_pdfBuf),{ignoreEncryption:true});

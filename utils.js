@@ -101,8 +101,8 @@ function alrtH(t,m){
 }
 
 function sBadge(s, labelOverride){
-  var cls={draft:'b-draft',pending:'b-pending',signed:'b-signed',rejected:'b-rejected',numbering:'b-numbering',awaiting_submit:'b-awaiting',completed:'b-completed'};
-  var txt={draft:'ร่างเอกสาร',pending:'รอลงนาม',signed:'ลงนามแล้ว',rejected:'ส่งคืนแก้ไข',numbering:'รอออกเลขหนังสือ',awaiting_submit:'รอเจ้าหน้าที่ยื่นในระบบ',completed:'เสร็จสมบูรณ์'};
+  var cls={draft:'b-draft',pending:'b-pending',signed:'b-signed',rejected:'b-rejected',numbering:'b-numbering',awaiting_submit:'b-awaiting',completed:'b-completed',cancelled:'b-cancelled'};
+  var txt={draft:'ร่างเอกสาร',pending:'รอลงนาม',signed:'ลงนามแล้ว',rejected:'ส่งคืนแก้ไข',numbering:'รอออกเลขหนังสือ',awaiting_submit:'รอเจ้าหน้าที่ยื่นในระบบ',completed:'เสร็จสมบูรณ์',cancelled:'ยกเลิกแล้ว'};
   var label=labelOverride||txt[s]||s;
   var wrap=(labelOverride||s==='awaiting_submit')?' style="white-space:normal;line-height:1.35;text-align:left;max-width:15.5rem"':'';
   return '<span class="badge '+(cls[s]||'b-draft')+'"'+wrap+'><span class="bdot"></span>'+esc(label)+'</span>'
@@ -126,7 +126,7 @@ function _isFwdInboxForMe(d){
 
 function tBadge(t){
   var cls={incoming:'b-draft',outgoing:'b-signed'};
-  var lbl={incoming:'ขาออก',outgoing:'ขาเข้า'};
+  var lbl={incoming:'ขาเข้า',outgoing:'ขาออก'};   /* ตรงกับ DTYPES/doc_types ใน DB — อย่าสลับกลับ */
   return '<span class="badge '+(cls[t]||'b-draft')+'">'+esc(lbl[t]||t)+'</span>'
 }
 /* จำแนกประเภทไฟล์จากนามสกุล/mime — คืน {ic,label,bg,cl} สำหรับ chip ไอคอนรายการไฟล์
@@ -171,7 +171,8 @@ function _signPdfWorkingCopy(pdfs){
   var group=pdfs.filter(function(f){return _signFileBaseName(f)===bn});
   group.sort(function(a,b){
     var ta=a.uploaded_at?new Date(a.uploaded_at).getTime():0, tb=b.uploaded_at?new Date(b.uploaded_at).getTime():0;
-    return (tb-ta)||((b.version||1)-(a.version||1));
+    // เสมอกันทั้งเวลาและ version → ให้ฉบับ [ลงนาม] ชนะเสมอ ห้ามหยิบฉบับเปล่าไปเซ็นทับ
+    return (tb-ta)||((b.version||1)-(a.version||1))||((_isSignedPdfRow(b)?1:0)-(_isSignedPdfRow(a)?1:0));
   });
   return {primary:primary,working:group[0],baseName:bn,signedRow:group.find(function(f){return _isSignedPdfRow(f)})||null};
 }
@@ -320,11 +321,70 @@ function workingDaysLeft(targetDate){
   while(cur<end){cur.setDate(cur.getDate()+1);var d=cur.getDay();if(d!==0&&d!==6)count++;}
   return count;
 }
+/* คำนวณจำนวนวันทำการที่ผ่านไปแล้วนับจาก fromDate ถึงวันนี้ (คู่ตรงข้ามของ workingDaysLeft) */
+function workingDaysElapsed(fromDate){
+  var start=new Date(fromDate); if(isNaN(start)) return 0;
+  start.setHours(0,0,0,0);
+  var now=new Date(); now.setHours(0,0,0,0);
+  if(start>=now) return 0;
+  var count=0; var cur=new Date(start);
+  while(cur<now){cur.setDate(cur.getDate()+1);var d=cur.getDay();if(d!==0&&d!==6)count++;}
+  return count;
+}
 /* เส้นตายของ workflow step ที่กำลังจะ active — deadlineDays วันทำการจากเวลานี้ สิ้นสุดวันนั้น 23:59 */
 function stepDeadline(deadlineDays){
   var d=addWorkingDays(new Date(),deadlineDays||2);
   d.setHours(23,59,0,0);
   return d.toISOString();
+}
+
+/* ─── taskDueInfo: งานชิ้นนี้ของฉันเหลืออีกกี่วัน ───
+   ระบบมี "กำหนด" 2 ตัวที่ไม่เกี่ยวกัน และเดิมหน้างานของฉัน/รายการเอกสารดูแค่ตัวหลัง
+   ทำให้คนที่ดองขั้นตอนไว้เป็นสัปดาห์ไม่เห็นสัญญาณอะไรเลยถ้าวันจัดกิจกรรมยังอีกไกล
+     step  = workflow_steps.deadline_datetime — เส้นตายที่ "ฉัน" ต้องลงนาม (ปกติ 2 วันทำการ)
+     event = documents.due_date              — วันจัดกิจกรรม (ผู้จัดทำกรอกเอง)
+   จึงเทียบทั้งสองแล้วเอาอันที่ถึงก่อนเป็นตัวตัดสินความเร่งด่วน
+   คืน {days, src, ts} — days<0 = เลยกำหนด, src='step'|'event', src=null เมื่อไม่มีกำหนดเลย */
+function taskDueInfo(step, doc){
+  var today=new Date(); today.setHours(0,0,0,0);
+  var cand=[];
+  if(step&&step.deadline_datetime){
+    var st=new Date(step.deadline_datetime);
+    if(!isNaN(st)) cand.push({src:'step',ts:st});
+  }
+  if(doc&&doc.due_date){
+    var ev=new Date(doc.due_date+'T00:00:00');
+    if(!isNaN(ev)){ev.setHours(23,59,0,0); cand.push({src:'event',ts:ev});}
+  }
+  if(!cand.length) return {days:null,src:null,ts:null};
+  cand.sort(function(a,b){return a.ts-b.ts});
+  var pick=cand[0];
+  var d0=new Date(pick.ts); d0.setHours(0,0,0,0);
+  return {days:Math.round((d0-today)/86400000), src:pick.src, ts:pick.ts};
+}
+
+/* ─── stepStallInfo: เอกสารค้างอยู่ที่ขั้นตอนไหน มานานแค่ไหน ───
+   workflow_steps ไม่มีคอลัมน์ "activated_at" — เวลาที่ขั้นนี้ถูกเปิดให้ทำ
+   คือเวลาที่ขั้นก่อนหน้าอนุมัติ (ขั้นแรกสุดนับจากวันสร้างเอกสาร)
+   คืน null เมื่อไม่มีขั้น active (เอกสารเสร็จ/ถูกส่งคืน/ยกเลิก) */
+function stepStallInfo(steps, doc){
+  if(!Array.isArray(steps)||!steps.length) return null;
+  var act=steps.filter(function(s){return s.status==='active'})
+               .sort(function(a,b){return (a.step_number||0)-(b.step_number||0)})[0];
+  if(!act) return null;
+  var since=null;
+  steps.forEach(function(s){
+    if((s.step_number||0)>=(act.step_number||0)) return;
+    var t=s.completed_at||s.action_at; if(!t) return;
+    var ts=new Date(t); if(isNaN(ts)) return;
+    if(!since||ts>since) since=ts;
+  });
+  if(!since&&doc&&doc.created_at){var c=new Date(doc.created_at); if(!isNaN(c)) since=c;}
+  if(!since) return null;
+  var ddl=act.deadline_datetime?new Date(act.deadline_datetime):null;
+  if(ddl&&isNaN(ddl)) ddl=null;
+  return {step:act, since:since, days:workingDaysElapsed(since),
+          deadline:ddl, late:!!(ddl&&new Date()>ddl)};
 }
 
 /* ประวัติ "เจ้าหน้าที่รับเอกสาร" นับเป็นการรับของรอบปัจจุบันหรือไม่
@@ -342,6 +402,14 @@ function canAcceptDoc(doc){
   if(!CU||!doc) return false;
   if(doc.created_by===CU.id&&CU.role_code!=='ROLE-SYS'&&CU.role_code!=='ROLE-DEV') return false;
   return ['ROLE-STF','ROLE-ADV','ROLE-SYS','ROLE-DEV'].includes(CU.role_code);
+}
+
+/* ใครกดยกเลิกเอกสารได้ — ผู้จัดทำเอง หรือ จนท./แอดมิน และต้องยังไม่ออกเลขหนังสือจริง
+   (RLS documents_update / workflow_steps_update ครอบทั้งสองกรณีอยู่แล้ว ไม่ต้องรัน SQL เพิ่ม) */
+function canCancelDoc(doc){
+  if(!CU||!doc) return false;
+  if(CANCELLABLE_ST.indexOf(doc.status)===-1) return false;
+  return doc.created_by===CU.id||['ROLE-STF','ROLE-SYS','ROLE-DEV'].includes(CU.role_code);
 }
 
 /* รับเอกสารที่ส่งต่อ — atomic RPC (บันทึก accepted_by, ล้าง forwarded_to_id) พร้อม fallback */

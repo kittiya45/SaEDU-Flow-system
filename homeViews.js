@@ -680,20 +680,19 @@ async function vTodo(){
 
   var todayMidnight=new Date(); todayMidnight.setHours(0,0,0,0);
   var overdue=[], todayList=[], soon=[], normal=[];
+  // ความเร่งด่วนตัดสินจาก "กำหนดขั้นตอนของฉัน" หรือ "วันจัดกิจกรรม" อันไหนถึงก่อน (taskDueInfo ใน utils.js)
+  // เดิมดูแค่ due_date — งานที่ดองค้างไว้เกินกำหนดขั้นตอนจึงไม่เคยโผล่กล่อง "เลยกำหนด" เลย
   mySteps.forEach(function(s){
     var d=docMap[s.document_id];
     if(!d) return;
     s._doc=d;
-    if(d.due_date){
-      var diff=new Date(d.due_date+'T00:00:00')-todayMidnight;
-      var days=Math.round(diff/86400000);
-      if(days<0) overdue.push(s);
-      else if(days===0) todayList.push(s);
-      else if(days<=3) soon.push(s);
-      else normal.push(s);
-    } else {
-      normal.push(s);
-    }
+    s._due=taskDueInfo(s,d);
+    var days=s._due.days;
+    if(days===null) normal.push(s);
+    else if(days<0) overdue.push(s);
+    else if(days===0) todayList.push(s);
+    else if(days<=3) soon.push(s);
+    else normal.push(s);
   });
 
   var statCards=[
@@ -764,11 +763,14 @@ async function vTodo(){
     if(!steps.length) return '';
     var rows=steps.map(function(s,idx){
       var d=s._doc;
-      var diff=d.due_date?new Date(d.due_date+'T00:00:00')-todayMidnight:null;
-      var daysLeft=diff!==null?Math.ceil(diff/86400000):null;
+      var _di=s._due||taskDueInfo(s,d);
+      var daysLeft=_di.days;
       var daysTxt=daysLeft===null?'—':daysLeft<0?'เกิน '+Math.abs(daysLeft)+' วัน':daysLeft===0?'วันนี้':daysLeft===1?'พรุ่งนี้':'อีก '+daysLeft+' วัน';
       var dayColor=daysLeft===null?'var(--text-3)':daysLeft<0?'#DC2626':daysLeft<=1?'#EA580C':daysLeft<=3?'#D97706':'#15803D';
       var dayBg=daysLeft===null?'var(--border)':daysLeft<0?'#FEF2F2':daysLeft<=1?'#FFF7ED':daysLeft<=3?'#FFFBEB':'#F0FDF4';
+      // บอกให้ชัดว่าตัวเลขวันมาจากกำหนดไหน — ไม่งั้น "เกิน 5 วัน" ชวนเข้าใจผิดว่ากิจกรรมผ่านไปแล้ว
+      var dueSrc=_di.src==='step'?'<span style="font-size:11px;color:var(--text-3);line-height:1.65">ครบกำหนดลงนาม '+fd(_di.ts)+'</span>'
+        :_di.src==='event'?'<span style="font-size:11px;color:var(--text-3);line-height:1.65">วันจัดกิจกรรม '+fd(_di.ts)+'</span>':'';
       return '<div class="list-row" onclick="nav(\'det\',\''+d.id+'\')">'+
           '<div style="width:8px;height:8px;border-radius:50%;flex-shrink:0;background:'+accentColor+'"></div>'+
           '<span class="mono" style="font-size:11px;flex-shrink:0;min-width:88px">'+esc(d.doc_number||'—')+'</span>'+
@@ -777,6 +779,7 @@ async function vTodo(){
             '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">'+
               tBadge(d.doc_type)+
               '<span style="font-size:11px;background:#fff5f0;color:#E83A00;padding:2px 8px;border-radius:6px;font-weight:600;line-height:1.65">'+esc(s.step_name||'ขั้นตอน')+'</span>'+
+              dueSrc+
             '</div>'+
           '</div>'+
           '<span style="border-radius:8px;padding:4px 10px;font-size:11px;font-weight:700;white-space:nowrap;flex-shrink:0;background:'+dayBg+';color:'+dayColor+';line-height:1.65">'+daysTxt+'</span>'+

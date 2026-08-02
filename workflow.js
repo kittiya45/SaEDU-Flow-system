@@ -179,7 +179,7 @@ async function _doUpFiles(files, skipped){
   var ok=0, fail=[];
   for(var j=0;j<files.length;j++){
     var fj=files[j];
-    if(pg) pg.innerHTML='<div class="al al-in mt-2"><span class="sp sp-dark"></span><span> กำลังอัปโหลด '+(j+1)+'/'+files.length+': '+esc(fj.name)+'</span></div>';
+    if(pg) pg.innerHTML='<div class="al al-busy mt-2"><span class="sp sp-dark"></span><span> กำลังอัปโหลด '+(j+1)+'/'+files.length+': '+esc(fj.name)+'</span></div>';
     try{
       var safeName2=fj.name.replace(/[^a-zA-Z0-9._-]/g,'_');
       var path=Date.now()+'_'+j+'_'+safeName2;

@@ -9,7 +9,7 @@ async function vStat(){
   var docs=await dg('documents','?created_at=gte.'+_sinceStr+'&select=id,status,doc_type,urgency,created_at,updated_at,due_date,title,doc_number,description,project_name,from_department&order=updated_at.desc,created_at.desc&limit=5000');
   var today=new Date().toISOString().substring(0,10);
   var total=docs.length;
-  var byStatus={draft:0,pending:0,awaiting_submit:0,completed:0,rejected:0,signed:0,numbering:0};
+  var byStatus={draft:0,pending:0,awaiting_submit:0,completed:0,rejected:0,signed:0,numbering:0,cancelled:0};
   var byType={incoming:0,outgoing:0};
   var byUrg={normal:0,urgent:0};
   var overdueCnt=0;
@@ -283,7 +283,8 @@ html.push('</div>');
     {l:'เสร็จสมบูรณ์', v:byStatus.completed, c:'#22C55E'},
     {l:'ลงนามแล้ว',   v:byStatus.signed,    c:'#3B82F6'},
     {l:'ส่งคืนแก้ไข', v:byStatus.rejected,  c:'#EF4444'},
-    {l:'ร่างเอกสาร',  v:byStatus.draft,     c:'#C0BAB4'}
+    {l:'ร่างเอกสาร',  v:byStatus.draft,     c:'#C0BAB4'},
+    {l:'ยกเลิกแล้ว',  v:byStatus.cancelled, c:'#E0DBD5'}
   ];
   html.push(
     '<div style="'+CS+'">'+

@@ -451,7 +451,7 @@ async function doAdmResetPw(uid){
   var pw=gv('rpnew'),pw2=gv('rpnew2'),al=$e('rpal'); if(!al)return;
   if(!pw||pw.length<6){al.innerHTML=alrtH('er','รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร');return}
   if(pw!==pw2){al.innerHTML=alrtH('er','รหัสผ่านทั้งสองช่องไม่ตรงกัน');return}
-  al.innerHTML='<div class="al al-in"><span class="sp sp-dark"></span><span> กำลังบันทึก...</span></div>';
+  al.innerHTML='<div class="al al-busy"><span class="sp sp-dark"></span><span> กำลังบันทึก...</span></div>';
   var u=(AUSERS||[]).filter(function(x){return x.id===uid})[0];
   if(!u||!u.auth_uid){al.innerHTML=alrtH('er','ไม่พบบัญชีเข้าสู่ระบบของผู้ใช้นี้');return}
   // เซ็ตรหัสผ่านให้คนอื่นตรงๆต้องใช้ service-role key ฝั่งเซิร์ฟเวอร์ ทำใน browser ไม่ได้ จึงต้องผ่าน Edge Function

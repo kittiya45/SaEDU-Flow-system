@@ -389,6 +389,134 @@ async function sendOverdueNotifs(force){
   }
 }
 
+/* ═══ แจ้งเตือน LINE: ขั้นตอนค้างเกินกำหนดลงนาม ═══
+   คนละเรื่องกับ sendOverdueNotifs ด้านบน ซึ่งวัดจาก documents.due_date (วันจัดกิจกรรม)
+   ตัวนี้วัดจาก workflow_steps.deadline_datetime — เส้นตายที่ผู้ลงนามคนนั้นต้องกดอนุมัติ
+   (ปกติ 2 วันทำการนับจากตอนที่ขั้นก่อนหน้าอนุมัติ) เดิมไม่มีอะไรอ่านคอลัมน์นี้เลย
+   เอกสารที่ค้างที่คนกลางเป็นสัปดาห์จึงเงียบสนิทตราบใดที่วันจัดกิจกรรมยังมาไม่ถึง
+
+   ⚠️ notification_type ต้องเป็น 'step_overdue' ห้ามใช้ 'overdue'
+      overdue_notif_sent_at() นับแถว type='overdue' เป็นจุดเริ่มนาฬิกา auto_approve_overdue
+      ถ้าใช้ type เดียวกัน เอกสารจะถูกนับว่า "เตือนเรื่องเลยกำหนดแล้ว" ทั้งที่ยังไม่เคยเตือน
+      แล้วถูกอนุมัติอัตโนมัติเร็วกว่าที่ควร
+
+   ช่องทาง: LINE เท่านั้น — ไม่ส่งอีเมล (ตามที่ตกลง อีเมลของเดิมไม่ถูกแตะ)
+   เตือนครั้งเดียวต่อ "รอบการ active ของขั้นตอน" — dedup ด้วยแถว notifications ที่ sent_at
+   ใหม่กว่าเวลาที่ขั้นนั้นถูกเปิด (ขั้นเดิมที่ถูก re-activate หลังตีกลับจึงเตือนได้ใหม่)
+   ปลอดภัยถ้ารันคู่กับ cron check-overdue — ทั้งสองฝั่งเช็ค dedup จากตาราง notifications เดียวกัน */
+async function sendStepStallLineNotifs(force){
+  if(!CU||['ROLE-SYS','ROLE-STF','ROLE-DEV'].indexOf(CU.role_code)<0) return;
+  var today=new Date().toISOString().substring(0,10);
+  if(!force&&localStorage.getItem('_stepStallCk')===today) return;
+  if(!force) localStorage.setItem('_stepStallCk',today);
+
+  var nowIso=new Date().toISOString();
+  var stalled=await dg('workflow_steps','?status=eq.active&deadline_datetime=lt.'+encodeURIComponent(nowIso)+
+    '&select=id,document_id,step_number,step_name,assigned_to,deadline_datetime');
+  if(!Array.isArray(stalled)||!stalled.length) return;
+
+  var docIds=[...new Set(stalled.map(function(s){return s.document_id}).filter(Boolean))];
+  if(!docIds.length) return;
+  var _in='('+docIds.map(safeId).join(',')+')';
+  var docs=await dg('documents','?id=in.'+_in+'&status=eq.pending&notify_overdue=eq.true'+
+    '&select=id,title,subject_line,due_date,created_by,created_at');
+  if(!Array.isArray(docs)||!docs.length) return;
+  var docMap={}; docs.forEach(function(d){docMap[d.id]=d});
+
+  // ขั้นตอนทั้งหมดของเอกสารเหล่านี้ — ใช้หาเวลาที่ขั้นที่ค้างถูกเปิดให้ทำ (stepStallInfo)
+  var allSteps=await dg('workflow_steps','?document_id=in.'+_in+'&order=step_number'+
+    '&select=id,document_id,step_number,step_name,assigned_to,status,action_at,completed_at,deadline_datetime');
+  var stepsByDoc={};
+  (Array.isArray(allSteps)?allSteps:[]).forEach(function(s){
+    (stepsByDoc[s.document_id]=stepsByDoc[s.document_id]||[]).push(s);
+  });
+
+  // แถวเตือนเดิม — อ่านได้เพราะ scan นี้จำกัดที่ ROLE-STF/SYS/DEV (RLS ของ notifications)
+  var prevByDoc={};
+  try{
+    var prev=await dg('notifications','?document_id=in.'+_in+'&notification_type=eq.step_overdue&select=document_id,sent_at');
+    (Array.isArray(prev)?prev:[]).forEach(function(n){
+      var t=new Date(n.sent_at);
+      if(isNaN(t)) return;
+      if(!prevByDoc[n.document_id]||t>prevByDoc[n.document_id]) prevByDoc[n.document_id]=t;
+    });
+  }catch(e){ return; }   // อ่าน dedup ไม่ได้ = ไม่ส่ง ดีกว่าส่งซ้ำทุกวัน
+
+  var uids=[...new Set(docs.map(function(d){return d.created_by}).concat(
+    stalled.map(function(s){return s.assigned_to})).filter(Boolean))];
+  var uMap={};
+  if(uids.length){
+    var us=await dg('user_directory','?id=in.('+uids.map(safeId).join(',')+')&select=id,full_name');
+    (Array.isArray(us)?us:[]).forEach(function(u){uMap[u.id]=u});
+  }
+
+  for(var i=0;i<docs.length;i++){
+    var doc=docs[i];
+    try{
+      var info=stepStallInfo(stepsByDoc[doc.id]||[],doc);
+      if(!info||!info.late) continue;
+      // เตือนไปแล้วหลังจากขั้นนี้ถูกเปิด → ข้าม (ขั้นเดิมที่เพิ่งถูก re-activate จะไม่ติด dedup เก่า)
+      if(prevByDoc[doc.id]&&prevByDoc[doc.id]>=info.since) continue;
+
+      var subj=(doc.subject_line&&doc.subject_line.length>=3)?doc.subject_line:(doc.title||'');
+      var assignee=info.step.assigned_to?uMap[info.step.assigned_to]:null;
+      var sent=false;
+
+      // 1) ผู้ที่ต้องลงนาม — คนที่กดแล้วเอกสารเดินต่อได้
+      if(info.step.assigned_to){
+        var st1=await sendLinePush(info.step.assigned_to,
+          buildStepStallLineText({role:'assignee',name:assignee?assignee.full_name:'',subj:subj,info:info}),null,doc.id);
+        if(st1!=='skipped'){
+          sent=true;
+          try{await logNotifRow({document_id:doc.id,recipient_id:info.step.assigned_to,recipient_email:'',
+            subject:'[LINE] ค้างเกินกำหนดลงนาม: '+subj,
+            body:'ขั้นตอน '+(info.step.step_name||'')+' ค้าง '+info.days+' วันทำการ',
+            notification_type:'step_overdue',status:st1,sent_at:new Date().toISOString()})}catch(e){}
+        }
+      }
+      // 2) ผู้จัดทำ — ให้รู้ว่าเอกสารตัวเองติดอยู่ที่ใคร จะได้ตามได้ถูกคน
+      if(doc.created_by&&doc.created_by!==info.step.assigned_to){
+        var cr=uMap[doc.created_by];
+        var st2=await sendLinePush(doc.created_by,
+          buildStepStallLineText({role:'creator',name:cr?cr.full_name:'',subj:subj,info:info,
+            holder:assignee?assignee.full_name:''}),null,doc.id);
+        if(st2!=='skipped'){
+          sent=true;
+          try{await logNotifRow({document_id:doc.id,recipient_id:doc.created_by,recipient_email:'',
+            subject:'[LINE] เอกสารของท่านค้างเกินกำหนด: '+subj,
+            body:'ค้างที่ '+(info.step.step_name||'')+' '+info.days+' วันทำการ',
+            notification_type:'step_overdue',status:st2,sent_at:new Date().toISOString()})}catch(e){}
+        }
+      }
+      if(!sent) continue;   // ไม่มีใครผูก LINE ไว้ — ไม่บันทึก จะได้เตือนใหม่เมื่อผูกแล้ว
+    }catch(e){console.warn('Step-stall LINE notif failed:',doc.id,e)}
+  }
+}
+
+/* ข้อความ LINE สำหรับขั้นตอนค้าง — plain text เหมือน buildLineText (คนละ head/CTA) */
+function buildStepStallLineText(o){
+  var pfx=SETT.email_prefix||'[กนค.]';
+  var info=o.info, st=info.step;
+  var ddl=info.deadline?info.deadline.toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit'}):'';
+  var lines=[];
+  if(o.role==='creator'){
+    lines.push(pfx+' ⏰ เอกสารของท่านค้างเกินกำหนด');
+    if(o.name) lines.push('เรียน '+o.name);
+    lines.push('เรื่อง: '+(o.subj||''));
+    lines.push('ค้างที่ขั้นตอน: '+(st.step_name||'')+(o.holder?' ('+o.holder+')':''));
+  } else {
+    lines.push(pfx+' ⏰ ท่านมีเอกสารค้างเกินกำหนดลงนาม');
+    if(o.name) lines.push('เรียน '+o.name);
+    lines.push('เรื่อง: '+(o.subj||''));
+    lines.push('ขั้นตอนของท่าน: '+(st.step_name||''));
+  }
+  if(ddl) lines.push('ครบกำหนดลงนาม: '+ddl);
+  lines.push('ค้างมาแล้ว: '+info.days+' วันทำการ');
+  lines.push(o.role==='creator'?'กรุณาติดตามกับผู้รับผิดชอบขั้นตอนนี้':'กรุณาเข้าระบบเพื่อลงนาม');
+  if(SETT.app_url) lines.push(SETT.app_url);
+  return lines.join('\n');
+}
+
 function showEmailToast(emails, subj){
   var list=Array.isArray(emails)?emails.filter(Boolean):[emails].filter(Boolean);
   if(!list.length) return;

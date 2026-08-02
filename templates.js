@@ -391,7 +391,7 @@ async function doTmplUpload(){
   var btn=$e('btn-upload-tmpl');
   if(btn){btn.disabled=true;btn.innerHTML='<span class="sp"></span> กำลังอัปโหลด...'}
   var pg=$e('tmpl-prog');
-  if(pg) pg.innerHTML='<div class="al al-in mt-2"><span class="sp sp-dark"></span><span> กำลังอัปโหลดไฟล์...</span></div>';
+  if(pg) pg.innerHTML='<div class="al al-busy mt-2"><span class="sp sp-dark"></span><span> กำลังอัปโหลดไฟล์...</span></div>';
   try{
     var safeName=f.name.replace(/[^a-zA-Z0-9._-]/g,'_');
     var path='tmpl_'+Date.now()+'_'+safeName;

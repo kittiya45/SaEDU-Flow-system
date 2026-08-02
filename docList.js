@@ -3,6 +3,7 @@ var _PROJ_FILTER='';  // โครงการที่เลือก filter
 var _DTYPE_FILTER=''; // ประเภทเอกสารที่เลือก filter
 var _FWD_ACT={};      // {docId: 'accepted'|'declined'} — populated in vDocs
 var _ACTIVE_STEPS={}; // {docId: full_name} — ผู้รับผิดชอบขั้นตอน active ปัจจุบัน
+var _ACTIVE_DDL={};   // {docId: deadline_datetime} — เส้นตายของขั้นตอนนั้น ใช้ชี้เอกสารที่ค้างเกินกำหนด
 var _ACCEPTED_BY={};  // {docId: full_name} — จนท.ที่รับเอกสารไว้ (สถานะ awaiting_submit)
 var _curFilteredDocs=null; // รายการที่กำลังแสดงในตารางจริง (หลัง filter tab/ประเภท/โครงการ/คำค้น) — ใช้โดย exportCSV() ใน report.js จะได้ export ตรงกับที่เห็นบนจอ
 var _DOC_PAGE=0;
@@ -44,17 +45,20 @@ async function vDocs(){
   ADOCS=_allDocs||[];
 
   // ── ดึงผู้รับผิดชอบขั้นตอน active สำหรับ pending docs ──
-  _ACTIVE_STEPS={};
+  _ACTIVE_STEPS={}; _ACTIVE_DDL={};
   var _pendingIds=ADOCS.filter(function(d){return d.status==='pending'}).map(function(d){return safeId(d.id)});
   if(_pendingIds.length){
-    var _aSteps=await dg('workflow_steps','?status=eq.active&document_id=in.('+_pendingIds.join(',')+')'+'&select=document_id,assigned_to');
+    var _aSteps=await dg('workflow_steps','?status=eq.active&document_id=in.('+_pendingIds.join(',')+')'+'&select=document_id,assigned_to,deadline_datetime');
     var _stepUids=[...new Set((_aSteps||[]).filter(function(s){return s.assigned_to}).map(function(s){return s.assigned_to}))];
     var _stepUmap={};
     if(_stepUids.length){
       var _suRes=await dg('user_directory','?id=in.('+_stepUids.map(safeId).join(',')+')'+'&select=id,full_name');
       (_suRes||[]).forEach(function(u){_stepUmap[u.id]=u.full_name});
     }
-    (_aSteps||[]).forEach(function(s){if(s.document_id&&s.assigned_to)_ACTIVE_STEPS[s.document_id]=_stepUmap[s.assigned_to]||''});
+    (_aSteps||[]).forEach(function(s){
+      if(s.document_id&&s.assigned_to)_ACTIVE_STEPS[s.document_id]=_stepUmap[s.assigned_to]||'';
+      if(s.document_id&&s.deadline_datetime)_ACTIVE_DDL[s.document_id]=s.deadline_datetime;
+    });
   }
 
   // ── เจ้าหน้าที่ที่รับเอกสารไว้ (awaiting_submit) — ให้รู้ว่าเอกสารอยู่กับใคร ──
@@ -272,11 +276,15 @@ function rDocTbl(docs){
   function mkDocRow(d,idx){
     var pg=Math.floor(idx/LIMIT);
     var _isMyTask=MSTEPS.indexOf(d.id)!==-1;
-    var _isOverdue=d.due_date&&d.due_date<_todayStr&&d.status!=='completed';
-    var rowCls='doc-ledger-row'+(_isMyTask?' is-mine':'')+(_isOverdue?' is-overdue':'');
+    var _isOverdue=d.due_date&&d.due_date<_todayStr&&d.status!=='completed'&&d.status!=='cancelled';
+    // ค้างเกินกำหนดขั้นตอน — คนละเรื่องกับ due_date (วันจัดกิจกรรม) เอกสารดองมาสองสัปดาห์
+    // ทั้งที่กิจกรรมยังอีกไกล ต้องเห็นว่าผิดปกติเหมือนกัน
+    var _stepDdl=_ACTIVE_DDL[d.id]?new Date(_ACTIVE_DDL[d.id]):null;
+    var _stepLate=d.status==='pending'&&_stepDdl&&!isNaN(_stepDdl)&&new Date()>_stepDdl;
+    var rowCls='doc-ledger-row'+(_isMyTask?' is-mine':'')+((_isOverdue||_stepLate)?' is-overdue':'');
 
     var dueCls='doc-ledger-due is-empty',dueTxt='—';
-    if(d.due_date&&d.status!=='completed'){
+    if(d.due_date&&d.status!=='completed'&&d.status!=='cancelled'){
       var _days=Math.ceil((new Date(d.due_date+'T00:00:00')-_todayMs)/86400000);
       if(_isOverdue){dueCls='doc-ledger-due is-late';dueTxt='เกิน '+Math.abs(_days)+' วัน'}
       else if(_days===0){dueCls='doc-ledger-due is-today';dueTxt='วันนี้'}
@@ -285,8 +293,10 @@ function rDocTbl(docs){
     }
 
     var who='';
-    if(d.status==='pending'&&_ACTIVE_STEPS[d.id])
-      who='<div class="doc-ledger-who tip" data-tip="'+esc(_ACTIVE_STEPS[d.id])+'">รอ: '+esc(_ACTIVE_STEPS[d.id])+'</div>';
+    if(d.status==='pending'&&_ACTIVE_STEPS[d.id]){
+      var _lateTxt=_stepLate?'<div class="doc-ledger-stall">เกินกำหนดลงนาม '+workingDaysElapsed(_stepDdl)+' วันทำการ</div>':'';
+      who='<div class="doc-ledger-who tip" data-tip="'+esc(_ACTIVE_STEPS[d.id])+'">รอ: '+esc(_ACTIVE_STEPS[d.id])+'</div>'+_lateTxt;
+    }
     // ขึ้นบรรทัดเองด้วย <br> — ปล่อยให้เบราว์เซอร์ตัดคำไทยจะหั่นกลางชื่อคน (นันท/ปิยะ)
     else if(d.status==='awaiting_submit'&&_ACCEPTED_BY[d.id])
       who='<div class="doc-ledger-who is-held">เจ้าหน้าที่รับเอกสารแล้ว<br>'+esc(_ACCEPTED_BY[d.id])+'</div>';

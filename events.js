@@ -78,6 +78,8 @@ document.addEventListener('click', function(e){
   else if(a==='doAdmResetPw') doAdmResetPw(el.dataset.uid);
   else if(a==='doReSubmit') doReSubmit(id).catch(function(e){_resubBusy=false;console.error('doReSubmit error:',e)});
   else if(a==='doRecall') doRecall(id);
+  else if(a==='showCancelDocModal') showCancelDocModal(id);
+  else if(a==='doCancelDoc') doCancelDoc(id);
   else if(a==='admDelDoc') admDelDoc(id);
   else if(a==='admChgStatus') admChgStatus(id);
   else if(a==='doAdmChgStatus') doAdmChgStatus(id, el.dataset.status);

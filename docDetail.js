@@ -152,6 +152,13 @@ async function vDet(docId){
       '<div style="margin-top:3px">ขณะนี้อยู่ระหว่าง<strong>รอเจ้าหน้าที่ยื่นในระบบมหาวิทยาลัย</strong> — เมื่อยื่นเสร็จและอัปโหลดฉบับประทับกลับมา สถานะจะเป็นเสร็จสมบูรณ์</div></span></div>');
   }
   else if(doc.status==='completed') banners.push('<div class="al al-ok"><span class="al-icon">'+svg('ok',13)+'</span><span><strong>เสร็จสมบูรณ์</strong> — เอกสารดำเนินการครบแล้ว</span></div>');
+  if(doc.status==='cancelled'){
+    var _cxH=hist.filter(function(h){return h.action==='ยกเลิกเอกสาร'})[0];
+    var _cxWhen=_cxH&&_cxH.performed_at?(' · '+fdTime(_cxH.performed_at)):'';
+    var _cxNote=_cxH&&_cxH.note?('<div style="margin-top:3px">เหตุผล: "'+esc(_cxH.note)+'"</div>'):'';
+    banners.push('<div class="al al-wa"><span class="al-icon">'+svg('x',13)+'</span><span><strong>เอกสารนี้ถูกยกเลิกแล้ว</strong>'+_cxWhen+
+      '<div style="margin-top:3px">ไม่ได้ออกเลขหนังสือ จึงไม่กินลำดับเลขที่ · ประวัติการลงนามถูกเก็บไว้เป็นหลักฐาน หากต้องการนำกลับมาใช้ ให้ผู้ดูแลระบบเปลี่ยนสถานะกลับเป็น "ร่างเอกสาร"</div>'+_cxNote+'</span></div>');
+  }
   var _canNum=doc.status==='numbering'&&(doc.created_by===CU.id||['ROLE-SYS','ROLE-STF'].includes(CU.role_code));
   if(doc.status==='numbering') banners.push('<div class="al al-wa"><span class="al-icon">'+svg('pen',13)+'</span><span>'+(_canNum?'<strong>ลายเซ็นครบทุกขั้นตอนแล้ว</strong> กดปุ่ม “ออกเลขหนังสือ” ด้านบนเพื่อกำหนดเลขที่และวันที่':'<strong>รอผู้จัดทำออกเลขที่หนังสือ</strong> เอกสารผ่านการลงนามครบแล้ว')+'</span></div>');
   // Banner: cascade — แสดงเมื่อ step ที่ active ถูก re-activate เพราะ step ถัดไปตีกลับ
@@ -163,6 +170,23 @@ async function vDet(docId){
     banners.push('<div class="al al-wa"><span class="al-icon">'+svg('undo',13)+'</span><span>ส่งคืนมาจากขั้นตอน: <strong>'+esc(_nextRejWf.step_name)+'</strong>'+_rejReason+_rejNote+' · กรุณาดำเนินการภายใน <strong>'+(SETT.sla_cascade_days||3)+' วัน</strong></span></div>');
   } else if(hasRejectedHistory && doc.status==='pending') {
     banners.push('<div class="al al-wa"><span class="al-icon">'+svg('undo',13)+'</span><span>เอกสารที่แก้ไขแล้วหลังการส่งคืน - รอการอนุมัติตามขั้นตอน</span></div>');
+  }
+  /* Banner: เอกสารค้างที่ขั้นตอนเดิมนานผิดปกติ
+     ให้ทุกคนที่เปิดเอกสารเห็นตรงกันว่าติดอยู่ที่ใครและมากี่วัน โดยไม่ต้องไล่ไทม์ไลน์ทีละขั้น
+     นับจากเวลาที่ขั้นก่อนหน้าอนุมัติ (stepStallInfo ใน utils.js) */
+  if(doc.status==='pending'){
+    var _stall=stepStallInfo(wf,doc);
+    if(_stall&&(_stall.late||_stall.days>=3)){
+      var _stallWho=_stall.step._assigneeName?esc(_stall.step._assigneeName):'ผู้รับผิดชอบขั้นตอน';
+      var _stallDdl=_stall.deadline?_stall.deadline.toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit'}):'';
+      banners.push('<div class="al '+(_stall.late?'al-er':'al-wa')+'"><span class="al-icon">'+svg('clock',13)+'</span><span>'+
+        (_stall.late?'<strong>เกินกำหนดลงนามแล้ว</strong> — ':'')+
+        'เอกสารค้างอยู่ที่ <strong>'+esc(_stall.step.step_name||'ขั้นตอนปัจจุบัน')+'</strong>'+
+        (_stall.step._assigneeName?' · <strong>'+_stallWho+'</strong>':'')+
+        ' มา <strong>'+_stall.days+' วันทำการ</strong>'+
+        (_stallDdl?' (ครบกำหนด '+_stallDdl+')':'')+
+        '</span></div>');
+    }
   }
   // Banner: SLA countdown เมื่อเอกสารถูกส่งคืนถึงผู้จัดทำ (status=rejected)
   if(doc.status==='rejected'){
@@ -204,7 +228,7 @@ async function vDet(docId){
     html.push('<button class="btn btn-soft sm" data-action="doRecall" data-id="'+docId+'">'+svg('undo',13)+' ดึงกลับ</button>');
   }
   // Secondary
-  if(CAN.up(CU.role_code)){
+  if(CAN.up(CU.role_code)&&doc.status!=='cancelled'){
     // แจ้งผู้จัดทำซ้ำได้ — สำหรับเอกสารที่ จนท. รับไปแล้วแต่ผู้จัดทำยังไม่เคยได้รับแจ้ง
     if(doc.status==='awaiting_submit'&&canAcceptDoc(doc)){
       html.push('<button class="btn btn-soft sm" data-action="notifyAccepted" data-id="'+docId+'">'+svg('bell',13)+' แจ้งผู้จัดทำ</button>');
@@ -237,6 +261,10 @@ async function vDet(docId){
     html.push('<button class="btn btn-danger sm" data-action="showDeclineFwdModal" data-id="'+docId+'">'+svg('x',13)+' ไม่อนุมัติ / ส่งคืน</button>');
   }
   html.push('<button class="btn btn-soft sm" data-action="exportDocPDF" data-id="'+docId+'">'+svg('pdf_ico',13)+' PDF</button>');
+  // ยกเลิกเอกสาร — ผู้จัดทำ/จนท./แอดมิน ทำได้ก่อนออกเลขหนังสือจริง (ดู canCancelDoc ใน utils.js)
+  if(canCancelDoc(doc)){
+    html.push('<button class="btn btn-soft sm" data-action="showCancelDocModal" data-id="'+docId+'" style="color:#B91C1C">'+svg('x',13)+' ยกเลิกเอกสาร</button>');
+  }
   // Destructive — ซ่อนใน ⋮ dropdown สำหรับ admin เท่านั้น
   if(CU.role_code==='ROLE-SYS'){
     html.push(
@@ -314,7 +342,7 @@ async function vDet(docId){
   if(wf.length){
     html.push('<div class="timeline">');
     wf.forEach(function(s,i){
-      var done=s.status==='done', act=s.status==='active', rej=s.status==='rejected', last=i===wf.length-1;
+      var done=s.status==='done', act=s.status==='active', rej=s.status==='rejected', cxl=s.status==='cancelled', last=i===wf.length-1;
       html.push('<div class="tl-item">');
       html.push('<div class="tl-spine"><div class="tl-dot '+(done?'tl-dot-done':act?'tl-dot-active':rej?'tl-dot-rejected':'tl-dot-wait')+'">'+(done?svg('ok',11):rej?svg('x',11):i+1)+'</div>'+(!last?'<div class="tl-line '+(done?'tl-line-done':'tl-line-wait')+'"></div>':'')+'</div>');
       html.push('<div class="tl-body"><div class="tl-title '+(act?'text-[#D97706]':rej?'text-[#DC2626]':'')+'">'+esc(s.step_name)+'</div>');
@@ -331,6 +359,7 @@ async function vDet(docId){
         html.push('<div class="tl-time text-[#D97706] flex items-center gap-1">'+svg('clock',12)+' กำลังดำเนินการ'+(_ddlStr?' · ครบกำหนด: '+_ddlStr+(_late?' <span class="text-[#DC2626] font-bold"> (เกินกำหนด!)</span>':''):'')+'</div>');
         if(!_ddlStr) html.push('<div class="tl-time text-[#a89e99]">กำหนด '+s.deadline_days+' วัน</div>');
       }
+      if(cxl) html.push('<div class="tl-time text-[#a89e99]">'+svg('x',11)+' ยกเลิก — ไม่ต้องดำเนินการ</div>');
       if(s.revision_section) html.push('<div class="tl-note text-[#DC2626]">ส่วนที่ต้องแก้ไข: <strong>'+esc(s.revision_section)+'</strong></div>');
       if(s.note) html.push('<div class="tl-note">"'+esc(s.note)+'"</div>');
       html.push('</div></div>');
@@ -344,6 +373,7 @@ async function vDet(docId){
   // History — right column, below workflow
   var _histIcon=function(action){
     var a=action||'';
+    if(a.indexOf('ยกเลิกเอกสาร')>=0)                    return {ic:'x',   bg:'#F5F3F0',cl:'#8c8279'};
     if(a.indexOf('ยืนยัน')>=0)                          return {ic:'ok',  bg:'#D1FAE5',cl:'#16A34A'};
     if(a.indexOf('อนุมัติ')>=0||a.indexOf('ลงนาม')>=0) return {ic:'ok',  bg:'#D1FAE5',cl:'#16A34A'};
     if(a.indexOf('ออกเลขหนังสือ')>=0)                   return {ic:'pen', bg:'#FFF3EE',cl:'#E83A00'};
@@ -364,7 +394,7 @@ async function vDet(docId){
   var _hidePrefix=['เปิดดูไฟล์','เปลี่ยนสถานะ (Admin)'];
   var _dispHist=hist.filter(function(h){return !(h.action&&_hidePrefix.some(function(p){return h.action.indexOf(p)===0}))});
   if(!_histFullDetail){
-    var _keepKw=['สร้างเอกสาร','ส่งเอกสาร','อนุมัติ','ลงนาม','ส่งคืน','ส่งใหม่','ส่งอีกครั้ง','ออกเลข','ดึงเอกสารกลับ','เจ้าหน้าที่รับ','ส่งต่อ','ส่งเข้ากิจการ','ไม่อนุมัติ','ฉบับประทับ','เสร็จสมบูรณ์'];
+    var _keepKw=['สร้างเอกสาร','ส่งเอกสาร','อนุมัติ','ลงนาม','ส่งคืน','ส่งใหม่','ส่งอีกครั้ง','ออกเลข','ดึงเอกสารกลับ','ยกเลิกเอกสาร','เจ้าหน้าที่รับ','ส่งต่อ','ส่งเข้ากิจการ','ไม่อนุมัติ','ฉบับประทับ','เสร็จสมบูรณ์'];
     _dispHist=_dispHist.filter(function(h){
       var a=h.action||'';
       return _keepKw.some(function(k){return a.indexOf(k)>=0});
@@ -373,7 +403,7 @@ async function vDet(docId){
   if(_dispHist.length){
     _dispHist.forEach(function(h){
       var _hi=_histIcon(h.action);
-      var _showNote=h.note&&(_histFullDetail||(h.action&&(h.action.indexOf('ส่งคืน')>=0||h.action.indexOf('ไม่อนุมัติ')>=0)));
+      var _showNote=h.note&&(_histFullDetail||(h.action&&(h.action.indexOf('ส่งคืน')>=0||h.action.indexOf('ไม่อนุมัติ')>=0||h.action.indexOf('ยกเลิกเอกสาร')>=0)));
       html.push('<div class="htl-item">');
       html.push('<div class="htl-ic" style="background:'+_hi.bg+';color:'+_hi.cl+'">'+svg(_hi.ic,15)+'</div>');
       html.push('<div class="htl-body"><div class="htl-action">'+esc(h.action)+'</div>');
@@ -443,7 +473,7 @@ async function _detUpFiles(files, skipped, docId){
   var ok=0, fail=[];
   for(var i=0;i<files.length;i++){
     var f=files[i];
-    if(a) a.innerHTML='<div class="al al-in"><span class="sp sp-dark"></span><span> กำลังอัปโหลด '+(i+1)+'/'+files.length+': '+esc(f.name)+'</span></div>';
+    if(a) a.innerHTML='<div class="al al-busy"><span class="sp sp-dark"></span><span> กำลังอัปโหลด '+(i+1)+'/'+files.length+': '+esc(f.name)+'</span></div>';
     try{
       var safeName2=f.name.replace(/[^a-zA-Z0-9._-]/g,'_');
       var path=Date.now()+'_'+i+'_'+safeName2;
@@ -902,7 +932,11 @@ async function doAct(action,docId){
           await upFile(stablePath,newBlob);
           _invalidateFileUrl(oldPath); // ทิ้ง signed URL เดิมใน _furlCache กันหน้าอื่นในแท็บนี้เปิดฉบับก่อนเซ็น
           if(signedRow){
-            await dpa('document_files',signedRow.id,{file_path:stablePath,file_size:newBlob.size,uploaded_by:CU.id,version:_newVer});
+            // uploaded_at ต้องขยับทุกครั้งที่เซ็นทับ — คอลัมน์นี้ default now() ตอน insert เท่านั้น ไม่มี trigger
+            // ถ้าไม่เซ็ต แถวฉบับลงนามจะค้างเวลาของ "การเซ็นครั้งแรก" ตลอด แล้วไฟล์ที่อัปทีหลัง
+            // (เช่น [แก้ไข] จากตัวแก้ไข PDF) จะกลายเป็นฉบับใหม่สุดในกลุ่ม → ผู้เซ็นคนถัดไปเซ็นทับฉบับเปล่า
+            // = ลายเซ็นคนก่อนหน้าหาย และหน้ารายละเอียดก็โชว์ฉบับไม่มีลายเซ็นเป็น "ฉบับปัจจุบัน"
+            await dpa('document_files',signedRow.id,{file_path:stablePath,file_size:newBlob.size,uploaded_by:CU.id,version:_newVer,uploaded_at:new Date().toISOString()});
             if(oldPath&&oldPath!==stablePath) await _deleteStorage(oldPath);
           }else{
             await dp('document_files',{document_id:docId,file_name:'[ลงนาม] '+baseName,file_path:stablePath,file_size:newBlob.size,file_type:'application/pdf',uploaded_by:CU.id,version:_newVer});
@@ -1015,6 +1049,93 @@ async function _doRecallConfirmed(docId){
     showAlert('เกิดข้อผิดพลาด: '+e.message,'er');
   }finally{
     _recallBusy=false;
+  }
+}
+
+/* ─── ยกเลิกเอกสาร ───────────────────────────────────────────────────────────
+   ใช้เมื่อโครงการไม่ได้จัด/ไม่ต้องเสนอแล้ว — ต่างจาก "ลบเอกสาร" (แอดมินเท่านั้น) ตรงที่
+   เก็บเอกสารและลายเซ็นที่ผ่านมาไว้เป็นหลักฐาน ไม่ทำลายประวัติ
+   ทำได้เฉพาะก่อนออกเลขหนังสือจริง จึงไม่มีปัญหาเลขที่หายจากลำดับ (ดู CANCELLABLE_ST) */
+function showCancelDocModal(docId){
+  var mw=$e('mwrap'); if(!mw)return;
+  mw.innerHTML=[
+    '<div class="mo"><div class="modal">',
+    '<div class="modal-head"><span class="modal-title">'+svg('x',14)+' ยกเลิกเอกสาร</span>',
+    '<button class="btn btn-soft sm btn-icon" data-action="closeModal">'+svg('x',14)+'</button></div>',
+    '<div class="modal-body">',
+    '<div class="al al-wa" style="margin-bottom:10px"><span class="al-icon">'+svg('warn',13)+'</span>',
+    '<span>เอกสารจะถูกปิดถาวรและไม่สามารถเดินเรื่องต่อได้ ผู้ที่ยังค้างงานอยู่จะไม่เห็นงานนี้อีก</span></div>',
+    '<div class="al al-in" style="margin-bottom:14px;font-size:12px"><span class="al-icon">'+svg('info',13)+'</span>',
+    '<span>ลายเซ็นและประวัติทั้งหมดจะถูกเก็บไว้เป็นหลักฐาน · ยังไม่ได้ออกเลขหนังสือจริง จึงไม่กินลำดับเลขที่ · หากต้องการนำกลับมาใช้ ผู้ดูแลระบบเปลี่ยนสถานะกลับได้</span></div>',
+    '<div class="fg"><label class="fl">เหตุผลที่ยกเลิก <span class="req">*</span></label>',
+    '<textarea class="fi" id="cancel-doc-note" rows="3" placeholder="เช่น โครงการไม่ได้จัด / เปลี่ยนแผนการดำเนินงาน..."></textarea></div>',
+    '</div>',
+    '<div class="modal-foot">',
+    '<button class="btn btn-soft" data-action="closeModal">ไม่ยกเลิก</button>',
+    '<button class="btn btn-danger" data-action="doCancelDoc" data-id="'+docId+'">'+svg('x',13)+' ยืนยันยกเลิกเอกสาร</button>',
+    '</div></div></div>'
+  ].join('');
+}
+
+var _cancelDocBusy=false;
+async function doCancelDoc(docId){
+  if(_cancelDocBusy)return;
+  var note=(gv('cancel-doc-note')||'').trim();
+  if(!note){showAlert('กรุณาระบุเหตุผลที่ยกเลิก','wa');return}
+  _cancelDocBusy=true;
+  var mw=$e('mwrap');
+  if(mw)mw.innerHTML='<div class="mo"><div class="modal"><div class="modal-body text-center py-10"><div class="sp sp-dark w-8 h-8 border-[3px] mx-auto"></div><p class="mt-4 text-[#a89e99]">กำลังยกเลิกเอกสาร...</p></div></div></div>';
+  try{
+    // อ่านสถานะสดก่อนเสมอ — กันกรณีมีคนอนุมัติ/ออกเลขไปแล้วระหว่างที่หน้านี้เปิดค้าง
+    var doc=(await dg('documents','?id=eq.'+safeId(docId)))[0];
+    if(!doc||!canCancelDoc(doc)){
+      if(mw)mw.innerHTML='';
+      showAlert('ยกเลิกไม่ได้: สถานะเอกสารเปลี่ยนไปแล้ว','wa');
+      _cancelDocBusy=false;nav('det',docId);return;
+    }
+    var wf=await dg('workflow_steps','?document_id=eq.'+safeId(docId)+'&order=step_number');
+    if(!Array.isArray(wf)) wf=[];
+    // ปิดเฉพาะขั้นตอนที่ยัง "เปิดค้าง" อยู่จริง (pending/active) เท่านั้น
+    // done กับ rejected เป็นผลลัพธ์ที่จบแล้ว ต้องคงไว้เป็นหลักฐานว่าใครเซ็น/ใครตีกลับ
+    // และต้องเคลียร์ active ให้หมด ไม่งั้นงานยังค้างในกระดิ่ง/หน้า "งานของฉัน" ซึ่งกรองด้วย step status ล้วน
+    var _openSteps=wf.filter(function(s){return s.status==='pending'||s.status==='active'});
+    for(var i=0;i<_openSteps.length;i++){
+      await dpa('workflow_steps',_openSteps[i].id,{status:'cancelled'});
+    }
+    await dpa('documents',docId,{status:'cancelled',updated_at:new Date().toISOString()});
+    await dp('document_history',{document_id:docId,action:'ยกเลิกเอกสาร',performed_by:CU.id,note:note});
+
+    // แจ้งคนที่เกี่ยวข้อง — ผู้ที่เคยเซ็นไปแล้ว + คนที่ค้างงานอยู่ + ผู้จัดทำ (ถ้าไม่ใช่คนกด)
+    // ไม่ใช้ sendNotifEmail: routing ผู้รับของมันไม่มีเคส cancel เช่นเดียวกับ recall
+    var _ids={};
+    wf.forEach(function(s){if(s.assigned_to&&s.assigned_to!==CU.id)_ids[s.assigned_to]=true});
+    if(doc.created_by&&doc.created_by!==CU.id) _ids[doc.created_by]=true;
+    if(doc.notify_step!==false){
+      for(var uid in _ids){
+        try{
+          var _ru=await dg('user_directory','?id=eq.'+safeId(uid)+'&select=id,full_name,contact_email,email');
+          var _u=Array.isArray(_ru)?_ru[0]:null; if(!_u) continue;
+          var _em=_u.contact_email||_u.email||'';
+          var _subj=(SETT.email_prefix||'[กนค.]')+' ✕ ยกเลิกเอกสาร: '+(doc.title||'');
+          var _body='เรียน '+esc(_u.full_name)+',<br><br>เอกสารเรื่อง "'+esc(doc.title||'')+'" ถูกยกเลิกแล้ว ไม่ต้องดำเนินการใด ๆ ต่อ<br><br>เหตุผล: '+esc(note);
+          if(_em&&_em.includes('@')&&!_em.includes('@gnk.student')){
+            var _er=await sendEmailEdge({to:_em,subject:_subj,html:_body,documentId:docId,recipientUserId:_u.id});
+            if(_er.ok&&typeof showEmailToast==='function') showEmailToast(_em,_subj);
+            await logNotifRow({document_id:docId,recipient_id:_u.id,recipient_email:_em,subject:_subj,body:_body,notification_type:'cancel',status:_er.ok?'sent':'failed',sent_at:new Date().toISOString()});
+          }
+          if(typeof sendLineWithLog==='function'){
+            await sendLineWithLog(docId,_u.id,_em,_subj,'✕ ยกเลิกเอกสาร: '+(doc.title||'')+'\nเหตุผล: '+note+'\nไม่ต้องดำเนินการต่อ','cancel');
+          }
+        }catch(ne){console.warn('Cancel notify failed:',ne)}
+      }
+    }
+    if(mw)mw.innerHTML='';
+    nav('det',docId).then(function(){showAlert('ยกเลิกเอกสารเรียบร้อยแล้ว','ok')}).catch(function(){});
+  }catch(e){
+    if(mw)mw.innerHTML='';
+    showAlert('เกิดข้อผิดพลาด: '+e.message,'er');
+  }finally{
+    _cancelDocBusy=false;
   }
 }
 

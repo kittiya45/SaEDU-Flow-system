@@ -16,7 +16,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <!-- คอมไพล์จาก tailwind.css ด้วย `npm run build` — ไม่ใช่ Tailwind CDN อีกต่อไป (ดู package.json) -->
 <link rel="stylesheet" href="styles.tailwind.css?v=5">
-<link rel="stylesheet" href="styles.css?v=61">
+<link rel="stylesheet" href="styles.css?v=65">
 </head>
 <body>
 <div id="app"></div>
@@ -25,28 +25,28 @@
 <script src="vendor/supabase.js?v=1"></script>
 
 <!-- ตั้งค่า API, ตัวแปรหลัก และสิทธิ์ใช้งาน -->
-<script src="config.js?v=33" defer></script>
+<script src="config.js?v=34" defer></script>
 
 <!-- รวมฟังก์ชันช่วยจัดการหน้าจอและแจ้งเตือน -->
-<script src="utils.js?v=35" defer></script>
+<script src="utils.js?v=39" defer></script>
 
 <!-- ตัวดักจับการคลิกและส่งคำสั่งจัดการหน้าเว็บ -->
-<script src="events.js?v=11" defer></script>
+<script src="events.js?v=12" defer></script>
 
 <!-- ระบบ Login และจัดการเซสชันผู้ใช้ -->
-<script src="auth.js?v=22" defer></script>
+<script src="auth.js?v=23" defer></script>
 
 <!-- หน้าสรุปผลและรายการงานล่าสุด (homeViews.js + dashboard.js สำรอง — ad blocker/cache มักบล็อกชื่อ dashboard.js) -->
-<script src="homeViews.js?v=22" defer></script>
+<script src="homeViews.js?v=23" defer></script>
 
 <!-- ตารางรายการเอกสารและการค้นหา -->
-<script src="docList.js?v=33" defer></script>
+<script src="docList.js?v=35" defer></script>
 
 <!-- ฟอร์มสร้าง/แก้ไขเอกสารและอัปโหลดไฟล์ -->
 <script src="docForm.js?v=38" defer></script>
 
 <!-- ระบบอนุมัติ ตีกลับ และส่งต่อเอกสาร -->
-<script src="workflow.js?v=16" defer></script>
+<script src="workflow.js?v=17" defer></script>
 
 <!-- ประวัติเอกสารและดาวน์โหลดรายงาน CSV -->
 <script src="report.js?v=4" defer></script>
@@ -57,13 +57,13 @@
 <script src="sigProfile.js?v=2" defer></script>
 
 <!-- หน้าแสดงรายละเอียดเอกสาร อนุมัติ/ตีกลับ และฝังลายเซ็นใน PDF -->
-<script src="docDetail.js?v=49" defer></script>
+<script src="docDetail.js?v=53" defer></script>
 
 <!-- ออกเลขที่หนังสือขาออก (สร้างเลขอัตโนมัติในรูปแบบ SPPTNNN หรือ SPPTNNN-CC) -->
-<script src="docNum.js?v=26" defer></script>
+<script src="docNum.js?v=27" defer></script>
 
 <!-- ส่งอีเมลแจ้งเตือนผ่าน Edge Function และตรวจเอกสารที่เลยกำหนด -->
-<script src="notif.js?v=15" defer></script>
+<script src="notif.js?v=16" defer></script>
 
 <!-- หน้าต่างเปิดดูไฟล์ PDF และรูปภาพ -->
 <script src="viewer.js?v=6" defer></script>
@@ -72,23 +72,23 @@
 <script src="editor.js?v=2" defer></script>
 
 <!-- กราฟสถิติและติดตามงานค้าง -->
-<script src="stats.js?v=28" defer></script>
+<script src="stats.js?v=29" defer></script>
 
 <!-- หน้าจัดการระบบ: เลขที่เอกสาร -->
-<script src="sysAdmin.js?v=30" defer></script>
+<script src="sysAdmin.js?v=31" defer></script>
 
 <!-- เครื่องมือนักพัฒนา (เฉพาะ ROLE-DEV — แยกจากแอดมิน): สุขภาพระบบ, log, ซ่อมเอกสาร, ทดสอบระบบ, จัดการระบบฝัง -->
 <script src="dev-sql-bundle.js?v=3" defer></script>
-<script src="dev.js?v=26" defer></script>
+<script src="dev.js?v=27" defer></script>
 
 <!-- หน้าจัดการระบบ: ประเภทเอกสาร-->
 <script src="docTypeAdmin.js?v=2" defer></script>
 
 <!-- แบบฟอร์มดาวน์โหลด -->
-<script src="templates.js?v=14" defer></script>
+<script src="templates.js?v=15" defer></script>
 
 <!-- จัดการผู้ใช้งาน: อนุมัติบัญชี แก้ไขข้อมูล รีเซ็ตรหัสผ่าน เพิ่มอาจารย์ -->
-<script src="admin.js?v=13" defer></script>
+<script src="admin.js?v=14" defer></script>
 
 <!-- นำเข้าผู้ใช้หลายคนพร้อมกันจากไฟล์ CSV (เฉพาะ ROLE-SYS) -->
 <script src="adminImport.js?v=2" defer></script>

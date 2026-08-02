@@ -427,7 +427,7 @@ async function _devRunOverdue(){
 /* ซ่อมสถานะเอกสารจากแท็บสุขภาพ — ใช้ _reconcileDocState (docDetail.js) แล้วโหลดหน้าใหม่ */
 async function _devFixDoc(docId){
   var al=$e('dev-issue-al');
-  if(al) al.innerHTML='<div class="al al-in" style="margin:8px 16px"><span class="sp sp-dark"></span><span> กำลังซ่อมสถานะ...</span></div>';
+  if(al) al.innerHTML='<div class="al al-busy" style="margin:8px 16px"><span class="sp sp-dark"></span><span> กำลังซ่อมสถานะ...</span></div>';
   try{
     await _reconcileDocState(docId);
     try{await dp('document_history',{document_id:docId,action:'ซ่อมสถานะเอกสาร (dev)',performed_by:CU.id,note:'ปรับสถานะให้สอดคล้องกับขั้นตอนโดยเครื่องมือนักพัฒนา'});}catch(e){}
@@ -1489,7 +1489,7 @@ function _sbxSigClear(){
 }
 async function _sbxMakePdf(){
   var box=$e('sbx-sig-result'); if(!box) return;
-  box.innerHTML='<div class="al al-in"><span class="sp sp-dark"></span><span> กำลังสร้าง PDF (โหลด pdf-lib + ฟอนต์ไทย)...</span></div>';
+  box.innerHTML='<div class="al al-busy"><span class="sp sp-dark"></span><span> กำลังสร้าง PDF (โหลด pdf-lib + ฟอนต์ไทย)...</span></div>';
   try{
     if(!window.PDFLib) await loadSc('https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js');
     if(!window.fontkit) await loadSc('https://unpkg.com/@pdf-lib/fontkit/dist/fontkit.umd.min.js');
@@ -1530,7 +1530,7 @@ async function _sbxTestEmail(){
   var box=$e('sbx-notif-result'); if(!box) return;
   var to=(CU&&(CU.contact_email||CU.email))||'';
   if(!to||to.indexOf('@gnk.student')>=0){box.innerHTML=alrtH('wa','บัญชีนี้ไม่มีอีเมลจริง (placeholder) — ทดสอบอีเมลไม่ได้ค่ะ');return;}
-  box.innerHTML='<div class="al al-in"><span class="sp sp-dark"></span><span> กำลังส่งอีเมลทดสอบ...</span></div>';
+  box.innerHTML='<div class="al al-busy"><span class="sp sp-dark"></span><span> กำลังส่งอีเมลทดสอบ...</span></div>';
   try{
     // header ต้องเป็นชุดเล็กเสมอสำหรับ Edge Functions — ห้ามส่ง H ตรง ๆ (มี Prefer ที่ CORS ปฏิเสธ)
     var r=await sendEmailEdge({to:to,subject:(SETT.email_prefix||'[กนค.]')+' ทดสอบระบบอีเมล (Dev Sandbox)',html:'<p>อีเมลทดสอบจากแท็บ "ทดสอบระบบ" ใน Dev Panel — ถ้าได้รับฉบับนี้แปลว่า Edge Function send-email และ Brevo ทำงานปกติค่ะ</p><p style="color:#888;font-size:12px">ส่งเมื่อ '+new Date().toLocaleString('th-TH')+'</p>',testSelf:true});
@@ -1540,7 +1540,7 @@ async function _sbxTestEmail(){
 }
 async function _sbxTestLine(){
   var box=$e('sbx-notif-result'); if(!box) return;
-  box.innerHTML='<div class="al al-in"><span class="sp sp-dark"></span><span> กำลังส่ง LINE ทดสอบ...</span></div>';
+  box.innerHTML='<div class="al al-busy"><span class="sp sp-dark"></span><span> กำลังส่ง LINE ทดสอบ...</span></div>';
   try{
     if(typeof sendLinePush!=='function') throw new Error('ไม่พบฟังก์ชัน sendLinePush');
     var res=await sendLinePush(CU.id,'🧪 ทดสอบระบบ LINE จาก Dev Panel — '+new Date().toLocaleString('th-TH'),null,null,true);
