@@ -157,7 +157,7 @@ async function vDet(docId){
     var _cxWhen=_cxH&&_cxH.performed_at?(' · '+fdTime(_cxH.performed_at)):'';
     var _cxNote=_cxH&&_cxH.note?('<div style="margin-top:3px">เหตุผล: "'+esc(_cxH.note)+'"</div>'):'';
     banners.push('<div class="al al-wa"><span class="al-icon">'+svg('x',13)+'</span><span><strong>เอกสารนี้ถูกยกเลิกแล้ว</strong>'+_cxWhen+
-      '<div style="margin-top:3px">ไม่ได้ออกเลขหนังสือ จึงไม่กินลำดับเลขที่ · ประวัติการลงนามถูกเก็บไว้เป็นหลักฐาน หากต้องการนำกลับมาใช้ ให้ผู้ดูแลระบบเปลี่ยนสถานะกลับเป็น "ร่างเอกสาร"</div>'+_cxNote+'</span></div>');
+      '<div style="margin-top:3px">ประวัติการลงนามและเลขหนังสือถูกเก็บไว้เป็นหลักฐาน (เลขไม่ถูกนำไปใช้ซ้ำ) · หากต้องการนำกลับมาใช้ ให้ผู้ดูแลระบบเปลี่ยนสถานะกลับเป็น "ร่างเอกสาร"</div>'+_cxNote+'</span></div>');
   }
   var _canNum=doc.status==='numbering'&&(doc.created_by===CU.id||['ROLE-SYS','ROLE-STF'].includes(CU.role_code));
   if(doc.status==='numbering') banners.push('<div class="al al-wa"><span class="al-icon">'+svg('pen',13)+'</span><span>'+(_canNum?'<strong>ลายเซ็นครบทุกขั้นตอนแล้ว</strong> กดปุ่ม “ออกเลขหนังสือ” ด้านบนเพื่อกำหนดเลขที่และวันที่':'<strong>รอผู้จัดทำออกเลขที่หนังสือ</strong> เอกสารผ่านการลงนามครบแล้ว')+'</span></div>');
@@ -1066,17 +1066,27 @@ async function _doRecallConfirmed(docId){
    ใช้เมื่อโครงการไม่ได้จัด/ไม่ต้องเสนอแล้ว — ต่างจาก "ลบเอกสาร" (แอดมินเท่านั้น) ตรงที่
    เก็บเอกสารและลายเซ็นที่ผ่านมาไว้เป็นหลักฐาน ไม่ทำลายประวัติ
    ทำได้เฉพาะก่อนออกเลขหนังสือจริง จึงไม่มีปัญหาเลขที่หายจากลำดับ (ดู CANCELLABLE_ST) */
-function showCancelDocModal(docId){
+async function showCancelDocModal(docId){
   var mw=$e('mwrap'); if(!mw)return;
+  var doc=(await dg('documents','?id=eq.'+safeId(docId)))[0]||{};
+  // เอกสารที่ยื่นเข้าคณะไปแล้วต้องเตือนแรงกว่า — ระบบนี้ดึงเอกสารกลับจากคณะให้ไม่ได้
+  var posted=POSTED_ST.indexOf(doc.status)!==-1;
+  var _postedWarn=posted
+    ? '<div class="al al-er" style="margin-bottom:10px"><span class="al-icon">'+svg('warn',13)+'</span>'
+      +'<span><strong>เอกสารนี้ออกเลขหนังสือและนำส่งออกไปแล้ว</strong>'
+      +'<div style="margin-top:3px">การกดยกเลิกที่นี่เปลี่ยนแค่สถานะในระบบนี้ <strong>ไม่ได้ดึงเอกสารกลับจากคณะ/มหาวิทยาลัย</strong> — ต้องแจ้งยกเลิกกับเจ้าหน้าที่ที่รับเรื่องด้วยตนเองอีกทางหนึ่ง</div>'
+      +'<div style="margin-top:3px">เลขที่ '+esc(doc.doc_number||'—')+' จะยังผูกกับเอกสารใบนี้ไว้ ไม่ถูกนำไปใช้ซ้ำ</div></span></div>'
+    : '';
   mw.innerHTML=[
     '<div class="mo"><div class="modal">',
     '<div class="modal-head"><span class="modal-title">'+svg('x',14)+' ยกเลิกเอกสาร</span>',
     '<button class="btn btn-soft sm btn-icon" data-action="closeModal">'+svg('x',14)+'</button></div>',
     '<div class="modal-body">',
+    _postedWarn,
     '<div class="al al-wa" style="margin-bottom:10px"><span class="al-icon">'+svg('warn',13)+'</span>',
     '<span>เอกสารจะถูกปิดถาวรและไม่สามารถเดินเรื่องต่อได้ ผู้ที่ยังค้างงานอยู่จะไม่เห็นงานนี้อีก</span></div>',
     '<div class="al al-in" style="margin-bottom:14px;font-size:12px"><span class="al-icon">'+svg('info',13)+'</span>',
-    '<span>ลายเซ็นและประวัติทั้งหมดจะถูกเก็บไว้เป็นหลักฐาน · ยังไม่ได้ออกเลขหนังสือจริง จึงไม่กินลำดับเลขที่ · หากต้องการนำกลับมาใช้ ผู้ดูแลระบบเปลี่ยนสถานะกลับได้</span></div>',
+    '<span>ลายเซ็นและประวัติทั้งหมดจะถูกเก็บไว้เป็นหลักฐาน · เลขหนังสือยังผูกกับเอกสารใบนี้ ลำดับเลขจึงไม่ขาด · หากต้องการนำกลับมาใช้ ผู้ดูแลระบบเปลี่ยนสถานะกลับได้</span></div>',
     '<div class="fg"><label class="fl">เหตุผลที่ยกเลิก <span class="req">*</span></label>',
     '<textarea class="fi" id="cancel-doc-note" rows="3" placeholder="เช่น โครงการไม่ได้จัด / เปลี่ยนแผนการดำเนินงาน..."></textarea></div>',
     '</div>',
