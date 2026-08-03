@@ -508,7 +508,8 @@ async function pedSave(){
           })
         } else {
           try{
-            var ib=await(await fetch(el.src)).arrayBuffer();
+            // el.src เป็น data: URL (toDataURL) — fetch() โดน CSP บล็อก ต้องถอดรหัสเอง
+            var ib=await imgSrcToBytes(el.src);
             var emb;try{emb=await pdfDoc.embedPng(ib)}catch(e2){emb=await pdfDoc.embedJpg(ib)}
             pdfPg.drawImage(emb,{x:el.x*sx,y:ph-(el.y+el.h*sy),width:el.w*sx,height:el.h*sy})
           }catch(e3){console.warn('embed img failed',e3)}

@@ -779,6 +779,14 @@ async function doAct(action,docId){
     showAlert('ยังไม่ได้เลือกลายเซ็น — โหลดลายเซ็นที่บันทึกไว้ไม่สำเร็จ กรุณาเลือกแท็บลายเซ็น แล้ววาดหรืออัปโหลดใหม่อีกครั้ง','wa');
     _actBusy=false;return
   }
+  // ต้องวางตำแหน่งลายเซ็นเองทุกครั้ง — ไม่มีค่าเริ่มต้นให้แล้ว เพราะจุดเริ่มต้นตายตัวเดิม
+  // ทำให้ผู้ลงนามทุกคนเซ็นทับกันจนเหลือเห็นลายเดียว (ดูหมายเหตุใน docSign.js)
+  if(action==='approve'&&sigSrc&&(!window._actSigMarks||!_actSigMarks.length)){
+    showAlert(window._sigPreviewFailed
+      ?'ยังลงนามไม่ได้: โหลดตัวอย่างเอกสารไม่สำเร็จจึงวางตำแหน่งลายเซ็นไม่ได้ กรุณารีเฟรชหน้าแล้วลองใหม่'
+      :'กรุณาคลิกบนเอกสารเพื่อวางตำแหน่งลายเซ็นก่อนยืนยัน','wa');
+    _actBusy=false;return
+  }
   var mw=$e('mwrap'); if(mw) mw.innerHTML='<div class="mo"><div class="modal"><div class="modal-body text-center py-10"><div class="sp sp-dark w-8 h-8 border-[3px] mx-auto"></div><p class="mt-4 text-[#a89e99]">กำลังดำเนินการ...</p></div></div></div>';
   var wf,cur,ns,nst;
   var usedRpc=false;
@@ -896,7 +904,8 @@ async function doAct(action,docId){
         if(pdfResp.ok){
           var pdfBuf=await pdfResp.arrayBuffer();
           var pdfDoc=await PDFLib.PDFDocument.load(new Uint8Array(pdfBuf),{ignoreEncryption:true});
-          var imgBytes=await fetch(sigSrc).then(function(r){return r.arrayBuffer()});
+          // ห้ามเปลี่ยนกลับไปใช้ fetch(sigSrc) — sigSrc เป็น data: URL เสมอ และ CSP บล็อก (ดู imgSrcToBytes)
+          var imgBytes=await imgSrcToBytes(sigSrc);
           var emb;
           if(sigSrc.startsWith('data:image/jpeg')||sigSrc.startsWith('data:image/jpg')){
             emb=await pdfDoc.embedJpg(imgBytes);
@@ -905,7 +914,8 @@ async function doAct(action,docId){
           }else{
             throw new Error('รองรับเฉพาะไฟล์ PNG หรือ JPEG สำหรับลายเซ็น กรุณาแปลงไฟล์ก่อน');
           }
-          var _marks=(window._actSigMarks&&_actSigMarks.length)?_actSigMarks:[null];
+          // guard ด้านบนรับประกันว่ามีจุดวางแล้วอย่างน้อย 1 จุด — ไม่มี fallback มุมขวาล่างอีกต่อไป
+          var _marks=_actSigMarks.slice();
           var _pgN=pdfDoc.getPageCount();
           for(var _mi=0;_mi<_marks.length;_mi++){
             var _mk=_marks[_mi];

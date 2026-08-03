@@ -8,6 +8,7 @@ async function showActModal(action,docId){
   var isApprove=action==='approve';
 
   _actSigMarks=[]; _actSigLastIdx=-1;
+  _sigPreviewFailed=false;
   _actSigPgDims={}; _actSigDefW=null;
   _actSigPdf=null; _actSigPage=1; _actSigZoom=1.0;
   _actSigRenderGen++; // ยกเลิก render ค้างจาก modal รอบก่อน
@@ -65,8 +66,11 @@ async function showActModal(action,docId){
 
       // ตำแหน่งวางลายเซ็น (หลายจุด หลายหน้าได้)
       '<div class="fg sig-place-card">',
-      '<label class="fl" style="display:flex;align-items:center;gap:6px">ตำแหน่งวางลายเซ็น',
+      '<label class="fl" style="display:flex;align-items:center;gap:6px">ตำแหน่งวางลายเซ็น <span class="req">*</span>',
       '<span id="sig-mark-count" class="sig-mark-count">0 จุด</span></label>',
+      '<div id="sig-target-file" class="sig-target-file"></div>',
+      '<div id="sig-place-req" class="al al-wa al-sm" style="margin:0 0 10px"><span class="al-icon">'+svg('warn',12)+'</span>',
+      '<span>คลิกบนเอกสารทางขวาเพื่อวางตำแหน่งลายเซ็นก่อน จึงจะกดยืนยันอนุมัติได้</span></div>',
       '<div class="sig-size-row">',
       '<span class="sig-size-lbl">ขนาดลายเซ็น</span>',
       '<input type="range" id="sig-size" min="6" max="50" value="30" style="flex:1;min-width:0" oninput="_sigSizeAll(+this.value)">',
@@ -175,6 +179,7 @@ async function showActModal(action,docId){
 var _actSigCtx=null, _actSigDrawing=false;
 var _actSigColor='#1C1C1E', _actSigSz=2;
 var _actSigMarks=[];   // จุดวางลายเซ็น {page,xFrac,yFrac,wFrac,hFrac} — สัดส่วนเทียบขนาดหน้านั้น
+var _sigPreviewFailed=false; // preview โหลดไม่ได้ → วางจุดไม่ได้ → ต้องบล็อกการอนุมัติ ไม่ใช่วางให้อัตโนมัติ
 var _actSigLastIdx=-1; // จุดที่แตะล่าสุด ใช้เป็นต้นแบบของ "วางตำแหน่งเดียวกันทุกหน้า"
 var _actSigPgDims={};  // ขนาดหน้าแต่ละหน้า (pt) {p:{w,h}} — รองรับเอกสารที่หน้าไม่เท่ากัน
 var _actSigDefW=null;  // ขนาดลายเซ็น (สัดส่วนความกว้างหน้า) จากแถบ "ขนาดลายเซ็น" — null = ค่าเริ่มต้น 180pt
@@ -301,9 +306,12 @@ async function _loadSigPosPreview(docId){
     var files=await dg('document_files','?document_id=eq.'+safeId(docId)+'&file_type=like.application%2Fpdf');
     var _sp=_signPdfWorkingCopy(files);
     if(!_sp||!_sp.working){
-      if(hint)hint.textContent='ไม่พบไฟล์ PDF — ลายเซ็นจะวางที่มุมขวาล่างหน้าแรกอัตโนมัติ';
+      _sigPreviewFailed=true;
+      if(hint)hint.textContent='ไม่พบไฟล์ PDF ในเอกสารนี้ — ต้องมีไฟล์ PDF จึงจะลงนามได้';
+      _sigSetPlaceState();
       return;
     }
+    _sigShowTargetFile(_sp,files);
     var fileUrl=await resolveFilePath(_sp.working.file_path);
     if(!window.pdfjsLib){
       await loadSc('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js');
@@ -335,12 +343,45 @@ async function _loadSigPosPreview(docId){
     var defPct=Math.round(_sigDefaultWFrac(1)*100);
     var sl=$e('sig-size'); if(sl)sl.value=defPct;
     var slv=$e('sig-size-val'); if(slv)slv.textContent=defPct+'%';
-    _seedDefaultMark();
-    _sigRevealDefaultMark(1);
+    // ไม่วางจุดเริ่มต้นให้อัตโนมัติอีกต่อไป — เดิม _seedDefaultMark() วางมุมขวาล่างหน้าแรก
+    // ด้วยพิกัดตายตัวเหมือนกันทุกคน ผู้ลงนามที่ไม่ลากย้ายจึงเซ็นทับกันหมดจนเหลือให้เห็นลายเดียว
+    _sigSetPlaceState();
   }catch(e){
     console.warn('sig pos preview failed:',e);
-    if(hint)hint.textContent='ไม่สามารถโหลดเอกสารได้ — ลายเซ็นจะวางที่มุมขวาล่างหน้าแรกอัตโนมัติ';
+    _sigPreviewFailed=true;
+    if(hint)hint.textContent='ไม่สามารถโหลดเอกสารได้ จึงวางตำแหน่งลายเซ็นไม่ได้ — ลองรีเฟรชหน้า (Cmd+Shift+R) แล้วเปิดใหม่ หากยังไม่ได้โปรดแจ้งผู้ดูแลระบบ';
+    _sigSetPlaceState();
   }
+}
+
+/* ชื่อไฟล์ที่ลายเซ็นจะลงจริง + เตือนเมื่อมี PDF แนบหลายไฟล์
+   ระบบเซ็นได้ทีละไฟล์เท่านั้น (_primarySignPdf เลือกไฟล์ที่อัปโหลดเร็วที่สุด) ไฟล์แนบอื่น
+   จะไม่ได้ลายเซ็นเลย — ถ้าไม่บอก ผู้ลงนามจะเข้าใจว่าเซ็นครบทุกไฟล์แล้ว */
+function _sigShowTargetFile(sp,allPdfs){
+  var box=$e('sig-target-file'); if(!box)return;
+  if(!sp||!sp.working){box.innerHTML='';return}
+  var others=(allPdfs||[]).filter(function(f){
+    return _signFileBaseName(f)!==sp.baseName;
+  });
+  var oNames={};
+  others.forEach(function(f){oNames[_signFileBaseName(f)]=true});
+  var oList=Object.keys(oNames);
+  box.innerHTML='<div class="sig-target-name">'+svg('pdf_ico',12)+' ลงนามในไฟล์: <strong>'+esc(sp.baseName)+'</strong></div>'+
+    (oList.length?'<div class="sig-target-warn">'+svg('warn',12)+' ไฟล์แนบอีก '+oList.length+' ไฟล์จะไม่ได้ลายเซ็น: '+esc(oList.join(' · '))+'</div>':'');
+}
+
+/* เปิด/ปิดปุ่มยืนยันตามว่าวางจุดแล้วหรือยัง — บังคับวางเองทุกครั้ง ไม่มีค่าเริ่มต้นให้ */
+function _sigSetPlaceState(){
+  var btn=document.querySelector('#mwrap [data-action="doAct"][data-act="approve"]');
+  var warn=$e('sig-place-req');
+  var ok=_actSigMarks.length>0;
+  if(btn){
+    btn.disabled=!ok;
+    btn.style.opacity=ok?'':'.5';
+    btn.style.cursor=ok?'':'not-allowed';
+    btn.title=ok?'':'กรุณาคลิกบนเอกสารเพื่อวางตำแหน่งลายเซ็นก่อน';
+  }
+  if(warn) warn.style.display=ok?'none':'';
 }
 
 /* รอจน #sig-scroll มีความกว้าง (modal layout นิ่ง) — กันเรนเดอร์ตอนกว้าง=0 */
@@ -512,18 +553,11 @@ function _sigSizeAll(pct){
   _renderSigStamps();
 }
 
-/* จุดเริ่มต้น: มุมขวาล่าง "หน้าแรก" — วางไว้หน้าแรกเพื่อให้เห็นทันทีตั้งแต่เปิด (เลือกลาก/ลบได้เลย
-   ไม่ต้องเลื่อนไปหาที่หน้าสุดท้ายแล้วลืมลบ) — ลากไปหน้าอื่นหรือคลิกวางจุดใหม่ได้ตามปกติ */
-function _seedDefaultMark(){
-  if(_actSigMarks.length||!_actSigPdf)return;
-  var p=1;
-  var wf=_sigDefaultWFrac(p),hf=_sigHFrac(wf,p),d=_sigPgDim(p);
-  _actSigMarks.push({page:p,wFrac:wf,hFrac:hf,
-    xFrac:Math.max(0,1-wf-40/d.w),
-    yFrac:Math.max(0,1-hf-40/d.h)});
-  _actSigLastIdx=0;
-  _renderSigStamps();_renderSigMarkList();
-}
+/* ⚠️ ห้ามเพิ่มการวางจุดเริ่มต้นอัตโนมัติกลับเข้ามา — เดิมมี _seedDefaultMark() ที่วางจุดแรก
+   ไว้มุมขวาล่างหน้าแรกด้วยพิกัดตายตัว และ _actSigMarks ถูกล้างทุกครั้งที่เปิดกล่องลงนาม
+   ผู้ลงนามทุกคนที่ไม่ลากย้ายจึงเซ็นทับตำแหน่งเดียวกันเป๊ะ เอกสารที่ผ่านมา 5 คนจึงเหลือ
+   ลายเซ็นให้เห็นลายเดียว (รวมถึงกรณีคนเดียวต้องเซ็น 2 ขั้นตอนก็ทับตัวเอง)
+   ตอนนี้บังคับให้วางเองทุกครั้ง — ดู _sigSetPlaceState() และ guard ใน doAct() */
 
 function _addSigMarkAt(xf,yf,p){
   p=p||_actSigPage;
@@ -686,9 +720,11 @@ function _updateSigPosIndicator(){
 function _renderSigMarkList(){
   var list=$e('sig-mark-list'),cnt=$e('sig-mark-count');
   if(cnt)cnt.textContent=_actSigMarks.length+' จุด';
+  // ทุกครั้งที่จำนวนจุดเปลี่ยน (เพิ่ม/ลบ) ต้องคำนวณสถานะปุ่มยืนยันใหม่
+  if(typeof _sigSetPlaceState==='function') _sigSetPlaceState();
   if(!list)return;
   if(!_actSigMarks.length){
-    list.innerHTML='<div class="sig-mark-empty">ยังไม่มีจุดวาง · คลิกบนเอกสารเพื่อวางลายเซ็น<br>(ถ้าไม่วาง ระบบจะวางมุมขวาล่างหน้าแรกให้)</div>';
+    list.innerHTML='<div class="sig-mark-empty">ยังไม่มีจุดวาง · คลิกบนเอกสารเพื่อวางลายเซ็น</div>';
     return;
   }
   list.innerHTML=_actSigMarks.map(function(m,i){

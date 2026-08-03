@@ -176,6 +176,34 @@ function _signPdfWorkingCopy(pdfs){
   });
   return {primary:primary,working:group[0],baseName:bn,signedRow:group.find(function(f){return _isSignedPdfRow(f)})||null};
 }
+/* แปลงรูป (data: URL หรือ http URL) เป็นไบต์สำหรับ pdf-lib
+   ⚠️ ห้ามใช้ fetch() กับ data: URL — CSP ใน vercel.json มี connect-src ที่ไม่มี data:
+   fetch จึงถูกบล็อกและ reject เป็น TypeError "Failed to fetch" โดยไม่มี HTTP status ให้จับ
+   นี่คือต้นเหตุที่ลายเซ็นไม่ถูกฝังลงเอกสารเลยตั้งแต่ CSP ถูกเพิ่มเมื่อ 26 ก.ค. 2026
+   (ลายเซ็นทุกเส้นทางเป็น data: URL — วาดเองผ่าน canvas.toDataURL, อัปโหลดรูป,
+   และลายเซ็นที่บันทึกไว้ซึ่งอ่านผ่าน FileReader.readAsDataURL) */
+async function imgSrcToBytes(src){
+  if(!src) throw new Error('ไม่พบข้อมูลรูปภาพ');
+  if(String(src).indexOf('data:')===0){
+    var comma=src.indexOf(',');
+    if(comma<0) throw new Error('รูปแบบ data URL ไม่ถูกต้อง');
+    var meta=src.slice(0,comma), payload=src.slice(comma+1);
+    if(meta.indexOf(';base64')<0){
+      // data: URL แบบ percent-encoded (canvas ไม่เคยสร้างแบบนี้ แต่รองรับไว้กันพัง)
+      var txt=decodeURIComponent(payload);
+      var o2=new Uint8Array(txt.length);
+      for(var j=0;j<txt.length;j++) o2[j]=txt.charCodeAt(j);
+      return o2;
+    }
+    var bin=atob(payload);
+    var out=new Uint8Array(bin.length);
+    for(var i=0;i<bin.length;i++) out[i]=bin.charCodeAt(i);
+    return out;
+  }
+  var r=await fetch(src);
+  if(!r.ok) throw new Error('โหลดรูปไม่สำเร็จ (HTTP '+r.status+')');
+  return new Uint8Array(await r.arrayBuffer());
+}
 function urgNorm(u){return u==='very_urgent'?'urgent':(u||'normal')}
 function urgTxt(u){return URG[urgNorm(u)]||u||''}
 function urgCls(u){return urgNorm(u)==='urgent'?'urg-urgent':'urg-normal'}
