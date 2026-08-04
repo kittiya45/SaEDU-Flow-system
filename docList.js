@@ -373,6 +373,9 @@ function rFwdTbl(docs){
 
   var LIMIT=7;
   function mkFwdRow(d,idx){
+    /* ผู้จัดทำเห็นเอกสารตัวเองในคิวนี้ได้ แต่กดรับเองไม่ได้ (forward_accept ฝั่ง DB ปฏิเสธ)
+       — ซ่อนปุ่มไว้ ไม่งั้นกดแล้วเด้ง error เฉย ๆ */
+    var _mayAct=canAcceptFwdDoc(d,false);
     return '<div class="doc-ledger-row is-fwd" data-action="nav" data-view="det" data-id="'+d.id+'">'+
       '<div class="doc-ledger-idx">'+(idx+1)+'</div>'+
       '<div class="doc-ledger-main">'+
@@ -387,8 +390,10 @@ function rFwdTbl(docs){
         '<div class="doc-ledger-status">'+sBadgeFwd(true)+'</div>'+
         '<div class="doc-row-acts" style="gap:6px">'+
           '<button type="button" class="doc-row-act is-view" data-action="nav" data-view="det" data-id="'+d.id+'" title="ดูเอกสาร" aria-label="ดูเอกสาร">'+svg('eye',15)+'</button>'+
-          '<button class="btn btn-primary xs" data-action="acceptFwd" data-id="'+d.id+'">'+svg('ok',12)+' รับเรื่อง</button>'+
-          '<button class="btn btn-soft xs" style="color:#DC2626;border-color:#FECACA" data-action="showDeclineFwdModal" data-id="'+d.id+'">'+svg('x',12)+' ไม่รับ</button>'+
+          (_mayAct
+            ?'<button class="btn btn-primary xs" data-action="acceptFwd" data-id="'+d.id+'">'+svg('ok',12)+' รับเรื่อง</button>'+
+             '<button class="btn btn-soft xs" style="color:#DC2626;border-color:#FECACA" data-action="showDeclineFwdModal" data-id="'+d.id+'">'+svg('x',12)+' ไม่รับ</button>'
+            :'<span style="font-size:11px;color:#D97706;white-space:nowrap">'+svg('clock',12)+' รอเจ้าหน้าที่รับเรื่อง</span>')+
         '</div>'+
       '</div>'+
     '</div>';

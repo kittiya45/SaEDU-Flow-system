@@ -299,27 +299,60 @@ function _cropSigCanvas(sc){
   return oc.toDataURL('image/png');
 }
 
+/* ครอบคำขอเครือข่ายด้วยเวลาจำกัด — เดิมไม่มี timeout สักจุดในเส้นทางนี้
+   ขอ signed URL หรือดาวน์โหลด PDF ค้างเมื่อไร กล่องลงนามก็หมุนค้างตลอดกาล
+   และเมื่อบังคับให้ต้องวางจุดก่อน ปุ่มยืนยันจะถูกล็อกถาวร = ลงนามไม่ได้เลย
+   ล้มเหลวแบบมองเห็นได้พร้อมปุ่มลองใหม่ ดีกว่าหมุนค้างโดยไม่บอกอะไร */
+function _sigWithTimeout(promise,ms,label){
+  var t;
+  return Promise.race([
+    Promise.resolve(promise).then(function(v){clearTimeout(t);return v}),
+    new Promise(function(_,rej){t=setTimeout(function(){rej(new Error('หมดเวลารอ: '+label))},ms)})
+  ]);
+}
+
+var _sigPreviewDocId=null;
+function _sigRetryPreview(){
+  if(!_sigPreviewDocId)return;
+  _sigPreviewFailed=false;
+  _actSigPdf=null;
+  var wrap=$e('sig-pos-wrap');
+  if(wrap) wrap.innerHTML='<div class="sig-pos-loading">'+
+    '<span class="sp" style="border-color:rgba(255,255,255,.25);border-top-color:#fff;width:28px;height:28px;border-width:3px"></span>'+
+    '<span id="sig-pos-hint">กำลังโหลดเอกสาร...</span></div>';
+  _loadSigPosPreview(_sigPreviewDocId);
+}
+function _sigPreviewError(msg){
+  _sigPreviewFailed=true;
+  var wrap=$e('sig-pos-wrap');
+  if(wrap) wrap.innerHTML='<div class="sig-pos-loading" style="gap:14px;padding:28px 22px;text-align:center">'+
+    '<span style="opacity:.5">'+svg('warn',30)+'</span>'+
+    '<span style="max-width:34ch;line-height:1.75">'+esc(msg)+'</span>'+
+    '<button type="button" class="btn btn-soft sm" onclick="_sigRetryPreview()">'+svg('refresh',13)+' ลองโหลดใหม่</button></div>';
+  _sigSetPlaceState();
+}
+
 async function _loadSigPosPreview(docId){
   var wrap=$e('sig-pos-wrap'),hint=$e('sig-pos-hint');
   if(!wrap)return;
+  _sigPreviewDocId=docId;
   try{
-    var files=await dg('document_files','?document_id=eq.'+safeId(docId)+'&file_type=like.application%2Fpdf');
+    var files=await _sigWithTimeout(dg('document_files','?document_id=eq.'+safeId(docId)+'&file_type=like.application%2Fpdf'),15000,'ดึงรายการไฟล์');
     var _sp=_signPdfWorkingCopy(files);
     if(!_sp||!_sp.working){
-      _sigPreviewFailed=true;
-      if(hint)hint.textContent='ไม่พบไฟล์ PDF ในเอกสารนี้ — ต้องมีไฟล์ PDF จึงจะลงนามได้';
-      _sigSetPlaceState();
+      _sigPreviewError('ไม่พบไฟล์ PDF ในเอกสารนี้ — ต้องมีไฟล์ PDF อย่างน้อย 1 ไฟล์จึงจะลงนามได้');
       return;
     }
     _sigShowTargetFile(_sp,files);
-    var fileUrl=await resolveFilePath(_sp.working.file_path);
+    var fileUrl=await _sigWithTimeout(resolveFilePath(_sp.working.file_path),15000,'ขอลิงก์ไฟล์จาก Storage');
+    if(!fileUrl) throw new Error('ขอลิงก์ไฟล์ไม่สำเร็จ');
     if(!window.pdfjsLib){
-      await loadSc('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js');
+      await _sigWithTimeout(loadSc('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js'),20000,'โหลดตัวอ่าน PDF');
       pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
     } else if(!pdfjsLib.GlobalWorkerOptions.workerSrc){
       pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
     }
-    _actSigPdf=await pdfjsLib.getDocument(fileUrl).promise;
+    _actSigPdf=await _sigWithTimeout(pdfjsLib.getDocument(fileUrl).promise,30000,'ดาวน์โหลดไฟล์เอกสาร');
     var N=_actSigPdf.numPages;
     _actSigPage=1;
 
@@ -348,9 +381,12 @@ async function _loadSigPosPreview(docId){
     _sigSetPlaceState();
   }catch(e){
     console.warn('sig pos preview failed:',e);
-    _sigPreviewFailed=true;
-    if(hint)hint.textContent='ไม่สามารถโหลดเอกสารได้ จึงวางตำแหน่งลายเซ็นไม่ได้ — ลองรีเฟรชหน้า (Cmd+Shift+R) แล้วเปิดใหม่ หากยังไม่ได้โปรดแจ้งผู้ดูแลระบบ';
-    _sigSetPlaceState();
+    var _m=String((e&&e.message)||'');
+    _sigPreviewError(
+      _m.indexOf('หมดเวลารอ')===0
+        ? 'โหลดเอกสารไม่สำเร็จ ('+_m+') — อาจเป็นเพราะอินเทอร์เน็ตช้าหรือหลุด ลองกดโหลดใหม่อีกครั้ง'
+        : 'โหลดเอกสารไม่สำเร็จ จึงวางตำแหน่งลายเซ็นไม่ได้ — ลองกดโหลดใหม่ หากยังไม่ได้ให้รีเฟรชหน้า (Cmd+Shift+R) แล้วเปิดใหม่'
+    );
   }
 }
 
