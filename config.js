@@ -47,10 +47,16 @@ async function dpa(t,id,b){
 }
 // ตาราง document_history และ notifications ห้ามลบจาก client เด็ดขาด
 var _PROTECTED_TABLES=['document_history','notifications'];
+/* คืนจำนวนแถวที่ถูกลบจริง — สำคัญเพราะ PostgREST คืน 204 เสมอแม้ RLS กรองแถวออกหมด
+   r.ok จึงเป็น true ทั้งที่ไม่ได้ลบอะไรเลย (กับดักเดียวกับ dpa() ที่ต้องเช็ค 0 rows เอง)
+   ขอ Prefer: return=representation เพื่อให้ตอบกลับเป็นแถวที่ลบ แล้วนับได้
+   ไม่ throw เองเพราะบางจุดลบของที่หายไปแล้วถือว่าปกติ — ผู้เรียกที่แคร์ต้องเช็คค่าที่คืน */
 async function dd(t,id){
-  if(_PROTECTED_TABLES.indexOf(t)!==-1){console.warn('Blocked: DELETE on protected table "'+t+'"');return;}
-  var r=await fetch(SU+'/rest/v1/'+t+'?id=eq.'+id,{method:'DELETE',headers:{apikey:SK,'Authorization':H.Authorization}});
+  if(_PROTECTED_TABLES.indexOf(t)!==-1){console.warn('Blocked: DELETE on protected table "'+t+'"');return 0;}
+  var r=await fetch(SU+'/rest/v1/'+t+'?id=eq.'+id,{method:'DELETE',headers:{apikey:SK,'Authorization':H.Authorization,'Prefer':'return=representation'}});
   if(!r.ok){var e=await r.json().catch(function(){return{}});throw new Error(e.message||String(r.status))}
+  var rows=await r.json().catch(function(){return null});
+  return Array.isArray(rows)?rows.length:1;
 }
 function safeId(id){return encodeURIComponent(String(id||''))}
 /* ─── System error log → ตาราง system_logs (ดูใน Dev Panel) ───

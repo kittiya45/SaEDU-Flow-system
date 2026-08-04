@@ -136,12 +136,16 @@ async function vDet(docId){
     return h.action&&h.action.indexOf('เจ้าหน้าที่รับเอกสาร')>=0&&acceptIsCurrent(h.performed_at,doc.forwarded_at);
   });
   var _fwdPendingEarly=doc.status==='completed'&&!_fwdAcceptedEarly&&(!!doc.forwarded_to_id||!!doc.forwarded_to_staff);
+  // คำนวณไว้ก่อนวาด toolbar — ใช้ทั้งที่ปุ่ม "รับเรื่อง" และที่ป้าย "รอเจ้าหน้าที่รับเอกสาร" (อย่าให้โผล่พร้อมกัน)
+  var _canAcceptFwd=canAcceptFwdDoc(doc,_fwdAcceptedEarly);
   var html=['<div class="detail-toolbar">'];
   html.push('<button class="btn-back" data-action="nav" data-view="docs">'+svg('back',15)+' กลับรายการ</button>');
   html.push('<span class="detail-toolbar-status">'+(_fwdPendingEarly?sBadgeFwd(true):sBadge(doc.status))+'</span>');
   // Status banners — เก็บแยกไว้ก่อน แสดงเป็นแถบเต็มความกว้างใต้ toolbar (ไม่ปนกับปุ่ม action)
   var banners=[];
-  if(doc.status==='completed'&&_fwdPendingEarly) banners.push('<div class="al al-wa"><span class="al-icon">'+svg('inbox',13)+'</span><span><strong>'+FWD_STATUS_LABEL+'</strong> — รอเจ้าหน้าที่รับเอกสาร</span></div>');
+  if(doc.status==='completed'&&_fwdPendingEarly) banners.push('<div class="al al-wa"><span class="al-icon">'+svg('inbox',13)+'</span><span><strong>'+FWD_STATUS_LABEL+'</strong> — รอเจ้าหน้าที่รับเอกสาร'+
+    (_canAcceptFwd?'<div style="margin-top:3px">กดปุ่ม <strong>“รับเรื่อง”</strong> ด้านบนเพื่อรับเอกสารนี้ไว้ สถานะจะเปลี่ยนเป็น <strong>รอเจ้าหน้าที่ยื่นในระบบ</strong></div>':'')+
+    '</span></div>');
   else if(doc.status==='awaiting_submit'){
     // ระบุตัวคนที่ถืออยู่ — เดิม forward_accept ล้างผู้รับทิ้ง ทำให้ไม่รู้ว่าเอกสารอยู่กับใคร
     var _accUser=doc.accepted_by?_aMap[doc.accepted_by]:null;
@@ -246,18 +250,15 @@ async function vDet(docId){
     var _canFwd=(!_fwdPending)&&(_holdsDoc||['ROLE-SYS','ROLE-STF'].includes(CU.role_code));
     if(_canFwd){
       html.push('<button class="btn btn-soft sm" data-action="showFwdModal" data-id="'+docId+'">'+svg('sign',13)+' ส่งต่อ</button>');
-    } else if(_fwdPending){
+    } else if(_fwdPending&&!_canAcceptFwd){
+      // คนที่กดรับได้จะเห็นปุ่ม "รับเรื่อง" แทน — ไม่ต้องบอกให้รอ จนท. ทั้งที่ตัวเองคือ จนท.
       html.push('<span style="font-size:12px;color:#D97706;display:flex;align-items:center;gap:4px">'+svg('clock',13)+' '+(doc.forwarded_to_staff?'รอเจ้าหน้าที่กิจการรับเอกสาร (คิวกลุ่ม)':'รอเจ้าหน้าที่รับเอกสาร')+'</span>');
     }
   }
-  // Accept / Decline — คนที่ถูกส่งต่อ หรือ จนท.ใดก็ได้เมื่อเป็นคิวกลุ่ม
+  // Accept / Decline — คนที่ถูกส่งต่อ หรือ จนท./แอดมิน (คิวกลุ่ม + รับแทนเมื่อผู้รับที่ระบุกดเองไม่ได้)
   // ผู้จัดทำกดรับเอกสารของตัวเองไม่ได้ (canAcceptDoc) — ต้องผ่านมือ จนท.จริงเสมอ
-  var _canAcceptFwd=doc.status==='completed'&&!_fwdAcceptedEarly&&canAcceptDoc(doc)&&(
-    (doc.forwarded_to_id&&doc.forwarded_to_id===CU.id)||
-    (doc.forwarded_to_staff&&_canActStaffPool())
-  );
   if(_canAcceptFwd){
-    html.push('<button class="btn btn-success sm" data-action="acceptFwd" data-id="'+docId+'">'+svg('ok',13)+' รับเอกสาร / อนุมัติ</button>');
+    html.push('<button class="btn btn-success sm" data-action="acceptFwd" data-id="'+docId+'">'+svg('ok',13)+' รับเรื่อง</button>');
     html.push('<button class="btn btn-danger sm" data-action="showDeclineFwdModal" data-id="'+docId+'">'+svg('x',13)+' ไม่อนุมัติ / ส่งคืน</button>');
   }
   html.push('<button class="btn btn-soft sm" data-action="exportDocPDF" data-id="'+docId+'">'+svg('pdf_ico',13)+' PDF</button>');
@@ -608,10 +609,10 @@ async function doForward(docId){
 
 function doAcceptFwd(docId){
   showConfirm(
-    'รับเอกสาร?',
-    'ยืนยันรับเอกสาร — สถานะจะเปลี่ยนเป็น «รอเจ้าหน้าที่ยื่นในระบบ» จากนั้นเมื่ออัปโหลดฉบับประทับจากมหาวิทยาลัยกลับมา จะเป็น «เสร็จสมบูรณ์»',
+    'รับเรื่องเอกสารนี้?',
+    'ยืนยันรับเรื่อง — สถานะจะเปลี่ยนเป็น «รอเจ้าหน้าที่ยื่นในระบบ» จากนั้นเมื่ออัปโหลดฉบับประทับจากมหาวิทยาลัยกลับมา จะเป็น «เสร็จสมบูรณ์»',
     function(){_doAcceptFwdConfirmed(docId)},
-    {confirmLabel:'รับเอกสาร',confirmClass:'btn-success',icon:'ok',iconBg:'#D1FAE5',iconColor:'#16A34A'}
+    {confirmLabel:'รับเรื่อง',confirmClass:'btn-success',icon:'ok',iconBg:'#D1FAE5',iconColor:'#16A34A'}
   );
 }
 

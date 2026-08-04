@@ -381,13 +381,13 @@ function rFwdTbl(docs){
           tBadge(d.doc_type)+
         '</div>'+
         '<div class="doc-ledger-title tip" data-tip="'+esc(d.title)+'">'+esc(d.title)+'</div>'+
-        '<div class="doc-ledger-sub is-fwd">'+(_isStaffPoolFwd(d)?'ส่งเข้ากิจการทั้งหมด':'ส่งมาให้คุณ')+' · '+fd(d.forwarded_at)+'</div>'+
+        '<div class="doc-ledger-sub is-fwd">'+(_isStaffPoolFwd(d)?'ส่งเข้ากิจการทั้งหมด':d.forwarded_to_id===CU.id?'ส่งมาให้คุณ':'รอเจ้าหน้าที่รับเรื่อง')+' · '+fd(d.forwarded_at)+'</div>'+
       '</div>'+
       '<div class="doc-ledger-side" style="grid-template-columns:150px auto">'+
         '<div class="doc-ledger-status">'+sBadgeFwd(true)+'</div>'+
         '<div class="doc-row-acts" style="gap:6px">'+
           '<button type="button" class="doc-row-act is-view" data-action="nav" data-view="det" data-id="'+d.id+'" title="ดูเอกสาร" aria-label="ดูเอกสาร">'+svg('eye',15)+'</button>'+
-          '<button class="btn btn-primary xs" data-action="acceptFwd" data-id="'+d.id+'">'+svg('ok',12)+' รับ</button>'+
+          '<button class="btn btn-primary xs" data-action="acceptFwd" data-id="'+d.id+'">'+svg('ok',12)+' รับเรื่อง</button>'+
           '<button class="btn btn-soft xs" style="color:#DC2626;border-color:#FECACA" data-action="showDeclineFwdModal" data-id="'+d.id+'">'+svg('x',12)+' ไม่รับ</button>'+
         '</div>'+
       '</div>'+

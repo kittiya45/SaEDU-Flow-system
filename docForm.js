@@ -620,8 +620,16 @@ function attachFormEvents(){
 /* เขียน workflow_steps ใหม่ทั้งชุดตาม FS (ใช้เมื่อแก้ไขลำดับขั้นของฉบับร่าง) — ลบของเดิมก่อนแล้วใส่ใหม่ */
 async function _rebuildDraftSteps(docId,finalStatus){
   var old=await dg('workflow_steps','?document_id=eq.'+safeId(docId)+'&select=id');
-  if(Array.isArray(old)){
-    for(var k=0;k<old.length;k++){ try{await dd('workflow_steps',old[k].id);}catch(e){} }
+  if(Array.isArray(old)&&old.length){
+    // ⚠️ ห้ามกลืน error ตรงนี้เด็ดขาด — เดิมเป็น try{...}catch(e){} ที่ไม่ทำอะไรเลย
+    // พอ RLS ปฏิเสธการลบ (workflow_steps เคยมีแต่ policy ของ dev) โค้ดก็เดินหน้าใส่ชุดใหม่
+    // ทับลงไป เอกสารจึงมีขั้นตอน 2 ชุดซ้อนและ active พร้อมกัน 2 จุด แก้ซ้ำยิ่งทวีคูณ
+    for(var k=0;k<old.length;k++){ await dd('workflow_steps',old[k].id); }
+    // ยืนยันจากฐานข้อมูลว่าลบหมดจริง ไม่เชื่อค่าที่ dd() คืนอย่างเดียว
+    var left=await dg('workflow_steps','?document_id=eq.'+safeId(docId)+'&select=id');
+    if(Array.isArray(left)&&left.length){
+      throw new Error('ลบขั้นตอนเดิมไม่สำเร็จ ('+left.length+' ขั้นตอนยังค้างอยู่) — ยกเลิกการบันทึกเพื่อไม่ให้ขั้นตอนซ้ำซ้อน กรุณาแจ้งผู้ดูแลระบบ');
+    }
   }
   var _now=new Date().toISOString();
   for(var i=0;i<FS.length;i++){

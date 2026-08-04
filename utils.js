@@ -121,7 +121,11 @@ function _canActStaffPool(){
 function _isFwdInboxForMe(d){
   if(!d||d.status!=='completed') return false;
   if(d.forwarded_to_id===CU.id) return true;
-  return _isStaffPoolFwd(d)&&CU.role_code==='ROLE-STF';
+  if(_isStaffPoolFwd(d)&&CU.role_code==='ROLE-STF') return true;
+  /* ส่งต่อแบบระบุตัวผู้รับ แต่ผู้รับกดรับเองไม่ได้ (เช่นเอกสารรุ่นเก่าที่ถูกส่งกลับไปหาผู้จัดทำ)
+     — จนท./แอดมิน/dev รับเรื่องแทนได้ ไม่งั้นเอกสารค้างสถานะ "รอเจ้าหน้าที่รับเอกสาร" ถาวร
+     (ตรงกับ forward_accept() ใน DB ที่ยกเว้น is_admin()/is_dev() จากเงื่อนไข forwarded_to_id) */
+  return !!d.forwarded_to_id&&_canActStaffPool()&&d.created_by!==CU.id;
 }
 
 function tBadge(t){
@@ -430,6 +434,21 @@ function canAcceptDoc(doc){
   if(!CU||!doc) return false;
   if(doc.created_by===CU.id&&CU.role_code!=='ROLE-SYS'&&CU.role_code!=='ROLE-DEV') return false;
   return ['ROLE-STF','ROLE-ADV','ROLE-SYS','ROLE-DEV'].includes(CU.role_code);
+}
+
+/* เอกสารกำลังรอ "รับเรื่อง" อยู่หรือไม่ — ออกเลข/เสร็จสิ้นแล้วและถูกส่งต่อ (ระบุตัว หรือคิวกลุ่ม)
+   accepted = มีประวัติ 'เจ้าหน้าที่รับเอกสาร' ของรอบส่งต่อล่าสุดแล้วหรือยัง (ดู acceptIsCurrent) */
+function isFwdPendingDoc(doc, accepted){
+  return !!(doc&&doc.status==='completed'&&!accepted&&(doc.forwarded_to_id||doc.forwarded_to_staff));
+}
+
+/* ใครกดปุ่ม "รับเรื่อง" ได้ — ต้องเป็น จนท.จริง (canAcceptDoc) และเป็นหนึ่งใน
+   1) ผู้รับที่ถูกระบุชื่อไว้  2) จนท./แอดมิน/dev (รับคิวกลุ่ม หรือรับแทนเมื่อผู้รับที่ระบุกดเองไม่ได้)
+   เงื่อนไขนี้ตรงกับ forward_accept()/forward_decline() ฝั่ง DB — อย่าให้กว้างกว่านั้น */
+function canAcceptFwdDoc(doc, accepted){
+  if(!isFwdPendingDoc(doc,accepted)) return false;
+  if(!canAcceptDoc(doc)) return false;
+  return doc.forwarded_to_id===CU.id||_canActStaffPool();
 }
 
 /* ใครกดยกเลิกเอกสารได้ — ผู้จัดทำเอง หรือ จนท./แอดมิน และต้องยังไม่ออกเลขหนังสือจริง
