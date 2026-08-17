@@ -523,9 +523,10 @@ function rAppSettingsCard(settings){
             (SETT.line_group_id
               ?'<span style="color:#06C755;font-weight:700">● เชื่อมต่อแล้ว</span>'
               :'<span style="color:#a89e99">○ ยังไม่เชื่อมต่อ</span>')+'</div>'+
-          '<div style="font-size:10px;color:#a89e99;line-height:1.7">เอกสารใหม่และเอกสารเลยกำหนดจะแจ้งเข้ากลุ่มนี้ — เชิญบอท OA เข้ากลุ่ม แล้วกดสร้างรหัส นำรหัสไปพิมพ์ส่งในกลุ่มภายใน 10 นาที</div>'+
+          '<div style="font-size:10px;color:#a89e99;line-height:1.7">แจ้งเข้ากลุ่มเมื่อ <strong>มีเอกสารใหม่/ส่งใหม่</strong> และเมื่อ <strong>เอกสารเดินมาถึงคิวเจ้าหน้าที่</strong> — เชิญบอท OA เข้ากลุ่ม แล้วกดสร้างรหัส นำรหัสไปพิมพ์ส่งในกลุ่มภายใน 10 นาที</div>'+
         '</div>'+
         '<div style="display:flex;gap:8px;flex-shrink:0">'+
+          (SETT.line_group_id?'<button type="button" class="btn btn-soft sm" onclick="_lineGroupTest(this)">'+svg('send',12)+' ทดสอบส่ง</button>':'')+
           '<button type="button" class="btn btn-soft sm" onclick="_genLineGroupCode(this)">สร้างรหัสเชื่อมกลุ่ม</button>'+
           (SETT.line_group_id?'<button type="button" class="btn btn-soft sm" style="color:#DC2626;border-color:#FECACA" onclick="_lineGroupDisconnect()">ยกเลิก</button>':'')+
         '</div>'+
@@ -638,12 +639,31 @@ async function _lineGroupRefresh(btn){
   if(btn){btn.disabled=true;btn.innerHTML='<span class="sp sp-dark"></span>'}
   try{await loadAppSettings()}catch(e){}
   if(SETT.line_group_id){
-    showAlert('เชื่อมต่อกลุ่ม LINE เรียบร้อยแล้ว! เอกสารใหม่และเอกสารเลยกำหนดจะแจ้งเข้ากลุ่ม','ok');
+    showAlert('เชื่อมต่อกลุ่ม LINE เรียบร้อยแล้ว! เอกสารใหม่และเอกสารที่ถึงคิวเจ้าหน้าที่จะแจ้งเข้ากลุ่ม','ok');
     nav('sys');
   }else{
     showAlert('ยังไม่พบการเชื่อมต่อ — กรุณาพิมพ์รหัส 6 หลักส่งในกลุ่ม LINE ก่อน แล้วตรวจสอบอีกครั้ง','wa');
     if(btn){btn.disabled=false;btn.innerHTML=svg('refresh',12)+' เชื่อมแล้ว — ตรวจสอบสถานะ'}
   }
+}
+
+/* ทดสอบส่งเข้ากลุ่ม — เป็นทางเดียวที่ยืนยันได้ว่าบอทยังอยู่ในกลุ่มจริง
+   LINE ไม่มี API ให้ถามว่า "ยังอยู่ในกลุ่มไหม" ปกติ leave event จะล้าง line_group_id ให้เอง
+   แต่ถ้าบอทถูกลบตอน webhook ล่ม ค่าจะค้างอยู่โดยไม่มีใครรู้ว่ากลุ่มไม่ได้รับอะไรแล้ว
+   (ไม่บันทึกลง notifications — เหมือน group push ปกติ ดู sendLineGroupPush) */
+async function _lineGroupTest(btn){
+  var old=btn?btn.innerHTML:'';
+  if(btn){btn.disabled=true;btn.innerHTML='<span class="sp sp-dark"></span>'}
+  try{
+    var msg=(SETT.email_prefix||'[กนค.]')+' ✅ ทดสอบการแจ้งเตือนเข้ากลุ่ม\n'+
+      'ส่งจากหน้าตั้งค่าระบบโดย '+((CU&&CU.full_name)||'')+'\n'+
+      new Date().toLocaleString('th-TH');
+    var st=await sendLineGroupPush(msg);
+    if(st==='sent') showAlert('ส่งข้อความทดสอบเข้ากลุ่มแล้ว — เปิดกลุ่ม LINE ดูได้เลย','ok');
+    else if(st==='skipped') showAlert('ยังไม่ได้เชื่อมกลุ่ม — กดสร้างรหัสเชื่อมกลุ่มก่อน','wa');
+    else showAlert('ส่งไม่สำเร็จ — บอทอาจถูกลบออกจากกลุ่มแล้ว หรือโควตา push ของ LINE OA เดือนนี้หมด ลองเชิญบอทเข้ากลุ่มแล้วเชื่อมใหม่','er');
+  }catch(e){showAlert('เกิดข้อผิดพลาด: '+esc(e.message||String(e)),'er')}
+  finally{if(btn){btn.disabled=false;btn.innerHTML=old}}
 }
 
 function _lineGroupDisconnect(){

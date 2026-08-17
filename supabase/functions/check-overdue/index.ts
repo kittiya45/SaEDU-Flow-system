@@ -63,7 +63,7 @@ Deno.serve(async (req: Request) => {
 
   const admin = serviceAdmin();
   const today = new Date().toISOString().substring(0, 10);
-  const stats = { scanned: 0, warned: 0, autoApproved: 0, stallWarned: 0, errors: [] as string[] };
+  const stats = { scanned: 0, warned: 0, autoApproved: 0, stallWarned: 0, stageWarned: 0, errors: [] as string[] };
 
   try {
     const { data: slaRow } = await admin.from('app_settings').select('value').eq('key', 'sla_cascade_days').maybeSingle();
@@ -130,13 +130,27 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    const { data: urlRow } = await admin.from('app_settings').select('value').eq('key', 'app_url').maybeSingle();
+    const appUrl = urlRow?.value || '';
+
     // ── สแกนที่ 2: ขั้นตอนค้างเกินกำหนดลงนาม → แจ้ง LINE เท่านั้น ──
     // อิสระจากลูปข้างบน (ซึ่งวัดจาก due_date = วันจัดกิจกรรม) ล้มก็ไม่ทำให้ทั้ง job พัง
     try {
-      const { data: urlRow } = await admin.from('app_settings').select('value').eq('key', 'app_url').maybeSingle();
-      stats.stallWarned = await scanStalledSteps(admin, emailPrefix, urlRow?.value || '');
+      stats.stallWarned = await scanStalledSteps(admin, emailPrefix, appUrl);
     } catch (stallErr) {
       stats.errors.push(`stall-scan: ${String(stallErr)}`);
+    }
+
+    // ── สแกนที่ 3: เอกสารค้างที่ numbering / awaiting_submit ──
+    // จุดบอดเดิม: สแกน 1 ดูแค่ status='pending' กับ completed+forwarded และสแกน 2 ดูแค่
+    // workflow_steps ที่ active — เอกสารที่ผ่านลายเซ็นครบแล้วจึงหลุดจากทั้งสองตะแกรง
+    // ทั้งที่ยังไม่จบเรื่อง: numbering = ผู้จัดทำยังไม่กด "ออกเลขหนังสือ",
+    // awaiting_submit = จนท.รับไปแล้วแต่ยังไม่ได้ยื่นเข้าระบบมหาวิทยาลัย
+    // (ตอนพบมี 14 + 10 ใบค้าง ใบเก่าสุด 29 วัน โดยไม่มีใครได้รับแจ้งอะไรเลย)
+    try {
+      stats.stageWarned = await scanStuckStages(admin, emailPrefix, appUrl, slaDays);
+    } catch (stageErr) {
+      stats.errors.push(`stage-scan: ${String(stageErr)}`);
     }
 
     return json({ ok: true, ...stats });
@@ -205,7 +219,8 @@ async function scanStalledSteps(
 
   const uids = new Set<string>();
   for (const d of docs) if (d.created_by) uids.add(d.created_by);
-  for (const s of allSteps ?? []) if (s.status === 'active' && s.assigned_to) uids.add(s.assigned_to);
+  // ทุกขั้น ไม่เฉพาะขั้นที่ค้าง — การ์ดแสดงชื่อผู้รับผิดชอบครบทุกขั้นในแถบความคืบหน้า
+  for (const s of allSteps ?? []) if (s.assigned_to) uids.add(s.assigned_to);
   const { data: users } = uids.size
     ? await admin.from('users').select('id, full_name').in('id', [...uids])
     : { data: [] as { id: string; full_name: string }[] };
@@ -243,7 +258,20 @@ async function scanStalledSteps(
       const holder = act.assigned_to ? (nameOf.get(act.assigned_to) || '') : '';
       let sentAny = false;
 
-      const targets: { id: string; text: string; subject: string }[] = [];
+      // แถบ "ความคืบหน้า" บนการ์ด — ทุกขั้นของเอกสารพร้อมชื่อผู้รับผิดชอบ
+      const flexSteps = steps
+        .slice()
+        .sort((a, b) => (a.step_number ?? 0) - (b.step_number ?? 0))
+        .map((s) => ({
+          name: s.step_name || `ขั้นที่ ${s.step_number}`,
+          person: s.assigned_to ? (nameOf.get(s.assigned_to) || '') : '',
+          st: s.status,
+        }));
+
+      const targets: { id: string; text: string; subject: string; flex: Record<string, unknown> | null }[] = [];
+      const mkFlex = (o: Partial<FlexOpts>) => {
+        try { return lineFlex({ subj, steps: flexSteps, appUrl, ...o } as FlexOpts); } catch { return null; }
+      };
       if (act.assigned_to) {
         targets.push({
           id: act.assigned_to,
@@ -258,6 +286,13 @@ async function scanStalledSteps(
             'กรุณาเข้าระบบเพื่อลงนาม',
             appUrl,
           ].filter(Boolean).join('\n'),
+          flex: mkFlex({
+            head: '⏰ ท่านมีเอกสารค้างเกินกำหนดลงนาม',
+            recipName: holder,
+            rows: [['ขั้นตอนของท่าน', act.step_name || ''], ['ครบกำหนดลงนาม', ddlStr], ['ค้างมาแล้ว', `${days} วันทำการ`]],
+            infoText: 'กรุณาเข้าระบบเพื่อลงนามให้เอกสารเดินต่อ',
+            button: 'เข้าสู่ระบบเพื่อลงนาม',
+          }),
         });
       }
       if (doc.created_by && doc.created_by !== act.assigned_to) {
@@ -275,11 +310,21 @@ async function scanStalledSteps(
             'กรุณาติดตามกับผู้รับผิดชอบขั้นตอนนี้',
             appUrl,
           ].filter(Boolean).join('\n'),
+          flex: mkFlex({
+            head: '⏰ เอกสารของท่านค้างเกินกำหนด',
+            recipName: crName,
+            rows: [
+              ['ค้างที่ขั้นตอน', `${act.step_name || ''}${holder ? ` (${holder})` : ''}`],
+              ['ครบกำหนดลงนาม', ddlStr], ['ค้างมาแล้ว', `${days} วันทำการ`],
+            ],
+            infoText: 'กรุณาติดตามกับผู้รับผิดชอบขั้นตอนนี้',
+            button: 'เปิดดูเอกสาร',
+          }),
         });
       }
 
       for (const t of targets) {
-        const status = await pushLine(admin, t.id, t.text);
+        const status = await pushLine(admin, t.id, t.text, t.flex);
         if (status === 'skipped') continue;   // ไม่ได้ผูก LINE — ไม่บันทึก จะได้เตือนใหม่เมื่อผูกแล้ว
         sentAny = true;
         // insert ตรง ไม่ผ่าน log_notification RPC — service role ไม่มี auth.uid() ให้ RPC ตรวจ
@@ -302,12 +347,259 @@ async function scanStalledSteps(
   return warned;
 }
 
+/* ═══ เอกสารค้างที่ numbering / awaiting_submit ═══
+   สองสถานะนี้อยู่ "หลังลายเซ็นครบ" จึงหลุดตะแกรงทั้งสองอันข้างบน:
+     สแกน 1 (overdue)   ดู status='pending' และ completed+forwarded เท่านั้น
+     สแกน 2 (step-stall) ดู workflow_steps.status='active' — พวกนี้ done หมดแล้ว
+   ผลคือเอกสารที่ผ่านทุกลายเซ็นแล้วแต่ไม่มีใครกดต่อ จะเงียบสนิทตลอดไป
+
+   ⚠️ notification_type = 'stage_stuck' — ห้ามใช้ 'overdue'
+      overdue_notif_sent_at() นับแถว type='overdue' เป็นจุดเริ่มนาฬิกา auto_approve_overdue
+      ถ้าใช้ type เดียวกัน เอกสารจะถูกนับว่าเตือนเรื่องเลยกำหนดแล้วทั้งที่ไม่เคยเตือน
+      แล้วถูกอนุมัติอัตโนมัติเร็วกว่าที่ควร (เหตุผลเดียวกับ 'step_overdue')
+
+   จังหวะเตือน: เริ่มเตือนเมื่อค้างเกิน slaDays วันทำการนับจาก updated_at
+   แล้วเตือนซ้ำได้ทุก RENOTIFY_WORKING_DAYS วันทำการ — ไม่ใช่ทุกวัน
+   (บั๊กที่เพิ่งแก้ไปคือเตือนซ้ำทุกวันเพราะ dedup เขียนไม่ลง จึงต้องระวังเป็นพิเศษตรงนี้) */
+const RENOTIFY_WORKING_DAYS = 5;
+
+function subWorkingDays(from: Date, days: number): Date {
+  const d = new Date(from);
+  let count = 0;
+  while (count < days) {
+    d.setDate(d.getDate() - 1);
+    const dow = d.getDay();
+    if (dow !== 0 && dow !== 6) count++;
+  }
+  return d;
+}
+
+const STAGE_LABEL: Record<string, string> = {
+  numbering: 'รอออกเลขหนังสือ',
+  awaiting_submit: 'รอเจ้าหน้าที่ยื่นในระบบมหาวิทยาลัย',
+};
+
+async function scanStuckStages(
+  admin: ReturnType<typeof serviceAdmin>,
+  prefix: string,
+  appUrl: string,
+  slaDays: number,
+): Promise<number> {
+  const cutoff = subWorkingDays(new Date(), Math.max(1, slaDays)).toISOString();
+
+  const { data: docs } = await admin
+    .from('documents')
+    .select('id, doc_number, title, subject_line, status, created_by, accepted_by, updated_at, notify_overdue')
+    .in('status', ['numbering', 'awaiting_submit'])
+    .eq('notify_overdue', true)
+    .lt('updated_at', cutoff);
+  if (!docs?.length) return 0;
+
+  const docIds = docs.map((d) => d.id);
+
+  // เตือนล่าสุดของแต่ละเอกสาร — ใช้ทั้งกัน "เตือนซ้ำเร็วเกินไป" และรีเซ็ตเมื่อสถานะขยับ
+  const { data: prev } = await admin
+    .from('notifications')
+    .select('document_id, sent_at')
+    .in('document_id', docIds)
+    .eq('notification_type', 'stage_stuck');
+  const lastWarn = new Map<string, number>();
+  for (const n of prev ?? []) {
+    const t = new Date(n.sent_at).getTime();
+    if (!isNaN(t) && t > (lastWarn.get(n.document_id) ?? 0)) lastWarn.set(n.document_id, t);
+  }
+
+  const uids = new Set<string>();
+  for (const d of docs) {
+    if (d.created_by) uids.add(d.created_by);
+    if (d.accepted_by) uids.add(d.accepted_by);
+  }
+  const { data: users } = uids.size
+    ? await admin.from('users').select('id, full_name, email, contact_email').in('id', [...uids])
+    : { data: [] as UserRow[] };
+  const userOf = new Map((users ?? []).map((u) => [u.id, u as UserRow]));
+
+  const renotifyBefore = subWorkingDays(new Date(), RENOTIFY_WORKING_DAYS).getTime();
+  let warned = 0;
+
+  for (const doc of docs) {
+    try {
+      const last = lastWarn.get(doc.id) ?? 0;
+      // เคยเตือนหลังจากสถานะขยับล่าสุด และยังไม่ถึงรอบเตือนซ้ำ → ข้าม
+      if (last > new Date(doc.updated_at).getTime() && last > renotifyBefore) continue;
+
+      const subj = doc.subject_line && doc.subject_line.length >= 3 ? doc.subject_line : (doc.title || '');
+      const days = workingDaysElapsed(new Date(doc.updated_at));
+      const stage = STAGE_LABEL[doc.status] ?? doc.status;
+      const num = doc.doc_number || '—';
+
+      // numbering = ผู้จัดทำต้องกด "ออกเลขหนังสือ"
+      // awaiting_submit = จนท.ที่กดรับไปถืออยู่ (แจ้งผู้จัดทำด้วยเพื่อให้ตามได้)
+      const targets: { id: string; action: string }[] = [];
+      if (doc.status === 'numbering') {
+        if (doc.created_by) targets.push({ id: doc.created_by, action: 'กรุณาเข้าระบบแล้วกด "ออกเลขหนังสือ" เพื่อให้เอกสารเดินต่อ' });
+      } else {
+        if (doc.accepted_by) targets.push({ id: doc.accepted_by, action: 'ท่านเป็นผู้รับเอกสารนี้ไว้ — กรุณายื่นเข้าระบบมหาวิทยาลัยแล้วอัปโหลดฉบับประทับกลับเข้าระบบ' });
+        if (doc.created_by && doc.created_by !== doc.accepted_by) targets.push({ id: doc.created_by, action: 'เอกสารของท่านอยู่กับเจ้าหน้าที่ — กรุณาติดตามหากเรื่องเร่งด่วน' });
+      }
+      if (!targets.length) continue;
+
+      let sentAny = false;
+      for (const t of targets) {
+        const u = userOf.get(t.id);
+        if (!u) continue;
+
+        const emailSubj = `${prefix} ⏳ เอกสารค้าง ${days} วันทำการ: ${subj}`;
+        const html = `<p>เรียน <strong>${u.full_name}</strong></p>
+          <p>เอกสารเลขที่ <strong>${num}</strong> เรื่อง "<strong>${subj}</strong>" ค้างอยู่ที่สถานะ <strong>${stage}</strong> มาแล้ว ${days} วันทำการ</p>
+          <p>${t.action}</p>
+          ${appUrl ? `<p><a href="${appUrl}">เข้าสู่ระบบ</a></p>` : ''}
+          <p style="color:#888;font-size:12px">อีเมลนี้ส่งโดยระบบอัตโนมัติ (cron)</p>`;
+
+        const em = u.contact_email || u.email || '';
+        let status = 'skipped';
+        if (okEmail(em)) {
+          const r = await sendBrevoEmail({ to: em, subject: emailSubj, html });
+          status = r.ok ? 'sent' : 'failed';
+        }
+
+        const lineText = [
+          `${prefix} ⏳ เอกสารค้าง ${days} วันทำการ`,
+          `เรียน ${u.full_name}`,
+          `เลขที่: ${num}`,
+          `เรื่อง: ${subj}`,
+          `สถานะ: ${stage}`,
+          t.action,
+          appUrl,
+        ].filter(Boolean).join('\n');
+        let lineCard: Record<string, unknown> | null = null;
+        try {
+          lineCard = lineFlex({
+            head: `⏳ เอกสารค้าง ${days} วันทำการ`,
+            headColor: '#C77A1A',
+            subj, recipName: u.full_name, appUrl,
+            rows: [['เลขที่', num], ['สถานะ', stage], ['ค้างมาแล้ว', `${days} วันทำการ`]],
+            infoText: t.action,
+            button: doc.status === 'numbering' ? 'เข้าสู่ระบบเพื่อออกเลข' : 'เปิดดูเอกสาร',
+            buttonColor: '#C77A1A',
+          });
+        } catch { /* การ์ดพัง → ส่ง text ธรรมดาต่อ */ }
+        const lineStatus = await pushLine(admin, t.id, lineText, lineCard);
+
+        // ไม่ได้ผูก LINE และไม่มีอีเมลใช้ได้ → ไม่มีอะไรถูกส่งจริง ห้ามบันทึกเป็น "เตือนแล้ว"
+        // ไม่งั้นคนที่ติดต่อไม่ได้เลยจะถูก dedup กลบไปตลอดกาล
+        if (status === 'skipped' && lineStatus === 'skipped') continue;
+        sentAny = true;
+
+        await admin.from('notifications').insert({
+          document_id: doc.id,
+          recipient_id: t.id,
+          recipient_email: okEmail(em) ? em : '',
+          subject: emailSubj,
+          body: html,
+          notification_type: 'stage_stuck',
+          status: status === 'skipped' ? lineStatus : status,
+          sent_at: new Date().toISOString(),
+        });
+      }
+      if (sentAny) warned++;
+    } catch (e) {
+      console.error('stage warn failed:', doc.id, e);
+    }
+  }
+  return warned;
+}
+
+/* ═══ การ์ด LINE (Flex Message) ═══
+   ⚠️ ทำซ้ำจาก buildLineFlex() ใน notif.js ฝั่ง client โดยตั้งใจ — cron ส่งเองไม่ผ่านไฟล์นั้น
+   หน้าตาการ์ดต้องเหมือนกันทั้งสองทาง แก้ที่ไหนต้องแก้คู่กัน
+   ถ้า build พัง จะ fallback เป็น text ธรรมดา (ผู้เรียกห่อ try/catch ไว้) */
+type FlexStep = { name: string; person: string; st: string };
+type FlexOpts = {
+  head: string;
+  headColor?: string;
+  subj: string;
+  recipName?: string;
+  rows?: [string, string][];
+  steps?: FlexStep[];
+  infoText?: string;
+  button?: string;
+  buttonColor?: string;
+  appUrl?: string;
+};
+
+function lineFlex(o: FlexOpts) {
+  const row = (label: string, value: string, vColor?: string) => ({
+    type: 'box', layout: 'baseline', spacing: 'md',
+    contents: [
+      { type: 'text', text: String(label), size: 'xs', color: '#9A8F84', flex: 3 },
+      { type: 'text', text: String(value || '—'), size: 'xs', color: vColor || '#18120E', flex: 7, wrap: true },
+    ],
+  });
+
+  const body: Record<string, unknown>[] = [
+    { type: 'text', text: String(o.subj || '—'), weight: 'bold', size: 'sm', wrap: true, color: '#18120E' },
+  ];
+  if (o.recipName) body.push(row('เรียน', o.recipName));
+  for (const r of o.rows ?? []) body.push(row(r[0], r[1]));
+
+  const steps = o.steps ?? [];
+  if (steps.length) {
+    const done = steps.filter((s) => s.st === 'done').length;
+    body.push({ type: 'separator', margin: 'lg', color: '#F0EBE0' });
+    body.push({ type: 'text', text: `ความคืบหน้า ${done}/${steps.length} ขั้นตอน`, size: 'xs', weight: 'bold', color: '#9A8F84', margin: 'lg' });
+    for (const s of steps) {
+      let mark = '○', mc = '#C9C0B8', tc = '#9A8F84', bold = false;
+      let txt = (s.name || '—') + (s.person ? ' — ' + s.person : '');
+      if (s.st === 'done') { mark = '✓'; mc = '#0F8C46'; tc = '#6B6157'; }
+      else if (s.st === 'active') { mark = '●'; mc = '#E83A00'; tc = '#18120E'; bold = true; txt += '  ← รออยู่'; }
+      else if (s.st === 'rejected') { mark = '✕'; mc = '#DC2626'; tc = '#DC2626'; txt += ' (ตีกลับ)'; }
+      else if (s.st === 'cancelled') { mark = '⊘'; mc = '#9A8F84'; tc = '#9A8F84'; txt += ' (ยกเลิก)'; }
+      const t: Record<string, unknown> = { type: 'text', text: txt, size: 'xs', color: tc, flex: 11, wrap: true };
+      if (bold) t.weight = 'bold';
+      body.push({
+        type: 'box', layout: 'baseline', spacing: 'sm', margin: 'sm',
+        contents: [{ type: 'text', text: mark, size: 'xs', color: mc, flex: 1, align: 'center' }, t],
+      });
+    }
+  }
+  if (o.infoText) body.push({ type: 'text', text: String(o.infoText), size: 'xxs', color: '#9A8F84', wrap: true, margin: 'lg' });
+
+  const hc = o.headColor || '#E83A00';
+  const hsub: Record<string, string> = { '#E83A00': '#FFD9CC', '#0F8C46': '#CDEBD9', '#6B6157': '#E0DAD3', '#C77A1A': '#FBE6C8' };
+  const bubble: Record<string, unknown> = {
+    type: 'bubble', size: 'mega',
+    header: {
+      type: 'box', layout: 'vertical', backgroundColor: hc, paddingAll: '16px',
+      contents: [
+        { type: 'text', text: 'SAEDU FLOW · ระบบเสนอเอกสาร กนค.', size: 'xxs', weight: 'bold', color: hsub[hc] || '#FFD9CC' },
+        { type: 'text', text: o.head, size: 'md', weight: 'bold', color: '#FFFFFF', wrap: true, margin: 'xs' },
+      ],
+    },
+    body: { type: 'box', layout: 'vertical', spacing: 'sm', paddingAll: '16px', contents: body },
+  };
+  // LINE ปฏิเสธทั้งข้อความถ้า uri ไม่ใช่ http(s) — ไม่มี app_url ที่ใช้ได้ก็ไม่ต้องมีปุ่ม
+  const url = String(o.appUrl || '').trim();
+  if (/^https?:\/\//.test(url)) {
+    bubble.footer = {
+      type: 'box', layout: 'vertical', paddingAll: '12px',
+      contents: [{
+        type: 'button', style: 'primary', color: o.buttonColor || '#E83A00', height: 'sm',
+        action: { type: 'uri', label: o.button || 'เข้าสู่ระบบเพื่อดำเนินการ', uri: url },
+      }],
+    };
+  }
+  return bubble;
+}
+
 /* push LINE ตรงไปยัง Messaging API — service role resolve line_user_id เองได้
-   ไม่เรียก Edge Function send-line เพื่อเลี่ยง hop + rate limit ที่ผูกกับ caller */
+   ไม่เรียก Edge Function send-line เพื่อเลี่ยง hop + rate limit ที่ผูกกับ caller
+   flex = การ์ด Flex Message (ถ้ามี) — text ยังส่งไปด้วยเสมอในฐานะ altText/fallback */
 async function pushLine(
   admin: ReturnType<typeof serviceAdmin>,
   userId: string,
   text: string,
+  flex?: Record<string, unknown> | null,
 ): Promise<string> {
   const TOKEN = Deno.env.get('LINE_CHANNEL_ACCESS_TOKEN') ?? '';
   if (!TOKEN) return 'skipped';
@@ -324,7 +616,11 @@ async function pushLine(
       headers: { Authorization: 'Bearer ' + TOKEN, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         to: profile.line_user_id,
-        messages: [{ type: 'text', text: String(text).slice(0, 4900) }],
+        messages: [
+          flex && typeof flex === 'object'
+            ? { type: 'flex', altText: String(text).slice(0, 400), contents: flex }
+            : { type: 'text', text: String(text).slice(0, 4900) },
+        ],
       }),
     });
     if (!r.ok) {

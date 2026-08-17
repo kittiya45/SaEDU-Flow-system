@@ -431,8 +431,11 @@ var SETT={
   system_announcement_type:'info',
   line_oa_id:'',   // Basic ID ของ LINE OA (เช่น @123abcd) — ใช้สร้างลิงก์แอดเพื่อนใน modal เชื่อมต่อ LINE
   app_url:'',      // URL ระบบ — แนบท้ายข้อความแจ้งเตือน LINE
-  line_group_id:'',                             // groupId กลุ่มเจ้าหน้าที่ (webhook เขียนให้ตอนพิมพ์รหัสเชื่อมกลุ่ม)
-  line_group_events:'create,resubmit,overdue'   // เหตุการณ์ที่แจ้งเข้ากลุ่ม (action ของ sendNotifEmail)
+  line_group_id:'',                    // groupId กลุ่มเจ้าหน้าที่ (webhook เขียนให้ตอนพิมพ์รหัสเชื่อมกลุ่ม)
+  /* เหตุการณ์ที่แจ้งเข้ากลุ่ม (action ของ sendNotifEmail) — เพิ่ม 'overdue' ได้ถ้าอยากให้
+     เอกสารเลยกำหนดเข้ากลุ่มด้วย แต่ห้ามใส่ 'approve' (ยิงทุกขั้น = 6 ข้อความ/เอกสารสายงบ)
+     — notif.js คุม approve ไว้แยกต่างหาก ให้ยิงเฉพาะตอนคิวถัดไปเป็นของเจ้าหน้าที่ */
+  line_group_events:'create,resubmit'
 };
 async function loadAppSettings(){
   try{

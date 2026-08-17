@@ -169,7 +169,17 @@ async function sendNotifEmail(docId, action, newStatus, note){
     }
   }
 
-  // ── กลุ่ม LINE: แจ้งเฉพาะเมื่อถึงคิวขั้นตอนของเจ้าหน้าที่ ──
+  /* ── กลุ่ม LINE เจ้าหน้าที่ — ยิงเมื่อเข้าเงื่อนไขข้อใดข้อหนึ่ง ──
+     1) action อยู่ใน SETT.line_group_events (ค่าเริ่มต้น create,resubmit)
+        = "มีเอกสารใหม่เข้าระบบ" กลุ่มควรรู้ทุกใบ ไม่ต้องรอให้เดินมาถึงคิวเจ้าหน้าที่
+     2) approve ที่ทำให้คิวถัดไปเป็นของ ROLE-STF = "ถึงตาเจ้าหน้าที่แล้ว"
+
+     ⚠️ ห้ามใส่ 'approve' ลงใน line_group_events เฉย ๆ — เอกสารสายงบมี 7 ขั้น
+     จะยิงเข้ากลุ่ม 6 ข้อความต่อใบ และ LINE OA มีโควตา push จำกัดต่อเดือน
+     เงื่อนไขข้อ 2 จึงคุม approve ไว้ให้เหลือครั้งเดียวต่อเอกสาร
+
+     ประวัติ: 26 ก.ค. 69 เคยตัดเหลือเฉพาะข้อ 2 อย่างเดียว ทำให้กลุ่มเงียบสนิท
+     ตั้งแต่ 10 ส.ค. เพราะไม่มีเอกสารใบไหนเดินมาถึงขั้นเจ้าหน้าที่เลย */
   try{
     var _staffActive=false;
     if(nextStep&&nextStep.assigned_to){
@@ -180,7 +190,8 @@ async function sendNotifEmail(docId, action, newStatus, note){
         _staffActive=!!(_nu&&_nu[0]&&_nu[0].role_code==='ROLE-STF');
       }
     }
-    if(SETT.line_group_id&&_staffActive&&['create','resubmit','approve'].indexOf(action)>=0){
+    var _gEv=String(SETT.line_group_events||'create,resubmit').split(',').map(function(s){return s.trim()});
+    if(SETT.line_group_id&&(_gEv.indexOf(action)>=0||(_staffActive&&action==='approve'))){
       var _gO={
         action:action, newStatus:newStatus, subj:subj, deadlineStr:deadlineStr,
         nextStep:nextStep, urgency:doc.urgency, note:note,
@@ -461,11 +472,14 @@ async function sendStepStallLineNotifs(force){
       var subj=(doc.subject_line&&doc.subject_line.length>=3)?doc.subject_line:(doc.title||'');
       var assignee=info.step.assigned_to?uMap[info.step.assigned_to]:null;
       var sent=false;
+      var stallSteps=await _lineStepsInfo(stepsByDoc[doc.id]||[]);
 
       // 1) ผู้ที่ต้องลงนาม — คนที่กดแล้วเอกสารเดินต่อได้
       if(info.step.assigned_to){
+        var _o1={role:'assignee',name:assignee?assignee.full_name:'',subj:subj,info:info,steps:stallSteps};
+        var _f1=null; try{_f1=buildStepStallLineFlex(_o1)}catch(fe){}
         var st1=await sendLinePush(info.step.assigned_to,
-          buildStepStallLineText({role:'assignee',name:assignee?assignee.full_name:'',subj:subj,info:info}),null,doc.id);
+          buildStepStallLineText(_o1),_f1,doc.id);
         if(st1!=='skipped'){
           sent=true;
           try{await logNotifRow({document_id:doc.id,recipient_id:info.step.assigned_to,recipient_email:'',
@@ -477,9 +491,11 @@ async function sendStepStallLineNotifs(force){
       // 2) ผู้จัดทำ — ให้รู้ว่าเอกสารตัวเองติดอยู่ที่ใคร จะได้ตามได้ถูกคน
       if(doc.created_by&&doc.created_by!==info.step.assigned_to){
         var cr=uMap[doc.created_by];
+        var _o2={role:'creator',name:cr?cr.full_name:'',subj:subj,info:info,
+          holder:assignee?assignee.full_name:'',steps:stallSteps};
+        var _f2=null; try{_f2=buildStepStallLineFlex(_o2)}catch(fe){}
         var st2=await sendLinePush(doc.created_by,
-          buildStepStallLineText({role:'creator',name:cr?cr.full_name:'',subj:subj,info:info,
-            holder:assignee?assignee.full_name:''}),null,doc.id);
+          buildStepStallLineText(_o2),_f2,doc.id);
         if(st2!=='skipped'){
           sent=true;
           try{await logNotifRow({document_id:doc.id,recipient_id:doc.created_by,recipient_email:'',
@@ -515,6 +531,25 @@ function buildStepStallLineText(o){
   lines.push(o.role==='creator'?'กรุณาติดตามกับผู้รับผิดชอบขั้นตอนนี้':'กรุณาเข้าระบบเพื่อลงนาม');
   if(SETT.app_url) lines.push(SETT.app_url);
   return lines.join('\n');
+}
+
+/* การ์ด LINE สำหรับขั้นตอนค้าง — คู่กับ buildStepStallLineText (ใช้เป็น altText/fallback)
+   ⚠️ ตรรกะเดียวกันนี้ถูกทำซ้ำใน supabase/functions/check-overdue/index.ts (stallFlex)
+   เพราะ cron ฝั่งเซิร์ฟเวอร์ส่งเองไม่ผ่านไฟล์นี้ — แก้ที่ไหนต้องแก้คู่กัน */
+function buildStepStallLineFlex(o){
+  var info=o.info, st=info.step;
+  var ddl=info.deadline?info.deadline.toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit'}):'';
+  var rows=[];
+  if(o.role==='creator') rows.push(['ค้างที่ขั้นตอน',(st.step_name||'')+(o.holder?' ('+o.holder+')':'')]);
+  else rows.push(['ขั้นตอนของท่าน',st.step_name||'']);
+  if(ddl) rows.push(['ครบกำหนดลงนาม',ddl]);
+  rows.push(['ค้างมาแล้ว',info.days+' วันทำการ']);
+  return buildLineFlex({
+    headText:o.role==='creator'?'⏰ เอกสารของท่านค้างเกินกำหนด':'⏰ ท่านมีเอกสารค้างเกินกำหนดลงนาม',
+    subj:o.subj, recipName:o.name, rows:rows, steps:o.steps||[],
+    infoText:o.role==='creator'?'กรุณาติดตามกับผู้รับผิดชอบขั้นตอนนี้':'กรุณาเข้าระบบเพื่อลงนามให้เอกสารเดินต่อ',
+    button:o.role==='creator'?'เปิดดูเอกสาร':'เข้าสู่ระบบเพื่อลงนาม'
+  });
 }
 
 function showEmailToast(emails, subj){
@@ -690,6 +725,7 @@ function buildLineFlex(o){
       if(s.st==='done'){mark='✓';mc='#0F8C46';tc='#6B6157'}
       else if(s.st==='active'){mark='●';mc='#E83A00';tc='#18120E';bold=true;txt+='  ← รออยู่'}
       else if(s.st==='rejected'){mark='✕';mc='#DC2626';tc='#DC2626';txt+=' (ตีกลับ)'}
+      else if(s.st==='cancelled'){mark='⊘';mc='#9A8F84';tc='#9A8F84';txt+=' (ยกเลิก)'}
       var t={type:'text',text:txt,size:'xs',color:tc,flex:11,wrap:true};
       if(bold) t.weight='bold';
       body.push({type:'box',layout:'baseline',spacing:'sm',margin:'sm',contents:[
@@ -701,10 +737,14 @@ function buildLineFlex(o){
   }
   if(o.infoText) body.push({type:'text',text:String(o.infoText),size:'xxs',color:'#9A8F84',wrap:true,margin:'lg'});
   if(o.action==='overdue'&&o.autoApprove) body.push({type:'text',text:'⏳ หากไม่ดำเนินการภายใน '+(o.slaDays||3)+' วันทำการ ระบบจะอนุมัติ/รับเอกสารให้อัตโนมัติ',size:'xxs',color:'#C77A1A',wrap:true,margin:'lg'});
+  // headColor: สีแถบหัวการ์ด — ส้มแบรนด์เป็นค่าเริ่มต้น (งานที่ต้องทำ)
+  // เคสที่ "ไม่ต้องทำอะไรต่อ" ใช้สีอื่นเพื่อให้แยกออกตั้งแต่เห็นครั้งแรก (เขียว=สำเร็จ, เทา=ยกเลิก)
+  var hc=String(o.headColor||'#E83A00');
+  var _hsub={'#E83A00':'#FFD9CC','#0F8C46':'#CDEBD9','#6B6157':'#E0DAD3','#C77A1A':'#FBE6C8'};
   var bubble={
     type:'bubble',size:'mega',
-    header:{type:'box',layout:'vertical',backgroundColor:'#E83A00',paddingAll:'16px',contents:[
-      {type:'text',text:'SAEDU FLOW · ระบบเสนอเอกสาร กนค.',size:'xxs',weight:'bold',color:'#FFD9CC'},
+    header:{type:'box',layout:'vertical',backgroundColor:hc,paddingAll:'16px',contents:[
+      {type:'text',text:'SAEDU FLOW · ระบบเสนอเอกสาร กนค.',size:'xxs',weight:'bold',color:_hsub[hc]||'#FFD9CC'},
       {type:'text',text:head,size:'md',weight:'bold',color:'#FFFFFF',wrap:true,margin:'xs'}
     ]},
     body:{type:'box',layout:'vertical',spacing:'sm',paddingAll:'16px',contents:body}
@@ -712,7 +752,7 @@ function buildLineFlex(o){
   var url=String(SETT.app_url||'').trim();
   if(/^https?:\/\//.test(url)){
     bubble.footer={type:'box',layout:'vertical',paddingAll:'12px',contents:[
-      {type:'button',style:'primary',color:'#E83A00',height:'sm',
+      {type:'button',style:'primary',color:String(o.buttonColor||'#E83A00'),height:'sm',
        action:{type:'uri',label:o.button||'เข้าสู่ระบบเพื่อดำเนินการ',uri:url}}
     ]};
   }
