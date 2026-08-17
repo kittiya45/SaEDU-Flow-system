@@ -199,7 +199,7 @@ async function sendNotifEmail(docId, action, newStatus, note){
       };
       var _gFlex=null;
       try{_gFlex=buildLineFlex(Object.assign({steps:lineSteps},_gO))}catch(fe){}
-      await sendLineGroupPush(buildLineText(_gO),_gFlex);
+      await sendLineGroupPush(buildLineText(_gO),_gFlex,docId);
     }
   }catch(e){console.warn('LINE group notify error:',e)}
 
@@ -539,9 +539,10 @@ function buildStepStallLineText(o){
 function buildStepStallLineFlex(o){
   var info=o.info, st=info.step;
   var ddl=info.deadline?info.deadline.toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit'}):'';
+  // ไม่ใส่แถว "ค้างที่ขั้นตอน" — แถบความคืบหน้าด้านล่างบอกอยู่แล้วว่าค้างที่ใคร (●)
   var rows=[];
-  if(o.role==='creator') rows.push(['ค้างที่ขั้นตอน',(st.step_name||'')+(o.holder?' ('+o.holder+')':'')]);
-  else rows.push(['ขั้นตอนของท่าน',st.step_name||'']);
+  if(!(o.steps&&o.steps.length)) rows.push([o.role==='creator'?'ค้างที่ขั้นตอน':'ขั้นตอนของท่าน',
+    (st.step_name||'')+(o.role==='creator'&&o.holder?' ('+o.holder+')':'')]);
   if(ddl) rows.push(['ครบกำหนดลงนาม',ddl]);
   rows.push(['ค้างมาแล้ว',info.days+' วันทำการ']);
   return buildLineFlex({
@@ -611,13 +612,15 @@ async function sendLinePush(recipientId, text, flex, documentId, testSelf){
 /* ส่งเข้ากลุ่ม LINE เจ้าหน้าที่ — send-line resolve groupId จาก app_settings ฝั่ง server
    ไม่บันทึกลง notifications (ไม่มี recipient_id รายคน และ dedup ของ overdue อาศัยแถวรายคน
    ที่เขียนใน loop ผู้รับอยู่แล้ว) */
-async function sendLineGroupPush(text, flex){
+async function sendLineGroupPush(text, flex, docId){
   if(!text) return 'skipped';
   try{
     var r=await fetch(SU+'/functions/v1/send-line',{
       method:'POST',
       headers:{'Content-Type':'application/json','Authorization':H.Authorization,'apikey':SK},
-      body:JSON.stringify({group:true,text:text,flex:flex||undefined})
+      // ต้องส่ง documentId ไปด้วย — validateLineSend ใช้ตรวจว่าผู้ยิงเกี่ยวข้องกับเอกสารใบนี้จริง
+      // ผู้ที่ไม่ใช่ staff/dev จะได้ 403 ถ้าไม่มีค่านี้ (ปุ่มทดสอบส่งของแอดมินไม่ต้องมี)
+      body:JSON.stringify({group:true,text:text,flex:flex||undefined,documentId:docId||undefined})
     });
     var j=await r.json().catch(function(){return{}});
     if(r.ok&&j.ok) return 'sent';
@@ -688,6 +691,11 @@ async function _lineStepsInfo(wfSteps){
    รับ o แบบเดียวกับ buildLineText เพิ่ม: steps จาก _lineStepsInfo() (แถบความคืบหน้า —
    ✓ ผ่านแล้ว / ● รออยู่ / ○ ยังไม่ถึงคิว / ✕ ตีกลับ), rows:[[label,value]] แถวข้อมูลเพิ่มเติม,
    headText/button/infoText สำหรับ override ข้อความ
+
+   สไตล์: เรียบน้อย — พื้นขาวทั้งใบ ไม่มีแถบสีทึบ ไม่มีปุ่มทึบ
+   สีสถานะ (headColor) เหลือเป็นจุดเน้นเล็ก ๆ ที่หัวการ์ด + ตัวอักษรบรรทัดสถานะ + ปุ่มแบบลิงก์
+   อีโมจินำหน้าหัวข้อถูกตัดออกจากการ์ด (ยังอยู่ใน altText/plain text ซึ่งเป็นตัวที่โผล่ในลิสต์แชท)
+
    ⚠️ ต้อง deploy Edge Function send-line เวอร์ชันที่รองรับ {flex} ก่อนการ์ดถึงจะแสดง
    (เวอร์ชันเก่าไม่รู้จัก field นี้ — จะส่งเป็น text ธรรมดาต่อไป ไม่พัง) */
 function buildLineFlex(o){
@@ -700,14 +708,23 @@ function buildLineFlex(o){
     else if(o.action==='overdue')      head='⚠️ เอกสารเลยกำหนด';
     else                               head='📋 เอกสารรอการดำเนินการของคุณ';
   }
+  var accent=String(o.headColor||'#E83A00');
   function row(label,value,vColor){
-    return {type:'box',layout:'baseline',spacing:'md',contents:[
-      {type:'text',text:String(label),size:'xs',color:'#9A8F84',flex:3},
+    return {type:'box',layout:'baseline',spacing:'md',margin:'sm',contents:[
+      {type:'text',text:String(label),size:'xs',color:'#A79C92',flex:3},
       {type:'text',text:String(value||'—'),size:'xs',color:vColor||'#18120E',flex:7,wrap:true}
     ]};
   }
-  var body=[{type:'text',text:String(o.subj||'—'),weight:'bold',size:'sm',wrap:true,color:'#18120E'}];
-  if(o.sentAt) body.push({type:'text',text:'สถานะ ณ '+o.sentAt,size:'xxs',color:'#9A8F84',margin:'sm'});
+  // หัวการ์ด: จุดสีสถานะ + ชื่อระบบตัวเล็ก → บรรทัดสถานะสีเดียวกัน → ชื่อเรื่อง
+  var body=[
+    {type:'box',layout:'baseline',spacing:'sm',contents:[
+      {type:'text',text:'●',size:'xxs',color:accent,flex:0},
+      {type:'text',text:'ระบบเสนอเอกสาร กนค.',size:'xxs',color:'#C4BBB2'}
+    ]},
+    {type:'text',text:String(head).replace(/^[^฀-๿a-zA-Z0-9(]+/,''),size:'xs',weight:'bold',color:accent,wrap:true,margin:'md'},
+    {type:'text',text:String(o.subj||'—'),weight:'bold',size:'md',wrap:true,color:'#18120E',margin:'sm'}
+  ];
+  if(o.sentAt) body.push({type:'text',text:'สถานะ ณ '+o.sentAt,size:'xxs',color:'#A79C92',margin:'sm'});
   if(o.recipName) body.push(row('เรียน',o.recipName));
   if(o.urgency&&urgNorm(o.urgency)!=='normal') body.push(row('ความเร่งด่วน',urgTxt(o.urgency),'#B45309'));
   if(o.deadlineStr) body.push(row('กำหนดส่ง',o.deadlineStr));
@@ -717,15 +734,15 @@ function buildLineFlex(o){
   var steps=o.steps||[];
   if(steps.length){
     var done=steps.filter(function(s){return s.st==='done'}).length;
-    body.push({type:'separator',margin:'lg',color:'#F0EBE0'});
-    body.push({type:'text',text:'ความคืบหน้า '+done+'/'+steps.length+' ขั้นตอน',size:'xs',weight:'bold',color:'#9A8F84',margin:'lg'});
+    body.push({type:'separator',margin:'xl',color:'#F1ECE6'});
+    body.push({type:'text',text:'ความคืบหน้า '+done+'/'+steps.length+' ขั้นตอน',size:'xxs',color:'#C4BBB2',margin:'lg'});
     steps.forEach(function(s){
-      var mark='○',mc='#C9C0B8',tc='#9A8F84',bold=false;
+      var mark='○',mc='#D5CDC5',tc='#A79C92',bold=false;
       var txt=(s.name||'—')+(s.person?' — '+s.person:'');
-      if(s.st==='done'){mark='✓';mc='#0F8C46';tc='#6B6157'}
-      else if(s.st==='active'){mark='●';mc='#E83A00';tc='#18120E';bold=true;txt+='  ← รออยู่'}
-      else if(s.st==='rejected'){mark='✕';mc='#DC2626';tc='#DC2626';txt+=' (ตีกลับ)'}
-      else if(s.st==='cancelled'){mark='⊘';mc='#9A8F84';tc='#9A8F84';txt+=' (ยกเลิก)'}
+      if(s.st==='done'){mark='✓';mc='#B9C9BE';tc='#8C837A'}
+      else if(s.st==='active'){mark='●';mc='#E83A00';tc='#18120E';bold=true;txt+='  · รออยู่'}
+      else if(s.st==='rejected'){mark='✕';mc='#DC2626';tc='#B4534E';txt+=' (ตีกลับ)'}
+      else if(s.st==='cancelled'){mark='⊘';mc='#C4BBB2';tc='#A79C92';txt+=' (ยกเลิก)'}
       var t={type:'text',text:txt,size:'xs',color:tc,flex:11,wrap:true};
       if(bold) t.weight='bold';
       body.push({type:'box',layout:'baseline',spacing:'sm',margin:'sm',contents:[
@@ -735,24 +752,18 @@ function buildLineFlex(o){
   } else if(o.nextStep&&o.nextStep.step_name&&o.action!=='reject'&&o.newStatus!=='completed'){
     body.push(row('ขั้นตอนที่รอ',o.nextStep.step_name,'#E83A00'));
   }
-  if(o.infoText) body.push({type:'text',text:String(o.infoText),size:'xxs',color:'#9A8F84',wrap:true,margin:'lg'});
-  if(o.action==='overdue'&&o.autoApprove) body.push({type:'text',text:'⏳ หากไม่ดำเนินการภายใน '+(o.slaDays||3)+' วันทำการ ระบบจะอนุมัติ/รับเอกสารให้อัตโนมัติ',size:'xxs',color:'#C77A1A',wrap:true,margin:'lg'});
-  // headColor: สีแถบหัวการ์ด — ส้มแบรนด์เป็นค่าเริ่มต้น (งานที่ต้องทำ)
-  // เคสที่ "ไม่ต้องทำอะไรต่อ" ใช้สีอื่นเพื่อให้แยกออกตั้งแต่เห็นครั้งแรก (เขียว=สำเร็จ, เทา=ยกเลิก)
-  var hc=String(o.headColor||'#E83A00');
-  var _hsub={'#E83A00':'#FFD9CC','#0F8C46':'#CDEBD9','#6B6157':'#E0DAD3','#C77A1A':'#FBE6C8'};
+  if(o.infoText) body.push({type:'text',text:String(o.infoText),size:'xxs',color:'#A79C92',wrap:true,margin:'xl'});
+  if(o.action==='overdue'&&o.autoApprove) body.push({type:'text',text:'หากไม่ดำเนินการภายใน '+(o.slaDays||3)+' วันทำการ ระบบจะอนุมัติ/รับเอกสารให้อัตโนมัติ',size:'xxs',color:'#C77A1A',wrap:true,margin:'md'});
   var bubble={
     type:'bubble',size:'mega',
-    header:{type:'box',layout:'vertical',backgroundColor:hc,paddingAll:'16px',contents:[
-      {type:'text',text:'SAEDU FLOW · ระบบเสนอเอกสาร กนค.',size:'xxs',weight:'bold',color:_hsub[hc]||'#FFD9CC'},
-      {type:'text',text:head,size:'md',weight:'bold',color:'#FFFFFF',wrap:true,margin:'xs'}
-    ]},
-    body:{type:'box',layout:'vertical',spacing:'sm',paddingAll:'16px',contents:body}
+    body:{type:'box',layout:'vertical',spacing:'none',paddingAll:'20px',backgroundColor:'#FFFFFF',contents:body}
   };
+  // ปุ่มแบบลิงก์ (ไม่มีพื้นทึบ) — LINE ปฏิเสธทั้งข้อความถ้า uri ไม่ใช่ http(s)
   var url=String(SETT.app_url||'').trim();
   if(/^https?:\/\//.test(url)){
-    bubble.footer={type:'box',layout:'vertical',paddingAll:'12px',contents:[
-      {type:'button',style:'primary',color:String(o.buttonColor||'#E83A00'),height:'sm',
+    bubble.footer={type:'box',layout:'vertical',paddingAll:'4px',backgroundColor:'#FFFFFF',contents:[
+      {type:'separator',color:'#F1ECE6'},
+      {type:'button',style:'link',height:'sm',color:String(o.buttonColor||accent),
        action:{type:'uri',label:o.button||'เข้าสู่ระบบเพื่อดำเนินการ',uri:url}}
     ]};
   }

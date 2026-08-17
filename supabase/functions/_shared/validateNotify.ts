@@ -101,10 +101,23 @@ export async function validateLineSend(
 ): Promise<void> {
   if (caller.type === 'system') return;
 
+  /* กลุ่ม LINE เป็นกล่องรวมของทั้งระบบ ไม่ใช่กล่องส่วนตัวของใคร
+     เดิมด่านนี้จำกัดไว้ที่ staff/dev เท่านั้น ซึ่งกันผิดคน: การแจ้งเข้ากลุ่มเกิดตอน
+     "สร้าง / ส่งใหม่ / อนุมัติ" ซึ่งผู้ลงมือคือนิสิตหรืออาจารย์ ไม่ใช่เจ้าหน้าที่
+     → ถูกตอบ 403 ทุกครั้งแบบเงียบ ๆ (ฝั่ง client แค่ console.warn ไม่มี log ลง DB
+     เพราะ group push ไม่ถูกบันทึกใน notifications) กลุ่มจึงไม่ได้รับอะไรเลยตั้งแต่
+     26 ก.ค. 69 ที่ deploy guard นี้ — ข้อความสุดท้ายในกลุ่มคือ 21 ก.ค. 69
+
+     ตอนนี้: staff/dev ผ่านเสมอ (ครอบปุ่ม "ทดสอบส่ง" ในหน้าตั้งค่าระบบซึ่งไม่มี documentId)
+     คนอื่นต้องเป็นผู้เกี่ยวข้องกับเอกสารใบนั้นจริง — เกณฑ์เดียวกับ push รายคนด้านล่าง
+     ปลอดภัยเท่าเดิมเพราะเนื้อหาที่เข้ากลุ่มคือข้อมูลเอกสารชุดเดียวกับที่เขาส่งหา
+     ผู้รับรายคนได้อยู่แล้ว ไม่ได้เปิดช่องให้ยิงข้อความอิสระเข้ากลุ่ม */
   if (body.group === true) {
-    if (caller.type !== 'user' || !isStaffRole(caller.role_code)) {
-      throw { status: 403, message: 'group LINE: staff/dev only' };
-    }
+    if (caller.type !== 'user') throw { status: 403, message: 'group LINE: user session required' };
+    if (isStaffRole(caller.role_code)) return;
+    if (!body.documentId) throw { status: 403, message: 'group LINE: documentId required' };
+    const okGroup = await canNotifyDocument(admin, caller.id, caller.role_code, body.documentId);
+    if (!okGroup) throw { status: 403, message: 'not allowed to notify for this document' };
     return;
   }
 
