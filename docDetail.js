@@ -25,6 +25,15 @@ function _fileBaseName(f){
 function _isSignedFile(f){
   return f.file_name.indexOf('[ลงนาม]')>=0||f.file_path.indexOf('signed/')===0||/^signed_/.test(f.file_path||'');
 }
+/* ── ไฟล์ที่ย้ายไปคลัง Google Drive แล้ว (supabase/46_+47_archive_to_drive) ──
+   เอกสารที่จบกระบวนการ (completed/cancelled/rejected) ถูกย้ายไฟล์ออกจาก Supabase Storage
+   เพื่อคืนพื้นที่ — แถวใน document_files ยังอยู่ครบทุกแถว เปลี่ยนแค่ "ไฟล์จริงอยู่ที่ไหน"
+   ปุ่ม ดู/แก้ไข/โหลด ใช้ไม่ได้เพราะ file_path ไม่มีของจริงใน Storage แล้ว จึงแทนด้วยลิงก์ Drive
+   (เอกสารที่ยังเดินอยู่ไม่เคยถูกย้าย สคริปต์ปฏิเสธสถานะพวกนั้น — pipeline ลายเซ็นจึงไม่กระทบ) */
+function _isArchivedFile(f){return !!(f&&f.archive_url)}
+function _archivedFileActions(f){
+  return '<a class="btn btn-soft xs" href="'+esc(f.archive_url)+'" target="_blank" rel="noopener noreferrer">'+svg('dn',11)+' เปิดใน Google Drive</a>';
+}
 /* path ของไฟล์ฉบับลงนาม — ต้อง "ไม่ซ้ำเดิม" ทุกครั้งที่เซ็นทับ
    เดิมใช้ path คงที่ signed/{doc}/{name}.pdf แล้วอัปทับที่เดิม ทำให้ signed URL เดิม (แคชใน _furlCache
    ~55 นาที) + cache-control ของ Storage (max-age 3600) ส่งไฟล์ "ก่อนเซ็น" กลับมา
@@ -77,11 +86,16 @@ function _rCurFileRow(f,docId){
   if(isSigned) h.push('<span class="badge b-signed">ลงนามแล้ว</span>');
   if(isRejFile) h.push('<span class="badge b-rejected">ตีกลับ</span>');
   if(isEditFile) h.push('<span class="badge b-pending">แก้ไข</span>');
+  if(_isArchivedFile(f)) h.push('<span class="badge badge-muted" title="ย้ายไปเก็บใน Google Drive เพื่อประหยัดพื้นที่ ประวัติและลายเซ็นยังอยู่ครบ">'+svg('folder',10)+' ในคลัง</span>');
   h.push('<span class="file-meta">'+ft.label+' · '+fsz(f.file_size)+(dtStr?' · '+dtStr:'')+'</span>');
   h.push('</div></div><div class="file-actions">');
-  h.push('<button class="btn btn-ghost xs" data-action="openViewer" data-path="'+esc(f.file_path)+'" data-name="'+esc(_dispName)+'" data-ext="'+esc(_ext)+'">'+svg('eye',11)+' ดู</button>');
-  h.push('<button class="btn btn-soft xs" data-action="openEditor" data-path="'+esc(f.file_path)+'" data-name="'+esc(_dispName)+'" data-fid="'+f.id+'" data-did="'+docId+'">'+svg('edit',11)+' แก้ไข</button>');
-  h.push('<button class="btn btn-soft xs" data-action="dlFile" data-path="'+esc(f.file_path)+'" data-name="'+esc(_dispName)+'">'+svg('dn',11)+' โหลด</button>');
+  if(_isArchivedFile(f)){
+    h.push(_archivedFileActions(f));
+  }else{
+    h.push('<button class="btn btn-ghost xs" data-action="openViewer" data-path="'+esc(f.file_path)+'" data-name="'+esc(_dispName)+'" data-ext="'+esc(_ext)+'">'+svg('eye',11)+' ดู</button>');
+    h.push('<button class="btn btn-soft xs" data-action="openEditor" data-path="'+esc(f.file_path)+'" data-name="'+esc(_dispName)+'" data-fid="'+f.id+'" data-did="'+docId+'">'+svg('edit',11)+' แก้ไข</button>');
+    h.push('<button class="btn btn-soft xs" data-action="dlFile" data-path="'+esc(f.file_path)+'" data-name="'+esc(_dispName)+'">'+svg('dn',11)+' โหลด</button>');
+  }
   h.push('</div></div>');
   return h.join('');
 }
@@ -104,19 +118,22 @@ async function vDet(docId){
     dg('documents','?id=eq.'+_id),
     dg('document_files','?document_id=eq.'+_id+'&order=version.desc,uploaded_at.desc'),
     dg('workflow_steps','?document_id=eq.'+_id+'&order=step_number'),
-    dg('document_history','?document_id=eq.'+_id+'&order=performed_at.desc&limit=50')
+    dg('document_history','?document_id=eq.'+_id+'&order=performed_at.desc&limit=50'),
+    // รายชื่อผู้รับทราบ — null ได้ (ตาราง document_acks ยังไม่ถูกสร้าง) ดู docAck.js
+    (typeof loadDocAcks==='function'?loadDocAcks(docId):Promise.resolve(null))
   ]);
   var doc=rs[0][0]; if(!doc) return '<div class="card-empty"><div class="card-empty-icon">'+svg('x',40)+'</div><div class="card-empty-text">ไม่พบเอกสาร</div></div>';
-  var files=rs[1], wf=rs[2], hist=rs[3];
+  var files=rs[1], wf=rs[2], hist=rs[3], acks=rs[4];
   // รวม creator เข้าใน batch user lookup แทนการ query แยก
   var _aIds=wf.filter(function(s){return s.assigned_to}).map(function(s){return s.assigned_to});
   if(doc.created_by&&_aIds.indexOf(doc.created_by)===-1) _aIds.push(doc.created_by);
   if(doc.forwarded_to_id&&_aIds.indexOf(doc.forwarded_to_id)===-1) _aIds.push(doc.forwarded_to_id);
   if(doc.final_recipient_id&&_aIds.indexOf(doc.final_recipient_id)===-1) _aIds.push(doc.final_recipient_id);
   if(doc.accepted_by&&_aIds.indexOf(doc.accepted_by)===-1) _aIds.push(doc.accepted_by);
+  (acks||[]).forEach(function(a){if(a.user_id&&_aIds.indexOf(a.user_id)===-1)_aIds.push(a.user_id)});
   var _aMap={};
   if(_aIds.length){
-    var _aus=await dg('user_directory','?id=in.('+_aIds.map(safeId).join(',')+')'+'&select=id,full_name,contact_email,email');
+    var _aus=await dg('user_directory','?id=in.('+_aIds.map(safeId).join(',')+')'+'&select=id,full_name,contact_email,email,position_code');
     _aus.forEach(function(u){_aMap[u.id]=u})
   }
   var creator=_aMap[doc.created_by]||{full_name:'—'};
@@ -306,6 +323,13 @@ async function vDet(docId){
    ['ผู้จัดทำ','<span class="detail-val">'+esc(creator.full_name)+'</span>'],
    ['ผู้รับเอกสารเสร็จสิ้น',doc.final_recipient_id&&_aMap[doc.final_recipient_id]?'<span class="detail-val">'+esc(_aMap[doc.final_recipient_id].full_name)+'</span>':'<span class="detail-val-muted">ผู้จัดทำ (ค่าเริ่มต้น)</span>']
   ].concat(
+   // เลขรับที่ประทับมาจากหน่วยงานต้นทาง — แสดงเมื่อกรอกไว้ หรือเป็นหนังสือขาเข้า (ควรมีแต่ยังว่าง)
+   (doc.received_number||doc.doc_type==='incoming')
+     ? [['เลขรับที่ (ต้นทาง)',doc.received_number
+          ?'<span class="detail-val mono">'+esc(doc.received_number)+'</span>'+(doc.received_date?'<div style="font-size:11px;color:#a89e99;margin-top:2px">ลงวันที่ '+fd(doc.received_date)+'</div>':'')
+          :'<span class="detail-val-muted">— ยังไม่ได้บันทึก —</span>']]
+     : []
+  ).concat(
    // เจ้าหน้าที่ที่กดรับเอกสาร — แสดงเฉพาะเมื่อรับแล้ว (awaiting_submit / completed)
    doc.accepted_by&&_aMap[doc.accepted_by]
      ? [['เจ้าหน้าที่ผู้รับเอกสาร','<span class="detail-val">'+esc(_aMap[doc.accepted_by].full_name)+'</span>'+(doc.accepted_at?'<div style="font-size:11px;color:#a89e99;margin-top:2px">'+fdTime(doc.accepted_at)+'</div>':'')]]
@@ -370,6 +394,9 @@ async function vDet(docId){
     html.push('<div class="card-empty py-6"><div class="card-empty-icon">'+svg('doc',40)+'</div><div class="card-empty-text">ยังไม่ได้กำหนดขั้นตอน</div></div>')
   }
   html.push('</div></div>');
+
+  // การรับทราบ (หนังสือขาเข้า) — ว่างเปล่าเมื่อยังไม่ได้รันสคริปต์ SQL หรือไม่เกี่ยวข้อง
+  if(typeof _rAckCard==='function') html.push(_rAckCard(docId,doc,acks,_aMap));
 
   // History — right column, below workflow
   var _histIcon=function(action){
@@ -532,12 +559,15 @@ async function showVerHist(docId){
           (isSigned?'<span class="badge b-signed">ลงนาม</span>':'')+
           (isEdited?'<span class="badge badge-muted">แก้ไข</span>':'')+
           (isRejFile?'<span class="badge b-rejected">ตีกลับ</span>':'')+
+          (_isArchivedFile(f)?'<span class="badge badge-muted">'+svg('folder',10)+' ในคลัง</span>':'')+
           '<span class="file-meta">'+ft.label+' · '+fsz(f.file_size)+(dtStr?' · '+dtStr:'')+'</span>'+
         '</div>'+
       '</div>'+
       '<div class="file-actions">'+
-        '<button class="btn btn-ghost xs" data-action="openViewer" data-path="'+esc(f.file_path)+'" data-name="'+esc(_dn)+'" data-ext="'+esc(_ext)+'">'+svg('eye',11)+' ดู</button>'+
-        '<button class="btn btn-soft xs" data-action="dlFile" data-path="'+esc(f.file_path)+'" data-name="'+esc(_dn)+'">'+svg('dn',11)+' โหลด</button>'+
+        (_isArchivedFile(f)
+          ? _archivedFileActions(f)
+          : '<button class="btn btn-ghost xs" data-action="openViewer" data-path="'+esc(f.file_path)+'" data-name="'+esc(_dn)+'" data-ext="'+esc(_ext)+'">'+svg('eye',11)+' ดู</button>'+
+            '<button class="btn btn-soft xs" data-action="dlFile" data-path="'+esc(f.file_path)+'" data-name="'+esc(_dn)+'">'+svg('dn',11)+' โหลด</button>')+
       '</div>'+
     '</div>'
   }).join('');
@@ -655,7 +685,21 @@ async function notifyDocAccepted(docId, staffId, staffName){
       '\nผู้รับเอกสาร: '+who+'\nเมื่อ: '+whenStr+
       '\nสถานะ: รอเจ้าหน้าที่ยื่นในระบบมหาวิทยาลัย\n\n'+
       (SETT.app_url?('เข้าสู่ระบบ: '+SETT.app_url):'กรุณาเข้าสู่ระบบ SAEDU Flow เพื่อติดตามสถานะ');
-    await sendLineWithLog(docId,cr.id,em,subj,lineTxt,'accepted',null);
+    // การ์ด Flex — หัวการ์ดเขียวเพราะเป็นข่าวดีที่ผู้จัดทำไม่ต้องทำอะไรต่อ (ไม่ใช่งานค้าง)
+    var _accFlex=null;
+    try{
+      var _wf=await dg('workflow_steps','?document_id=eq.'+safeId(docId)+'&order=step_number'+
+        '&select=step_number,step_name,assigned_to,status');
+      _accFlex=buildLineFlex({
+        headText:'✅ เจ้าหน้าที่รับเอกสารแล้ว', headColor:'#0F8C46', headIcon:'receive',
+        subj:doc.title||'', recipName:cr.full_name,
+        rows:[['ผู้รับเอกสาร',who],['เมื่อ',whenStr]].concat(doc.doc_number?[['เลขที่',doc.doc_number]]:[]),
+        steps:await _lineStepsInfo(Array.isArray(_wf)?_wf:[]),
+        infoText:'ขณะนี้รอเจ้าหน้าที่ยื่นในระบบมหาวิทยาลัย — เมื่ออัปโหลดฉบับประทับกลับมา สถานะจะเป็นเสร็จสมบูรณ์',
+        button:'เปิดดูเอกสาร', buttonColor:'#0F8C46'
+      });
+    }catch(fe){}
+    await sendLineWithLog(docId,cr.id,em,subj,lineTxt,'accepted',_accFlex);
   }catch(e){console.warn('Accept LINE failed:',e)}
   return true;
 }
@@ -1126,10 +1170,22 @@ async function doCancelDoc(docId){
     await dpa('documents',docId,{status:'cancelled',updated_at:new Date().toISOString()});
     await dp('document_history',{document_id:docId,action:'ยกเลิกเอกสาร',performed_by:CU.id,note:note});
 
-    // แจ้งคนที่เกี่ยวข้อง — ผู้ที่เคยเซ็นไปแล้ว + คนที่ค้างงานอยู่ + ผู้จัดทำ (ถ้าไม่ใช่คนกด)
-    // ไม่ใช้ sendNotifEmail: routing ผู้รับของมันไม่มีเคส cancel เช่นเดียวกับ recall
+    /* แจ้งคนที่เกี่ยวข้อง — ค่าเริ่มต้นคือ "เฉพาะคนที่ยังมีงานค้าง" (_openSteps) + ผู้จัดทำ
+       คนที่ลงนามจบไปแล้วไม่ได้รับ เพราะไม่มีอะไรต้องหยุดทำ และเห็นสถานะได้ในระบบอยู่แล้ว
+       — แอดมินเปิดคืนเป็น "แจ้งผู้เซ็นทุกคน" ได้ที่ "ตั้งค่าระบบ" → ลดอีเมลรบกวน
+       ไม่ใช้ sendNotifEmail: routing ผู้รับของมันไม่มีเคส cancel เช่นเดียวกับ recall */
     var _ids={};
-    wf.forEach(function(s){if(s.assigned_to&&s.assigned_to!==CU.id)_ids[s.assigned_to]=true});
+    var _cancelTargets=settOn('notify_signers_on_cancel',false)?wf:_openSteps;
+    _cancelTargets.forEach(function(s){if(s.assigned_to&&s.assigned_to!==CU.id)_ids[s.assigned_to]=true});
+    // ขั้นตอนสำหรับการ์ด LINE — ใช้ภาพหลังยกเลิก (pending/active กลายเป็น cancelled)
+    // เพื่อให้ผู้รับเห็นว่าเอกสารหยุดตรงไหน ใครเซ็นไปแล้วบ้าง
+    var _cSteps=[];
+    try{
+      _cSteps=await _lineStepsInfo(wf.map(function(s){
+        return (s.status==='pending'||s.status==='active')
+          ? Object.assign({},s,{status:'cancelled'}) : s;
+      }));
+    }catch(se){}
     if(doc.created_by&&doc.created_by!==CU.id) _ids[doc.created_by]=true;
     if(doc.notify_step!==false){
       for(var uid in _ids){
@@ -1145,7 +1201,23 @@ async function doCancelDoc(docId){
             await logNotifRow({document_id:docId,recipient_id:_u.id,recipient_email:_em,subject:_subj,body:_body,notification_type:'cancel',status:_er.ok?'sent':'failed',sent_at:new Date().toISOString()});
           }
           if(typeof sendLineWithLog==='function'){
-            await sendLineWithLog(docId,_u.id,_em,_subj,'✕ ยกเลิกเอกสาร: '+(doc.title||'')+'\nเหตุผล: '+note+'\nไม่ต้องดำเนินการต่อ','cancel');
+            var _cTxt=(SETT.email_prefix||'[กนค.]')+' ✕ ยกเลิกเอกสาร\n'+
+              'เรียน '+_u.full_name+'\nเรื่อง: '+(doc.title||'')+(doc.doc_number?'\nเลขที่: '+doc.doc_number:'')+
+              '\nเหตุผล: '+note+'\nไม่ต้องดำเนินการต่อ'+
+              (SETT.app_url?('\n\nเปิดดูเอกสาร: '+SETT.app_url):'');
+            var _cFlex=null;
+            try{
+              _cFlex=buildLineFlex({
+                headText:'✕ ยกเลิกเอกสารแล้ว', headColor:'#6B6157', headIcon:'cancel',
+                subj:doc.title||'', recipName:_u.full_name,
+                // เหตุผลคือข้อมูลชิ้นเดียวที่ผู้รับต้องอ่านจริง — เน้นตัวหนาให้ต่างจากแถวอื่น
+                rows:[['เหตุผล',note,'#18120E',true],['ผู้ยกเลิก',CU.full_name||'']].concat(doc.doc_number?[['เลขที่',doc.doc_number]]:[]),
+                steps:_cSteps,
+                infoText:'ไม่ต้องดำเนินการใด ๆ ต่อ',
+                button:'เปิดดูเอกสาร', buttonStyle:'secondary'
+              });
+            }catch(fe){}
+            await sendLineWithLog(docId,_u.id,_em,_subj,_cTxt,'cancel',_cFlex);
           }
         }catch(ne){console.warn('Cancel notify failed:',ne)}
       }

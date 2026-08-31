@@ -409,6 +409,15 @@ async function _devHealthPanel(sqlReady,migResults){
     '</div>'+
     '<div class="card-body">'+
       '<div id="dev-storage-cleanup-result" style="font-size:12px;color:#a89e99">กด "สแกน" เพื่อตรวจหาไฟล์ที่ลบได้</div>'+
+    '</div></div>'+
+    '<div class="card"><div class="card-head">'+
+      '<div style="width:26px;height:26px;border-radius:7px;background:#FFF7ED;display:flex;align-items:center;justify-content:center;color:#EA580C">'+svg('hard-drive',13)+'</div>'+
+      '<div><div class="card-head-title">พื้นที่ Storage / ไฟล์กำพร้า</div>'+
+      '<div style="font-size:10px;color:#a89e99;margin-top:1px">ไฟล์ที่อยู่ใน bucket จริง แต่ไม่มีแถวไหนในฐานข้อมูลอ้างถึง — ส่วนใหญ่มาจากฟอร์มสร้างเอกสารที่แนบไฟล์แล้วถูกทิ้ง</div></div>'+
+      '<button class="btn btn-soft sm ml-auto" onclick="_devScanOrphanStorage()">'+svg('srch',12)+' สแกน</button>'+
+    '</div>'+
+    '<div class="card-body">'+
+      '<div id="dev-orphan-storage-result" style="font-size:12px;color:#a89e99">กด "สแกน" เพื่อดูว่าพื้นที่ถูกใช้ไปกับอะไรบ้าง</div>'+
     '</div></div>'+errCard;
 }
 
@@ -454,8 +463,13 @@ async function _devScanStorageCleanup(){
   box.innerHTML='<div style="padding:12px 0;display:flex;align-items:center;gap:8px"><span class="sp sp-dark"></span><span>กำลังสแกน...</span></div>';
   window._devCleanupList=[];
   try{
-    var files=await dg('document_files','?file_path=like.signed/*&select=id,document_id,file_name,file_path,version,uploaded_at&order=document_id,uploaded_at.desc&limit=3000');
+    // select=* ไม่ระบุคอลัมน์ เพื่อให้ยังทำงานได้ทั้งก่อนและหลังรัน 46_archive_to_drive.sql
+    // (ระบุ archive_url ตรง ๆ จะได้ error object กลับมาถ้ายังไม่มีคอลัมน์ แล้วสแกนจะกลายเป็นศูนย์)
+    var files=await dg('document_files','?file_path=like.signed/*&order=document_id,uploaded_at.desc&limit=3000');
     if(!Array.isArray(files)) files=[];
+    // ไฟล์ที่ย้ายไปคลัง Google Drive แล้วไม่ใช่ของซ้ำ — ของจริงไม่ได้อยู่ใน Storage แล้ว
+    // ถ้าไม่กรองออก ปุ่ม "ลบ" จะลบแถวที่เป็นทางเดียวที่จะหาไฟล์ในคลังเจอ
+    files=files.filter(function(f){return !f.archive_url});
     files=files.filter(function(f){return (f.file_name||'').indexOf('[ลงนาม]')>=0||_devIsLegacySignedCopy(f)});
     var groups={};
     files.forEach(function(f){
@@ -532,6 +546,116 @@ async function _devRunStorageCleanup(){
     window._devCleanupList=[];
     showAlert('ล้างไฟล์ซ้ำเสร็จ — ลบ '+ok+' รายการ'+(fail?(' (ล้มเหลว '+fail+')'):''),fail?'wa':'ok');
   },{confirmLabel:'ลบไฟล์ซ้ำ',confirmClass:'btn-danger'});
+}
+
+/* ═══ ไฟล์กำพร้าใน Storage — object ที่ไม่มีแถวไหนในฐานข้อมูลอ้างถึง ═══
+   คนละเรื่องกับ "ล้างไฟล์ลงนามซ้ำ" ข้างบน ซึ่งไล่จาก DB → Storage
+   อันนี้ไล่กลับทาง Storage → DB จึงเจอไฟล์ที่ไม่มีใครรู้ว่ามีอยู่
+   ต้นเหตุหลัก: ฟอร์มสร้างเอกสารอัปโหลดไฟล์ทันทีที่แนบ แต่แถว document_files
+   เกิดตอน saveDoc() เท่านั้น — ทิ้งฟอร์มไป ไฟล์ก็ค้าง (อุดรูแล้วใน workflow.js) */
+var _ORPHAN_MIN_AGE_MS=7*86400000;   // ข้ามไฟล์ที่ใหม่กว่า 7 วัน — อาจเป็นฟอร์มที่ยังเปิดค้างอยู่
+window._devOrphanList=[];
+
+/* list() ของ Supabase Storage ไม่ recursive เอง — โฟลเดอร์ (เช่น signed/{docId}/) คืน id เป็น null */
+async function _devListBucket(prefix){
+  var out=[],PAGE=100,offset=0;
+  for(;;){
+    var r=await sb.storage.from('documents').list(prefix||'',{limit:PAGE,offset:offset,sortBy:{column:'name',order:'asc'}});
+    if(r.error) throw new Error(r.error.message);
+    var data=r.data||[];
+    if(!data.length) break;
+    for(var i=0;i<data.length;i++){
+      var it=data[i], full=prefix?(prefix+'/'+it.name):it.name;
+      if(it.id===null||!it.metadata) out=out.concat(await _devListBucket(full));
+      else out.push({path:full,size:Number((it.metadata&&it.metadata.size)||0),created_at:it.created_at});
+    }
+    if(data.length<PAGE) break;
+    offset+=PAGE;
+  }
+  return out;
+}
+
+async function _devScanOrphanStorage(){
+  var box=$e('dev-orphan-storage-result');
+  if(!box) return;
+  box.innerHTML='<div style="padding:12px 0;display:flex;align-items:center;gap:8px"><span class="sp sp-dark"></span><span>กำลังไล่ทุกไฟล์ใน bucket...</span></div>';
+  window._devOrphanList=[];
+  try{
+    var objs=await _devListBucket('');
+    var dfs=await dg('document_files','?select=file_path&limit=20000');
+    var tps=await dg('form_templates','?select=file_path&limit=5000');
+    if(!Array.isArray(dfs)||!Array.isArray(tps)) throw new Error('อ่านรายการไฟล์ที่ใช้งานอยู่ไม่สำเร็จ');
+    // ตาข่ายกันพลาด: ถ้าไม่มี path ที่ถูกอ้างถึงเลย แปลว่า query พัง ไม่ใช่ว่าไฟล์กำพร้าทั้ง bucket
+    var ref={},refN=0;
+    dfs.concat(tps).forEach(function(r){ if(r&&r.file_path){ref[r.file_path]=1;refN++} });
+    if(!refN) throw new Error('ไม่พบไฟล์ที่ถูกอ้างถึงเลยสักรายการ — หยุดไว้ก่อนเพื่อความปลอดภัย');
+
+    var cutoff=Date.now()-_ORPHAN_MIN_AGE_MS;
+    var live=0,orphans=[],tooNew=0,tooNewB=0,totalB=0;
+    objs.forEach(function(o){
+      totalB+=o.size;
+      if(ref[o.path]){live+=o.size;return}
+      if(new Date(o.created_at).getTime()>cutoff){tooNew++;tooNewB+=o.size;return}
+      orphans.push(o);
+    });
+    var orphanB=orphans.reduce(function(s,o){return s+o.size},0);
+    window._devOrphanList=orphans;
+
+    var kindOf=function(p){
+      return p.indexOf('signed/')===0?'signed/* (ลายเซ็นเวอร์ชันเก่า)'
+        :p.indexOf('stamped_')===0?'stamped_* (ประทับเลข)'
+        :p.indexOf('edited_')===0?'edited_* (จาก PDF editor)'
+        :p.indexOf('reject_')===0?'reject_* (แนบตอนส่งคืนแก้ไข)'
+        :p.indexOf('tmpl_')===0?'tmpl_* (แบบฟอร์ม)'
+        :'อัปโหลดปกติ (ฟอร์มที่ถูกทิ้ง)';
+    };
+    var byKind={};
+    orphans.forEach(function(o){var k=kindOf(o.path);byKind[k]=byKind[k]||{n:0,b:0};byKind[k].n++;byKind[k].b+=o.size});
+
+    var html='<div style="line-height:1.8">';
+    html+='<div>ทั้ง bucket <strong>'+objs.length+'</strong> ไฟล์ · <strong>'+fsz(totalB)+'</strong></div>';
+    html+='<div style="color:#16A34A">ใช้งานอยู่ '+(objs.length-orphans.length-tooNew)+' ไฟล์ · '+fsz(live)+'</div>';
+    if(tooNew) html+='<div style="color:#a89e99">กำพร้าแต่ยังใหม่ (&lt;7 วัน ข้ามไว้) '+tooNew+' ไฟล์ · '+fsz(tooNewB)+'</div>';
+    html+='<div style="color:'+(orphans.length?'#B45309':'#16A34A')+'"><strong>กำพร้า ลบได้ '+orphans.length+' ไฟล์ · '+fsz(orphanB)+'</strong></div>';
+    if(orphans.length){
+      html+='<ul style="margin:10px 0 0;padding-left:18px;font-size:11px;color:#6b6560">';
+      Object.keys(byKind).sort(function(a,b){return byKind[b].b-byKind[a].b}).forEach(function(k){
+        html+='<li>'+esc(k)+' — '+byKind[k].n+' ไฟล์ · '+fsz(byKind[k].b)+'</li>';
+      });
+      html+='</ul>';
+      html+='<button class="btn btn-danger sm" style="margin-top:12px" onclick="_devRunOrphanCleanup()">'+svg('trash',12)+' ลบ '+orphans.length+' ไฟล์ (คืนพื้นที่ '+fsz(orphanB)+')</button>';
+    } else {
+      html+='<div style="color:#16A34A;margin-top:6px">'+svg('ok',12)+' ไม่มีไฟล์กำพร้าที่ต้องลบ</div>';
+    }
+    box.innerHTML=html+'</div>';
+  }catch(e){
+    box.innerHTML=alrtH('er','สแกนไม่สำเร็จ: '+esc(e.message||String(e)));
+  }
+}
+
+async function _devRunOrphanCleanup(){
+  var list=window._devOrphanList||[];
+  if(!list.length){showAlert('ไม่มีไฟล์ที่จะลบ — กดสแกนก่อน','wa');return}
+  var bytes=list.reduce(function(s,o){return s+o.size},0);
+  showConfirm('ลบไฟล์กำพร้า '+list.length+' ไฟล์?',
+    'จะลบออกจาก Supabase Storage ถาวร คืนพื้นที่ประมาณ '+fsz(bytes)+' — ไฟล์เหล่านี้ไม่มีแถวไหนในฐานข้อมูลอ้างถึง จึงไม่มีหน้าไหนในระบบเปิดดูได้อยู่แล้ว',
+    async function(){
+      var box=$e('dev-orphan-storage-result');
+      if(box) box.innerHTML='<div style="padding:12px 0;display:flex;align-items:center;gap:8px"><span class="sp sp-dark"></span><span>กำลังลบ...</span></div>';
+      var ok=0,fail=0;
+      for(var i=0;i<list.length;i+=50){
+        var chunk=list.slice(i,i+50).map(function(o){return o.path});
+        try{
+          var r=await sb.storage.from('documents').remove(chunk);
+          if(r.error) throw new Error(r.error.message);
+          ok+=chunk.length;
+          if(box) box.innerHTML='<div style="padding:12px 0;display:flex;align-items:center;gap:8px"><span class="sp sp-dark"></span><span>ลบแล้ว '+ok+'/'+list.length+'...</span></div>';
+        }catch(e){fail+=chunk.length}
+      }
+      window._devOrphanList=[];
+      if(box) box.innerHTML=alrtH(fail?'wa':'ok','ลบสำเร็จ '+ok+' ไฟล์ (คืนพื้นที่ ~'+fsz(bytes)+')'+(fail?(' — ล้มเหลว '+fail):'')+' · กดสแกนอีกครั้งเพื่อดูผล');
+      showAlert('ล้างไฟล์กำพร้าเสร็จ — ลบ '+ok+' ไฟล์'+(fail?(' (ล้มเหลว '+fail+')'):''),fail?'wa':'ok');
+    },{confirmLabel:'ลบถาวร',confirmClass:'btn-danger'});
 }
 
 /* ═══ แท็บ 2: บันทึกระบบ ═══ */

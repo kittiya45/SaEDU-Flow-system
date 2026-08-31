@@ -127,6 +127,12 @@ document.addEventListener('click', function(e){
     var p=el.dataset.path||el.dataset.url;
     if(p) dlFile(p,el.dataset.name);
   });
+  // เสนอเอกสารเพื่อรับทราบ (docAck.js) — ใช้กับหนังสือขาเข้า
+  else if(a==='showAckProposeModal') showAckProposeModal(id);
+  else if(a==='doAckPropose') doAckPropose(id);
+  else if(a==='showAckModal') showAckModal(id);
+  else if(a==='doAckConfirm') doAckConfirm(id);
+  else if(a==='rmAckRow') rmAckRow(id, el.dataset.docid);
   else if(a==='acceptFwd') doAcceptFwd(id);
   else if(a==='notifyAccepted') doNotifyAccepted(id);
   else if(a==='showDeclineFwdModal') showDeclineFwdModal(id);

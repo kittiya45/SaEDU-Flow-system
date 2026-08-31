@@ -501,6 +501,33 @@ function rAppSettingsCard(settings){
     '<input id="sett-3" data-key="email_prefix" type="text" class="fi text-[13px]" value="'+esc(_val('email_prefix',''))+'">'+
   '</div>';
 
+  // ── กลุ่ม 2.2: ลดอีเมลรบกวน (อีเมล "เพื่อทราบ" ที่ผู้รับไม่ต้องลงมือทำ) ──
+  // ค่าเริ่มต้นปิดทั้งสามข้อ — เปิดเมื่ออยากให้ผู้ลงนามได้รับสำเนาความคืบหน้าด้วย
+  var quietFields=[
+    {key:'notify_signers_on_numbering', id:'sett-quiet-0', label:'แจ้งผู้ลงนามเมื่อ “รอออกเลขหนังสือ”',
+     desc:'ปิดไว้ = ผู้เซ็นขั้นสุดท้ายไม่ได้รับอีเมล “กรุณาออกเลขที่หนังสือ” ทันทีที่กดอนุมัติ (การออกเลขเป็นงานของผู้จัดทำ)'},
+    {key:'notify_signers_on_completed', id:'sett-quiet-1', label:'แจ้งผู้ลงนามเมื่อเอกสาร “เสร็จสิ้น”',
+     desc:'ปิดไว้ = แจ้งเฉพาะผู้จัดทำ ผู้เซ็นดูผลได้ในระบบเมื่อต้องการ'},
+    {key:'notify_signers_on_cancel',    id:'sett-quiet-2', label:'แจ้งผู้ลงนามที่เซ็นจบแล้วเมื่อ “ยกเลิกเอกสาร”',
+     desc:'ปิดไว้ = แจ้งเฉพาะคนที่ยังมีงานค้างอยู่จริง + ผู้จัดทำ'}
+  ];
+  var quietRow='<div style="background:#FFF3EE;border:1px solid #FBD9CB;border-radius:12px;padding:12px 14px;margin-top:12px;font-size:11px;color:#18120E;line-height:1.7">'+
+      svg('mail',13)+' อีเมลกลุ่มนี้เป็นการ<strong>แจ้งเพื่อทราบ</strong> ผู้รับไม่ต้องลงมือทำอะไรต่อ — ปิดไว้เพื่อลดอีเมลที่ส่งถึงอาจารย์และผู้ลงนาม'+
+    '</div>'+
+    quietFields.map(function(f){
+      var on=_val(f.key,'false')==='true';
+      return '<div style="background:#FAFAF8;border-radius:12px;padding:14px 16px;border:1px solid #EBEBEB;margin-top:10px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">'+
+        '<div style="flex:1;min-width:220px">'+
+          '<div style="font-size:11px;font-weight:700;color:#18120E;margin-bottom:2px">'+f.label+'</div>'+
+          '<div style="font-size:10px;color:#a89e99;line-height:1.7">'+f.desc+'</div>'+
+        '</div>'+
+        '<select id="'+f.id+'" data-key="'+f.key+'" class="fi text-[12px]" style="width:150px;flex-shrink:0;font-weight:700">'+
+          '<option value="false"'+(on?'':' selected')+'>ไม่ส่ง (แนะนำ)</option>'+
+          '<option value="true"'+(on?' selected':'')+'>ส่ง</option>'+
+        '</select>'+
+      '</div>';
+    }).join('');
+
   // ── กลุ่ม 2.5: LINE OA (แจ้งเตือนผ่าน LINE) ──
   var lineRow=
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px">'+
@@ -570,6 +597,8 @@ function rAppSettingsCard(settings){
       '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:#a89e99;margin:14px 0 10px">ค่าตัวเลขระบบ</div>'+
       '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">'+numRow+'</div>'+
       emailRow+
+      '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:#a89e99;margin:18px 0 8px">ลดอีเมลรบกวน</div>'+
+      quietRow+
       '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:#a89e99;margin:18px 0 8px">แจ้งเตือนผ่าน LINE OA</div>'+
       lineRow+
       '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:#a89e99;margin:18px 0 8px">ประกาศระบบ</div>'+

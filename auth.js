@@ -344,6 +344,8 @@ async function _enterAppAsUser(row,opts){
   // ขั้นตอนค้างเกินกำหนดลงนาม → แจ้ง LINE (คนละเงื่อนไขกับ overdue ข้างบน ซึ่งดู due_date)
   // ไม่ผูกกับสวิตช์ cron — dedup อยู่ในตาราง notifications ทั้งสองฝั่ง รันซ้อนกันก็ไม่ส่งซ้ำ
   try{await sendStepStallLineNotifs();}catch(e){console.warn('Step-stall check failed:',e)}
+  // ไฟล์ที่แนบในฟอร์มสร้างเอกสารแล้วปิดแท็บทิ้ง — ค้างใน Storage โดยไม่มีแถวใน DB (ดู workflow.js)
+  try{await _sweepStalePendingUploads();}catch(e){console.warn('Pending-upload sweep failed:',e)}
   return true
 }
 

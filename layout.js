@@ -147,6 +147,12 @@ function _userFooter() {
 }
 
 async function nav(view, id) {
+  /* ออกจากฟอร์มสร้างเอกสารทั้งที่ยังมีไฟล์ค้างใน PF — ไฟล์พวกนั้นอัปโหลดขึ้น Storage ไปแล้ว
+     แต่จะไม่มีวันได้แถวใน document_files (saveDoc เป็นคนใส่ให้) ถ้าไม่ลบตรงนี้คือขยะถาวร */
+  if (CV === 'new' && typeof _discardPendingUploads === 'function') {
+    try { await _discardPendingUploads(); } catch(e) { console.warn('discard pending uploads failed', e); }
+  }
+
   CV = view; CDI = id || null;
 
   var activeSteps = 0;
@@ -188,6 +194,14 @@ async function nav(view, id) {
   try {
     var ms = await dg('workflow_steps', '?assigned_to=eq.'+safeId(CU.id)+'&status=eq.active&select=id');
     activeSteps = ms.length || 0;
+  } catch(e) {}
+
+  /* เอกสารที่ถูกเสนอให้เรารับทราบ = งานที่ต้องลงมือจริง จึงนับรวมในตัวเลขกระดิ่งเดียวกัน
+     ตาราง document_acks อาจยังไม่ถูกสร้าง (supabase/43_...sql) — dg คืน error object ไม่ใช่ array
+     Array.isArray จึงเป็นด่านกัน ไม่ใช่แค่ความสวยงาม */
+  try {
+    var _ackPend = await dg('document_acks', '?user_id=eq.'+safeId(CU.id)+'&status=eq.pending&select=id');
+    if (Array.isArray(_ackPend)) activeSteps += _ackPend.length;
   } catch(e) {}
 
   // ── ประกาศระบบ (ถ้ามี) ──

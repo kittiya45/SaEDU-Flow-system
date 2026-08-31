@@ -43,6 +43,17 @@ export async function canNotifyDocument(
 
   if (doc.created_by === senderId || doc.forwarded_to_id === senderId) return true;
 
+  /* ผู้ที่ถูกเสนอให้ "รับทราบ" เอกสารใบนี้ (document_acks — supabase/43_...sql)
+     มักไม่ใช่ผู้จัดทำหรือผู้ลงนาม แต่ต้องแจ้งกลับผู้จัดทำได้ว่ารับทราบแล้ว
+     ตารางอาจยังไม่มีในโปรเจกต์ที่ยังไม่รันสคริปต์ — error ถือว่า "ไม่ใช่" ไม่ throw */
+  const { data: acks } = await admin
+    .from('document_acks')
+    .select('user_id')
+    .eq('document_id', documentId)
+    .eq('user_id', senderId)
+    .limit(1);
+  if ((acks ?? []).length > 0) return true;
+
   const { data: steps } = await admin
     .from('workflow_steps')
     .select('assigned_to, rejected_by')

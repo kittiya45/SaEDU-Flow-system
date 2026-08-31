@@ -654,6 +654,17 @@ async function vTodo(){
   // คิว "รออัพเข้าระบบ" = จนท.รับแล้วรอยื่น + ส่งถึง จนท.แล้วแต่ยังไม่มีใครกดรับ (ตรงกับ _isAwaitQueueDoc ใน docList.js)
   var _awaitAll=await dg('documents','?or=(status.eq.awaiting_submit,and(status.eq.completed,or(forwarded_to_staff.is.true,forwarded_to_id.not.is.null)))&select=id,title,doc_type,doc_number,from_department,created_by,updated_at,forwarded_at,created_at,status,accepted_by,forwarded_to_staff,forwarded_to_id');
   var mySteps=await dg('workflow_steps','?assigned_to=eq.'+CU.id+'&status=eq.active&order=created_at');
+  /* เอกสารที่ถูกเสนอให้เรารับทราบ (docAck.js) — นับรวมในกระดิ่งแล้ว จึงต้องมีที่ให้กดต่อที่นี่ด้วย
+     ตาราง document_acks อาจยังไม่ถูกสร้าง → ข้ามทั้งบล็อกแบบเงียบ ๆ */
+  var ackDocs=[];
+  try{
+    var _ackRows=await dg('document_acks','?user_id=eq.'+safeId(CU.id)+'&status=eq.pending&select=document_id');
+    if(Array.isArray(_ackRows)&&_ackRows.length){
+      var _ackIds=_ackRows.map(function(r){return safeId(r.document_id)}).join(',');
+      var _ackDs=await dg('documents','?id=in.('+_ackIds+')&select=id,title,doc_type,doc_number,from_department,updated_at,created_at,forwarded_at,status');
+      if(Array.isArray(_ackDs)) ackDocs=_ackDs.filter(function(d){return d.status!=='cancelled'});
+    }
+  }catch(e){}
   var numDocs=(Array.isArray(_numAll)?_numAll:[]).filter(function(d){
     return d.created_by===CU.id||CU.role_code==='ROLE-SYS'||CU.role_code==='ROLE-STF';
   });
@@ -662,7 +673,7 @@ async function vTodo(){
   });
   var html=[];
 
-  if(!mySteps.length&&!numDocs.length&&!awaitDocs.length){
+  if(!mySteps.length&&!numDocs.length&&!awaitDocs.length&&!ackDocs.length){
     html.push(
       '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:80px 24px;text-align:center">'+
         '<div style="width:72px;height:72px;border-radius:22px;background:#F0FDF4;display:flex;align-items:center;justify-content:center;margin-bottom:20px;color:#16A34A">'+svg('ok',32)+'</div>'+
@@ -713,6 +724,10 @@ async function vTodo(){
     {label:'รออัพเข้าระบบ', val:awaitDocs.length, ico:'clip_f', navTarget:'docs',
      grad:'linear-gradient(135deg,#0F766E 0%,#14B8A6 100%)', shadow:'rgba(15,118,110,.28)'}
   );
+  if(ackDocs.length) statCards.push(
+    {label:'รอคุณรับทราบ', val:ackDocs.length, ico:'doc_f', navTarget:'docs',
+     grad:'linear-gradient(135deg,#7C3AED 0%,#A855F7 100%)', shadow:'rgba(124,58,237,.28)'}
+  );
   html.push(rStatCards(statCards, {fit:true}));
 
   /* ── renderDocQueue: doc-level staff queues (numbering / awaiting_submit) ── */
@@ -755,6 +770,7 @@ async function vTodo(){
       '</div>';
   }
 
+  html.push(renderDocQueue('รอคุณรับทราบ',    '#7C3AED','#F5F3FF','eye', ackDocs));
   html.push(renderDocQueue('รอออกเลขหนังสือ', '#2563EB','#EFF6FF','doc', numDocs));
   html.push(renderDocQueue('รออัพเข้าระบบ',   '#0F766E','#F0FDFA','up',  awaitDocs));
 

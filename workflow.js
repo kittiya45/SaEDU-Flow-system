@@ -185,7 +185,10 @@ async function _doUpFiles(files, skipped){
       var path=Date.now()+'_'+j+'_'+safeName2;
       await upFile(path,fj);
       if(FDI) await dp('document_files',{document_id:FDI,file_name:fj.name,file_path:path,file_size:fj.size,file_type:fj.type,uploaded_by:CU.id,version:1});
-      else PF.push({file_name:fj.name,file_path:path,file_size:fj.size,file_type:fj.type,uploaded_by:CU.id,version:1});
+      else {
+        PF.push({file_name:fj.name,file_path:path,file_size:fj.size,file_type:fj.type,uploaded_by:CU.id,version:1});
+        _notePendingUpload(path); // เอกสารใหม่ยังไม่มีแถวใน DB — จดไว้เผื่อปิดแท็บทิ้ง (ดู _sweepStalePendingUploads)
+      }
       ok++;
     }catch(e){
       fail.push(fj.name+(e&&e.message?(' ('+e.message+')'):''));
@@ -203,12 +206,80 @@ async function _doUpFiles(files, skipped){
   if(pg) pg.innerHTML=alrtH(fail.length?'wa':'ok', msg);
 }
 
+/* ─── ไฟล์ที่อัปโหลดขึ้น Storage แล้ว แต่ยังไม่มีแถวใน document_files ───────────────
+   ตอนสร้างเอกสารใหม่ (FDI ว่าง) _doUpFiles จะ upFile() ขึ้น Storage ทันทีที่แนบ แต่แถว DB
+   ไปรออยู่ใน PF ซึ่งเป็นตัวแปรในหน้าเว็บ กว่าจะ insert จริงก็ตอน saveDoc() — ถ้า user ทิ้งฟอร์ม
+   ไฟล์นั้นจะค้างใน Storage โดยไม่มีอะไรอ้างถึงอีกเลยตลอดกาล (สะสมไปแล้ว 522 ไฟล์ / 393 MB
+   จนพื้นที่ Supabase เต็มโควตา — ล้างของเก่าด้วย supabase/44_cleanup_orphan_storage.mjs)
+
+   กัน 2 ชั้น:
+   1. ออกจากฟอร์มในแอป → nav() เรียก _discardPendingUploads() ลบทันที
+   2. ปิดแท็บ/เบราว์เซอร์ดับ → จดไว้ใน localStorage แล้ว _sweepStalePendingUploads()
+      เก็บกวาดตอน login รอบถัดไป (ตรวจกับ DB ก่อนลบเสมอ) */
+var PENDING_UP_KEY='saedu_pending_uploads';
+
+function _readPendingUploads(){
+  try{var l=JSON.parse(localStorage.getItem(PENDING_UP_KEY)||'[]');return Array.isArray(l)?l:[]}catch(e){return[]}
+}
+function _writePendingUploads(list){
+  try{localStorage.setItem(PENDING_UP_KEY,JSON.stringify(list))}catch(e){}
+}
+function _notePendingUpload(path){
+  if(!path) return;
+  var l=_readPendingUploads();
+  l.push({path:path,at:Date.now()});
+  _writePendingUploads(l);
+}
+function _forgetPendingUpload(path){
+  if(!path) return;
+  _writePendingUploads(_readPendingUploads().filter(function(r){return r&&r.path!==path}));
+}
+
+/* ทิ้งไฟล์ที่แนบไว้แต่ยังไม่ได้บันทึก — เรียกตอนออกจากฟอร์มสร้างเอกสาร
+   (ผู้ใช้ถูกเตือนแล้วโดย confirmLeaveForm ว่า "ข้อมูลที่กรอกไว้จะหายหมด") */
+async function _discardPendingUploads(){
+  if(!PF||!PF.length) return 0;
+  var gone=PF.slice(); PF=[];
+  for(var i=0;i<gone.length;i++){
+    var p=gone[i]&&gone[i].file_path;
+    if(!p) continue;
+    await deleteStorage(p);   // deleteStorage กลืน error เองอยู่แล้ว — ล้มเหลวก็ยังเดินต่อ
+    _forgetPendingUpload(p);
+  }
+  return gone.length;
+}
+
+/* เก็บกวาดของค้างจาก session ก่อนหน้า (ปิดแท็บไปเลย ไม่ได้ผ่าน nav())
+   ตรวจกับ document_files ก่อนลบเสมอ — ไฟล์อาจถูกบันทึกสำเร็จในแท็บอื่นไปแล้ว */
+async function _sweepStalePendingUploads(){
+  var l=_readPendingUploads();
+  if(!l.length) return 0;
+  var cutoff=Date.now()-2*3600*1000;  // เผื่อแท็บอื่นที่ยังกรอกฟอร์มค้างอยู่จริง ๆ
+  var stale=l.filter(function(r){return r&&r.path&&r.at<cutoff});
+  if(!stale.length) return 0;
+  var keep=l.filter(function(r){return stale.indexOf(r)===-1});
+  var paths=stale.map(function(r){return r.path});
+  var claimed={};
+  try{
+    var rows=await dg('document_files','?file_path=in.('+paths.map(function(p){return '"'+p.replace(/"/g,'')+'"'}).join(',')+')&select=file_path');
+    if(Array.isArray(rows)) rows.forEach(function(r){claimed[r.file_path]=1});
+    else return 0;  // query พัง (error object) — อย่าเดา ปล่อยไว้ให้รอบหน้า
+  }catch(e){return 0}
+  var n=0;
+  for(var i=0;i<paths.length;i++){
+    if(claimed[paths[i]]) continue;   // มีแถวแล้ว = บันทึกสำเร็จ ห้ามลบ
+    await deleteStorage(paths[i]); n++;
+  }
+  _writePendingUploads(keep);
+  return n;
+}
+
 async function delFF(fid,idx){
   var pg=$e('fprog');
   // ไฟล์ของเอกสารใหม่ (ยังไม่บันทึก) ไม่มีแถวใน DB — ลบออกจาก PF + Storage
   if(!fid){
     var gone=PF[idx];
-    if(gone&&gone.file_path) await deleteStorage(gone.file_path);
+    if(gone&&gone.file_path){ await deleteStorage(gone.file_path); _forgetPendingUpload(gone.file_path); }
     PF.splice(idx,1);
     _setFormFileUi(PF,'');
     if(pg) pg.innerHTML=alrtH('ok','ลบไฟล์แล้ว · เหลือ '+PF.length+' ไฟล์');

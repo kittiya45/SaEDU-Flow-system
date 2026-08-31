@@ -98,6 +98,13 @@ async function showNumModal(docId){
       '<select class="fi" id="num-lt" onchange="_previewOutNum()">'+ltOpts+'</select></div>',
       '<div class="fg"><label class="fl">ชมรม (หลักที่ 8–9)</label>',
       '<select class="fi" id="num-club" onchange="_previewOutNum()">'+clubOpts+'</select></div>',
+      /* เลขรับที่ประทับมาจากหน่วยงานต้นทาง — คนละเลขกับเลขที่ กนค. ออกเอง เก็บไว้อ้างอิง/ค้นหา
+         ไม่บังคับ เพราะหนังสือบางฉบับมาถึงก่อนถูกลงทะเบียนรับ */
+      '<div class="fg"><label class="fl">เลขรับที่ (จากหน่วยงานต้นทาง)</label>',
+      '<input class="fi" id="num-recvno" value="'+esc(doc.received_number||'')+'" placeholder="เช่น 3544 หรือ (2791.03)/1212">',
+      '<div style="font-size:11px;color:#a89e99;margin-top:4px;line-height:1.6">เลขตามตราประทับ “เลขรับที่” บนหัวเอกสาร — ไม่ใช่เลขที่หนังสือของ กนค.</div></div>',
+      '<div class="fg"><label class="fl">ลงวันที่รับ (ต้นทาง)</label>',
+      '<input type="date" class="fi" id="num-recvdate" value="'+esc(doc.received_date||'')+'"></div>',
       '<div class="fg"><label class="fl">วันที่หนังสือ</label>',
       '<div class="fi" style="background:#f9f7f5;color:#6b6560;cursor:default">'+_fmtDateThai(today)+'</div>',
       '<input type="hidden" id="num-docdate" value="'+today+'"></div>',
@@ -479,6 +486,8 @@ function doSetDocNumber(docId){
     sendercode:($e('num-sendercode')||{}).value||'00',
     senderclub:($e('num-senderclub')||{}).value||'',
     note:(gv('num-note')||'').trim(),
+    recvNo:(gv('num-recvno')||'').trim(),   // เลขรับต้นทาง (ขาเข้า) — บันทึกแยกจาก doc_number
+    recvDate:gv('num-recvdate')||'',
     fwdId:null,          // ไม่มีการเลือกผู้รับอีกแล้ว — ส่งเข้าคิวกลุ่ม จนท. เสมอ
     fwdStaffAll:true,
     docnum:(gv('num-docnum')||'').trim(),
@@ -575,6 +584,14 @@ async function _doSetDocNumberConfirmed(docId,cap){
           throw _ue; // เลขซ้ำเกิน 4 รอบ (แทบเป็นไปไม่ได้) หรือ error อื่น — โยนให้ catch แสดงผล ผู้ใช้กดใหม่ได้
         }
       }
+    }
+    /* เลขรับต้นทาง — PATCH แยกและกลืน error โดยตั้งใจ
+       คอลัมน์ received_number/received_date มาจาก supabase/43_...sql ที่อาจยังไม่ถูกรัน
+       ถ้ารวมไว้ใน upd ด้านบน การออกเลขทั้งใบจะล้มเพราะคอลัมน์ไม่มี — เรื่องเล็กห้ามทำให้เรื่องใหญ่พัง */
+    if(cap.recvNo||cap.recvDate){
+      try{
+        await dpa('documents',docId,{received_number:cap.recvNo||null,received_date:cap.recvDate||null});
+      }catch(_re){console.warn('บันทึกเลขรับไม่สำเร็จ (ยังไม่ได้รัน 43_incoming_receive_no_and_ack.sql?):',_re)}
     }
     await dp('document_history',{document_id:docId,action:'ออกเลขที่หนังสือ: '+docNum,performed_by:CU.id,note:note||'ออกเลขหนังสือและวันที่เรียบร้อยแล้ว'});
     if(fwdStaffAll){

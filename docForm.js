@@ -217,6 +217,12 @@ function renderTypeFields(type, doc){
     html.push('</div>');
     html.push('<div class="fg"><label class="fl">ประเภทจดหมาย <span class="req">*</span></label><select class="fi" id="foutltype">'+_lt2Opts+'</select></div>');
     html.push('<div class="fg"><label class="fl">ส่งถึงตำแหน่ง <span class="req">*</span></label><select class="fi" id="fto">'+_posOpts+'</select></div>');
+    /* เลขรับที่ประทับมาจากหน่วยงานต้นทาง — เก็บไว้อ้างอิงกลับไปยังหนังสือต้นเรื่อง
+       ไม่บังคับ และแก้ทีหลังได้อีกครั้งในโมดัลออกเลขหนังสือ */
+    html.push('<div class="two-col-sm"><div class="fg"><label class="fl">เลขรับที่ (จากหน่วยงานต้นทาง)</label>'+
+      '<input class="fi" id="frecvno" value="'+esc((doc&&doc.received_number)||'')+'" placeholder="เช่น 3544 หรือ (2791.03)/1212"></div>');
+    html.push('<div class="fg"><label class="fl">ลงวันที่รับ (ต้นทาง)</label>'+
+      '<input type="date" class="fi" id="frecvdate" value="'+esc((doc&&doc.received_date)||'')+'"></div></div>');
     html.push('<div class="two-col-sm"><div class="fg"><label class="fl">วันที่หนังสือ</label><input type="date" class="fi" id="fdate" value="'+esc(_curDate2)+'"></div>');
     html.push('<div class="fg"><label class="fl">วันที่กิจกรรม / ต้องใช้เอกสาร</label><input type="date" class="fi" id="feventdate" value="'+esc(_curEv2)+'" oninput="calcDeadline()"></div></div>');
     html.push('<div id="deadline-info"></div>');
@@ -753,9 +759,19 @@ async function saveDoc(status){
     var _outClub=(_dtype==='incoming')?(gv('fclub')||''):'';
     // โครงการ/กิจกรรม — เก็บใน project_name เสมอ ไม่ว่าจะเป็นฟอร์มไหน เพื่อรวมในรายงานประจำปีได้
     var _projName=(_dtype==='incoming')?_getProjValue():_getProjValue2();
+    /* เลขรับต้นทาง — เขียนแยกและกลืน error โดยตั้งใจ คอลัมน์มาจาก
+       supabase/43_incoming_receive_no_and_ack.sql ที่อาจยังไม่ถูกรันบนโปรดักชัน
+       ถ้ารวมลงใน body การสร้าง/แก้เอกสารทั้งใบจะล้มเพราะคอลัมน์ไม่มี */
+    var _saveRecvNo=async function(id){
+      var no=(gv('frecvno')||'').trim(), dt=gv('frecvdate')||'';
+      if(!id||(!no&&!dt)) return;
+      try{ await dpa('documents',id,{received_number:no||null,received_date:dt||null}); }
+      catch(e){console.warn('บันทึกเลขรับไม่สำเร็จ (ยังไม่ได้รัน 43_incoming_receive_no_and_ack.sql?):',e)}
+    };
     var body={title:title,doc_type:gv('ftype'),urgency:gv('furg'),description:(_dtype==='incoming'?_getProjValue():gv('fdsc')),doc_date:gv('fdate')||new Date().toISOString().slice(0,10),due_date:eventDate,from_department:_dtype==='incoming'?_outClub:fromdept,addressed_to:addrto,subject_line:_dtype==='incoming'?_outLt:(subj||title),final_recipient_id:finalRec,final_recipient_note:finalNote,project_name:_projName||null,status:status,notify_step:_ns?_ns.checked:true,notify_overdue:_no?_no.checked:true};
     if(FDI){
   await dpa('documents',FDI,Object.assign({},body,{total_steps:FS.length,updated_at:new Date().toISOString()}));
+  await _saveRecvNo(FDI);
   if(_editDraftSteps){
     // แก้ไขลำดับ/ผู้ลงนามของฉบับร่าง → เขียน workflow_steps ใหม่ตาม FS ที่จัดเรียง
     var _fin=status;
@@ -805,6 +821,7 @@ async function saveDoc(status){
         throw new Error('ไม่สามารถสร้างเอกสารได้ กรุณาลองใหม่');
       }
       var did=res[0].id;
+      await _saveRecvNo(did);
       try{
         var _now=new Date().toISOString();
         for(var i=0;i<FS.length;i++){
@@ -837,6 +854,8 @@ async function saveDoc(status){
         try{await dd('documents',did);}catch(e){}
         throw new Error('สร้าง workflow ไม่สำเร็จ: '+stepErr.message);
       }
+      // มีแถวใน document_files แล้ว ไม่ใช่ไฟล์ค้างอีกต่อไป — ถอดออกจากรายการรอเก็บกวาด
+      PF.forEach(function(p){ if(typeof _forgetPendingUpload==='function') _forgetPendingUpload(p.file_path) });
       PF=[];
       await dp('document_history',{document_id:did,action:'สร้างเอกสาร',performed_by:CU.id});
       // Notify

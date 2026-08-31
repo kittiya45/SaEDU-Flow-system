@@ -408,7 +408,8 @@ function _sigShowTargetFile(sp,allPdfs){
 
 /* เปิด/ปิดปุ่มยืนยันตามว่าวางจุดแล้วหรือยัง — บังคับวางเองทุกครั้ง ไม่มีค่าเริ่มต้นให้ */
 function _sigSetPlaceState(){
-  var btn=document.querySelector('#mwrap [data-action="doAct"][data-act="approve"]');
+  // ครอบทั้งปุ่มอนุมัติ และปุ่มยืนยันรับทราบ (docAck.js ใช้ markup/ตัววางตำแหน่งชุดเดียวกัน)
+  var btn=document.querySelector('#mwrap [data-action="doAct"][data-act="approve"], #mwrap [data-action="doAckConfirm"]');
   var warn=$e('sig-place-req');
   var ok=_actSigMarks.length>0;
   if(btn){

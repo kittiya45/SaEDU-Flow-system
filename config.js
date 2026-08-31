@@ -435,8 +435,28 @@ var SETT={
   /* เหตุการณ์ที่แจ้งเข้ากลุ่ม (action ของ sendNotifEmail) — เพิ่ม 'overdue' ได้ถ้าอยากให้
      เอกสารเลยกำหนดเข้ากลุ่มด้วย แต่ห้ามใส่ 'approve' (ยิงทุกขั้น = 6 ข้อความ/เอกสารสายงบ)
      — notif.js คุม approve ไว้แยกต่างหาก ให้ยิงเฉพาะตอนคิวถัดไปเป็นของเจ้าหน้าที่ */
-  line_group_events:'create,resubmit'
+  line_group_events:'create,resubmit',
+  /* ── อีเมล "เพื่อทราบ" ที่ไม่ต้องลงมือทำอะไร (ค่าเริ่มต้น = ปิด) ──
+     ผู้ลงนามเคยได้อีเมลซ้ำทันทีหลังกดอนุมัติ: เอกสารเข้า numbering แล้วระบบส่ง
+     "ลายเซ็นครบแล้ว — กรุณาออกเลขที่หนังสือ" กลับไปหาผู้เซ็นทุกคน ทั้งที่การออกเลข
+     เป็นงานของผู้จัดทำ/เจ้าหน้าที่ (ส.ค. 69: อาจารย์ที่ปรึกษาได้อีเมลกลุ่มนี้ 23 ฉบับ
+     ต่อการอนุมัติ 25 ครั้ง = เกือบครึ่งของอีเมลทั้งหมดที่ได้รับ)
+     เปิดคืนได้ที่ "ตั้งค่าระบบ" → ลดอีเมลรบกวน */
+  notify_signers_on_numbering:false,   // แจ้งผู้เซ็นเมื่อเอกสารเข้าสถานะรอออกเลข
+  notify_signers_on_completed:false,   // แจ้งผู้เซ็นเมื่อเอกสารเสร็จสิ้น
+  notify_signers_on_cancel:false       // แจ้งผู้เซ็นที่ลงนามจบแล้วเมื่อเอกสารถูกยกเลิก
 };
+
+/* อ่านค่า SETT แบบ boolean ให้ปลอดภัย — ห้ามเทียบ SETT.x ตรง ๆ:
+   loadAppSettings() แปลงเป็น boolean เฉพาะแถวที่ value_type='boolean' เท่านั้น
+   แถวที่เผลอบันทึกเป็น text จะได้สตริง 'false' ซึ่ง truthy */
+function settOn(key,def){
+  var v=SETT[key];
+  if(v===undefined||v===null||v==='') return !!def;
+  if(typeof v==='boolean') return v;
+  var s=String(v).trim().toLowerCase();
+  return !(s==='false'||s==='0'||s==='no'||s==='off');
+}
 async function loadAppSettings(){
   try{
     var rows=await dg('app_settings','?');

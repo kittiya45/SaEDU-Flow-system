@@ -289,9 +289,10 @@ async function scanStalledSteps(
           flex: mkFlex({
             head: '⏰ ท่านมีเอกสารค้างเกินกำหนดลงนาม',
             recipName: holder,
-            rows: [['ขั้นตอนของท่าน', act.step_name || ''], ['ครบกำหนดลงนาม', ddlStr], ['ค้างมาแล้ว', `${days} วันทำการ`]],
+            // ไม่ใส่แถว "ขั้นตอนของท่าน" — แถบความคืบหน้าชี้ด้วย ● อยู่แล้ว
+            rows: [['ครบกำหนดลงนาม', ddlStr], ['ค้างมาแล้ว', `${days} วันทำการ`]],
             infoText: 'กรุณาเข้าระบบเพื่อลงนามให้เอกสารเดินต่อ',
-            button: 'เข้าสู่ระบบเพื่อลงนาม',
+            button: 'ไปลงนาม',
           }),
         });
       }
@@ -313,10 +314,7 @@ async function scanStalledSteps(
           flex: mkFlex({
             head: '⏰ เอกสารของท่านค้างเกินกำหนด',
             recipName: crName,
-            rows: [
-              ['ค้างที่ขั้นตอน', `${act.step_name || ''}${holder ? ` (${holder})` : ''}`],
-              ['ครบกำหนดลงนาม', ddlStr], ['ค้างมาแล้ว', `${days} วันทำการ`],
-            ],
+            rows: [['ครบกำหนดลงนาม', ddlStr], ['ค้างมาแล้ว', `${days} วันทำการ`]],
             infoText: 'กรุณาติดตามกับผู้รับผิดชอบขั้นตอนนี้',
             button: 'เปิดดูเอกสาร',
           }),
@@ -478,9 +476,10 @@ async function scanStuckStages(
             head: `⏳ เอกสารค้าง ${days} วันทำการ`,
             headColor: '#C77A1A',
             subj, recipName: u.full_name, appUrl,
-            rows: [['เลขที่', num], ['สถานะ', stage], ['ค้างมาแล้ว', `${days} วันทำการ`]],
+            rows: ([['สถานะ', stage], ['ค้างมาแล้ว', `${days} วันทำการ`]] as [string, string][])
+              .concat(doc.doc_number ? [['เลขที่', num]] : []),
             infoText: t.action,
-            button: doc.status === 'numbering' ? 'เข้าสู่ระบบเพื่อออกเลข' : 'เปิดดูเอกสาร',
+            button: doc.status === 'numbering' ? 'ไปออกเลขหนังสือ' : 'เปิดดูเอกสาร',
             buttonColor: '#C77A1A',
           });
         } catch { /* การ์ดพัง → ส่ง text ธรรมดาต่อ */ }
@@ -525,20 +524,52 @@ type FlexOpts = {
   infoText?: string;
   button?: string;
   buttonColor?: string;
+  headIcon?: string;
   appUrl?: string;
 };
 
 function lineFlex(o: FlexOpts) {
+  const accent = o.headColor || '#E83A00';
+  /* ต้องตรงกับ buildLineFlex() ใน notif.js — การ์ดจาก cron กับจากแอปต้องหน้าตาเดียวกัน
+     แถบหัวสีทึบ (ชื่อระบบ + สถานะตัวขาว) → เนื้อพื้นขาว → ปุ่มทึบเต็มความกว้าง */
   const row = (label: string, value: string, vColor?: string) => ({
-    type: 'box', layout: 'baseline', spacing: 'md',
+    type: 'box', layout: 'horizontal', spacing: 'sm', margin: 'sm',
     contents: [
-      { type: 'text', text: String(label), size: 'xs', color: '#9A8F84', flex: 3 },
-      { type: 'text', text: String(value || '—'), size: 'xs', color: vColor || '#18120E', flex: 7, wrap: true },
+      { type: 'text', text: String(label), size: 'sm', color: '#8C837A', flex: 5 },
+      { type: 'text', text: String(value || '—'), size: 'sm', color: vColor || '#18120E', flex: 7, wrap: true, weight: 'bold' },
     ],
   });
 
+  /* ไอคอนหัวการ์ด — ไฟล์ PNG ใน img/line/ ของเว็บเอง (LINE รับเฉพาะรูปที่ https จริง)
+     ไม่มี appUrl แบบ https → ถอยไปใช้อีโมจินำหน้าหัวข้อตามเดิม */
+  const base = String(o.appUrl || '').trim().replace(/\/+$/, '');
+  const icoUrl = /^https:\/\//i.test(base) ? `${base}/img/line/${o.headIcon || 'late'}.png` : null;
+  const headTxt = icoUrl ? String(o.head).replace(/^[^\u0E00-\u0E7Fa-zA-Z0-9(]+/, '') : String(o.head);
+  const headLine = icoUrl
+    ? {
+        type: 'box', layout: 'baseline', spacing: 'md',
+        contents: [
+          { type: 'icon', url: icoUrl, size: 'lg' },
+          { type: 'text', text: headTxt, size: 'lg', weight: 'bold', color: '#FFFFFF', wrap: true },
+        ],
+      }
+    : { type: 'text', text: headTxt, size: 'lg', weight: 'bold', color: '#FFFFFF', wrap: true };
+  const header = {
+    type: 'box', layout: 'vertical', spacing: 'xs', paddingAll: '16px', backgroundColor: accent,
+    contents: [
+      {
+        type: 'box', layout: 'baseline', spacing: 'sm',
+        contents: [
+          { type: 'text', text: 'SAEDU FLOW', size: 'xs', weight: 'bold', color: '#FFFFFF', flex: 0 },
+          { type: 'text', text: '· ระบบเสนอเอกสาร กนค.', size: 'xs', color: '#FFFFFF' },
+        ],
+      },
+      headLine,
+    ],
+  };
+
   const body: Record<string, unknown>[] = [
-    { type: 'text', text: String(o.subj || '—'), weight: 'bold', size: 'sm', wrap: true, color: '#18120E' },
+    { type: 'text', text: String(o.subj || '—'), weight: 'bold', size: 'lg', wrap: true, color: '#18120E' },
   ];
   if (o.recipName) body.push(row('เรียน', o.recipName));
   for (const r of o.rows ?? []) body.push(row(r[0], r[1]));
@@ -546,47 +577,45 @@ function lineFlex(o: FlexOpts) {
   const steps = o.steps ?? [];
   if (steps.length) {
     const done = steps.filter((s) => s.st === 'done').length;
-    body.push({ type: 'separator', margin: 'lg', color: '#F0EBE0' });
-    body.push({ type: 'text', text: `ความคืบหน้า ${done}/${steps.length} ขั้นตอน`, size: 'xs', weight: 'bold', color: '#9A8F84', margin: 'lg' });
+    body.push({ type: 'separator', margin: 'xl', color: '#EDE7E0' });
+    body.push({ type: 'text', text: `ความคืบหน้า ${done}/${steps.length} ขั้นตอน`, size: 'sm', color: '#A79C92', margin: 'lg' });
     for (const s of steps) {
-      let mark = '○', mc = '#C9C0B8', tc = '#9A8F84', bold = false;
-      let txt = (s.name || '—') + (s.person ? ' — ' + s.person : '');
-      if (s.st === 'done') { mark = '✓'; mc = '#0F8C46'; tc = '#6B6157'; }
-      else if (s.st === 'active') { mark = '●'; mc = '#E83A00'; tc = '#18120E'; bold = true; txt += '  ← รออยู่'; }
-      else if (s.st === 'rejected') { mark = '✕'; mc = '#DC2626'; tc = '#DC2626'; txt += ' (ตีกลับ)'; }
-      else if (s.st === 'cancelled') { mark = '⊘'; mc = '#9A8F84'; tc = '#9A8F84'; txt += ' (ยกเลิก)'; }
-      const t: Record<string, unknown> = { type: 'text', text: txt, size: 'xs', color: tc, flex: 11, wrap: true };
+      let mark = '○', mc = '#D5CDC5', tc = '#A79C92', bold = false, tag = '';
+      if (s.st === 'done') { mark = '✓'; mc = '#16A34A'; tc = '#6B6157'; }
+      else if (s.st === 'active') { mark = '●'; mc = accent; tc = '#18120E'; bold = true; tag = '← รออยู่'; }
+      else if (s.st === 'rejected') { mark = '✕'; mc = '#DC2626'; tc = '#B4534E'; tag = '← ตีกลับ'; }
+      else if (s.st === 'cancelled') { mark = '⊘'; mc = '#C4BBB2'; tc = '#A79C92'; tag = '← ยกเลิก'; }
+      const txt = (s.name || '—') + (s.person ? ' — ' + s.person : '') + (tag ? '  ' + tag : '');
+      const t: Record<string, unknown> = { type: 'text', text: txt, size: 'sm', color: tc, wrap: true };
       if (bold) t.weight = 'bold';
+      // เครื่องหมายอยู่คอลัมน์กว้างคงที่ — ชื่อยาวที่ตัดบรรทัดจึงไม่ดันเครื่องหมายหลุดแนว
       body.push({
-        type: 'box', layout: 'baseline', spacing: 'sm', margin: 'sm',
-        contents: [{ type: 'text', text: mark, size: 'xs', color: mc, flex: 1, align: 'center' }, t],
+        type: 'box', layout: 'horizontal', spacing: 'sm', margin: 'md',
+        contents: [
+          { type: 'box', layout: 'vertical', width: '16px', flex: 0, contents: [{ type: 'text', text: mark, size: 'sm', color: mc, align: 'center' }] },
+          { type: 'box', layout: 'vertical', spacing: 'none', contents: [t] },
+        ],
       });
     }
   }
-  if (o.infoText) body.push({ type: 'text', text: String(o.infoText), size: 'xxs', color: '#9A8F84', wrap: true, margin: 'lg' });
+  if (o.infoText) body.push({ type: 'text', text: String(o.infoText), size: 'xs', color: '#A79C92', wrap: true, margin: 'xl' });
 
-  const hc = o.headColor || '#E83A00';
-  const hsub: Record<string, string> = { '#E83A00': '#FFD9CC', '#0F8C46': '#CDEBD9', '#6B6157': '#E0DAD3', '#C77A1A': '#FBE6C8' };
   const bubble: Record<string, unknown> = {
     type: 'bubble', size: 'mega',
-    header: {
-      type: 'box', layout: 'vertical', backgroundColor: hc, paddingAll: '16px',
-      contents: [
-        { type: 'text', text: 'SAEDU FLOW · ระบบเสนอเอกสาร กนค.', size: 'xxs', weight: 'bold', color: hsub[hc] || '#FFD9CC' },
-        { type: 'text', text: o.head, size: 'md', weight: 'bold', color: '#FFFFFF', wrap: true, margin: 'xs' },
-      ],
-    },
-    body: { type: 'box', layout: 'vertical', spacing: 'sm', paddingAll: '16px', contents: body },
+    header,
+    body: { type: 'box', layout: 'vertical', spacing: 'none', paddingAll: '18px', backgroundColor: '#FFFFFF', contents: body },
   };
-  // LINE ปฏิเสธทั้งข้อความถ้า uri ไม่ใช่ http(s) — ไม่มี app_url ที่ใช้ได้ก็ไม่ต้องมีปุ่ม
+  // ⚠️ LINE ปฏิเสธทั้งข้อความถ้า uri ไม่ใช่ http(s)
   const url = String(o.appUrl || '').trim();
   if (/^https?:\/\//.test(url)) {
     bubble.footer = {
-      type: 'box', layout: 'vertical', paddingAll: '12px',
-      contents: [{
-        type: 'button', style: 'primary', color: o.buttonColor || '#E83A00', height: 'sm',
-        action: { type: 'uri', label: o.button || 'เข้าสู่ระบบเพื่อดำเนินการ', uri: url },
-      }],
+      type: 'box', layout: 'vertical', paddingAll: '18px', paddingTop: '0px', backgroundColor: '#FFFFFF',
+      contents: [
+        {
+          type: 'button', style: 'primary', height: 'sm', color: o.buttonColor || accent,
+          action: { type: 'uri', label: o.button || 'เข้าสู่ระบบเพื่อดำเนินการ', uri: url },
+        },
+      ],
     };
   }
   return bubble;
