@@ -7,10 +7,15 @@
     "build": "postcss tailwind.css -o styles.tailwind.css && node scripts/bundle-dev-sql.mjs",
     "build:css": "postcss tailwind.css -o styles.tailwind.css",
     "build:sql": "node scripts/bundle-dev-sql.mjs",
-    "watch": "postcss tailwind.css -o styles.tailwind.css --watch"
+    "build:dist": "npm run build && node scripts/make-dist.mjs",
+    "watch": "postcss tailwind.css -o styles.tailwind.css --watch",
+    "build:manual": "node scripts/build-manual-docx.mjs",
+    "build:handover": "node scripts/manual-handover/capture.mjs && node scripts/manual-handover/capture-steps.mjs && npm run build:handover:doc",
+    "build:handover:doc": "node scripts/build-manual-docx.mjs && node scripts/manual-handover/build-user-manual.mjs && node scripts/manual-handover/build-detailed-manual.mjs && node scripts/manual-handover/build.mjs"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.1",
+    "docx": "^9.7.1",
     "playwright": "^1.61.1",
     "postcss": "^8.5.15",
     "postcss-cli": "^11.0.1",

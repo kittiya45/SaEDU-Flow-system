@@ -389,6 +389,11 @@ async function vDash(){
      ico:'bell_f', grad:'linear-gradient(135deg,#7C3AED 0%,#A855F7 100%)', shadow:'rgba(124,58,237,.30)', navTarget:'todo'}
   ]));
 
+  /* ── เฝ้าระวังงานอัตโนมัติบนเครื่องผู้ดูแล (เฉพาะ จนท./แอดมิน/dev · ซ่อนเมื่อทุกอย่างปกติ) ── */
+  if(_OPS_ROLES.includes(CU.role_code)){
+    try{ html.push(_rOpsWatch(await _opsWatchData())); }catch(e){}
+  }
+
   /* ── บอร์ดประกาศ (ซ่อนทั้งการ์ดเมื่อไม่มีประกาศ active) ── */
   html.push(_rAnnounceBoard(_anns,_annAuthors));
 
@@ -819,6 +824,103 @@ async function vTodo(){
   html.push(renderGroup('งานอื่น ๆ',     'var(--text-2)','var(--border)','ok', normal));
 
   return html.join('');
+}
+
+/* ─── เฝ้าระวังงานอัตโนมัติ (supabase/archive-nightly.sh · backup-weekly.sh) ───
+   งานย้ายไฟล์ไปคลังและงานสำรองข้อมูลรันด้วย launchd บน Mac ของผู้ดูแลเครื่องเดียว — ถ้าเครื่องนั้น
+   ปิดอยู่ (ปิดเทอม, เครื่องเสีย) ไม่มีอะไรบอกใครจน Supabase เต็มอีกรอบ (เคยเกิด 2026-08 และ 09)
+   สคริปต์ทั้งสองจึงเขียน heartbeat ลง app_settings (ops-heartbeat.sh) ทุกครั้งที่จบ:
+     ops_archive_last_ok / ops_backup_last_ok / ops_mirror_last_ok = ISO เวลาที่สำเร็จล่าสุด
+     ops_<งาน>_last_fail = "ISO|สาเหตุ" เมื่อล้มเหลว (ถ้าใหม่กว่า last_ok = รอบล่าสุดพัง)
+   loadAppSettings() โหลดค่าเหล่านี้เข้า SETT อยู่แล้ว — ที่นี่แค่เทียบกับเวลาปัจจุบัน
+   พื้นที่ Storage ประเมินจากผลรวม file_size ของแถวที่ยังไม่ได้ย้ายไปคลัง + แบบฟอร์ม (ไม่มี API
+   ให้อ่านตัวเลขจริงจากฝั่ง client — คลาดเคลื่อนได้เล็กน้อยจากไฟล์กำพร้า แต่พอเตือนได้)
+   เมื่อมีเรื่องต้องเตือน: แบนเนอร์บนหน้า Home + LINE เข้ากลุ่ม จนท. วันละครั้ง (dedup ด้วย localStorage
+   ต่อเบราว์เซอร์ — ยิงจาก session ของ จนท./แอดมิน/dev ซึ่ง send-line ยอมโดยไม่ต้องมี documentId) */
+var _OPS_ROLES=['ROLE-SYS','ROLE-STF','ROLE-DEV'];
+var _OPS_STALE_DAYS={archive:4, backup:10, mirror:10};
+var _OPS_LABEL={archive:'ย้ายไฟล์เอกสารที่จบแล้วไปคลัง (ทุกคืน)', backup:'สำรองฐานข้อมูลขึ้น Drive (รายสัปดาห์)', mirror:'สำเนาคลังไป OneDrive (รายสัปดาห์)'};
+var _OPS_STORAGE_WARN_MB=850, _OPS_STORAGE_ERR_MB=950, _OPS_STORAGE_CAP_MB=1000;
+var _OPS_EXPIRE_WARN_DAYS=30;
+var _OPS_NOTIF_FAIL_DAYS=7;    // อีเมลที่ส่งไม่สำเร็จ (notifications.status='failed') — ปกติเงียบสนิท ไม่มีใครเห็นจนกว่าจะมาเปิดตารางดู   // บัญชี กนค. ทั้งรุ่นหมดอายุพร้อมกัน (users.expires_at) — เตือนล่วงหน้าให้รันสคริปต์ต่ออายุรุ่นใหม่
+async function _opsWatchData(){
+  var d={now:Date.now(), jobs:{}, storageMb:null, expiring:null};
+  Object.keys(_OPS_STALE_DAYS).forEach(function(k){
+    var ok=Date.parse(SETT['ops_'+k+'_last_ok']||'')||0;
+    var failRaw=String(SETT['ops_'+k+'_last_fail']||''), failAt=0, failMsg='';
+    if(failRaw){ var p=failRaw.indexOf('|'); failAt=Date.parse(p>0?failRaw.slice(0,p):failRaw)||0; failMsg=p>0?failRaw.slice(p+1):''; }
+    d.jobs[k]={ok:ok, failAt:failAt, failMsg:failMsg};
+  });
+  try{
+    var rs=await Promise.all([
+      dg('document_files','?archive_url=is.null&select=file_size'),
+      dg('form_templates','?select=file_size').catch(function(){return []})
+    ]);
+    var sum=0, okAll=true;
+    rs.forEach(function(r){ if(!Array.isArray(r)){okAll=false;return;} r.forEach(function(f){sum+=(+f.file_size||0)}); });
+    if(okAll) d.storageMb=Math.round(sum/1048576);
+  }catch(e){}
+  // users อ่านได้ทั้งตารางเฉพาะ is_admin()/is_dev() — บทบาทที่เรียกฟังก์ชันนี้พอดี (คนอื่นจะได้ [] ไม่ใช่ error)
+  try{
+    var us=await dg('users','?user_type=eq.gnk&is_active=eq.true&expires_at=not.is.null&select=expires_at');
+    if(Array.isArray(us)){
+      var lim=d.now+_OPS_EXPIRE_WARN_DAYS*86400000, soon=us.filter(function(u){var t=Date.parse(u.expires_at); return t&&t>=d.now&&t<=lim});
+      if(soon.length){ d.expiring={count:soon.length, first:Math.min.apply(null,soon.map(function(u){return Date.parse(u.expires_at)}))}; }
+    }
+  }catch(e){}
+  // อีเมลล้มเหลว — Brevo ตอบ error (เช่น Authorised IPs บล็อก IP ของ Edge Function, โควตา, sender ไม่ยืนยัน)
+  // แถว [LINE] ไม่นับ: LINE ล้มเหลวเพราะผู้รับบล็อก OA เป็นเรื่องรายคน ไม่ใช่ระบบ
+  try{
+    var since=new Date(d.now-_OPS_NOTIF_FAIL_DAYS*86400000).toISOString();
+    var nf=await dg('notifications','?status=eq.failed&sent_at=gte.'+encodeURIComponent(since)+'&select=subject,sent_at&order=sent_at.desc&limit=200');
+    if(Array.isArray(nf)){
+      var em=nf.filter(function(n){return !/^\[LINE\]/.test(n.subject||'')});
+      if(em.length) d.notifFail={count:em.length, last:Date.parse(em[0].sent_at)||0};
+    }
+  }catch(e){}
+  return d;
+}
+function _rOpsWatch(d){
+  if(!d) return '';
+  var lines=[], level='wa', macIssue=false;
+  var days=function(t){return Math.floor((d.now-t)/86400000)};
+  Object.keys(_OPS_STALE_DAYS).forEach(function(k){
+    var j=d.jobs[k], lim=_OPS_STALE_DAYS[k];
+    if(!j.ok&&!j.failAt) return;                       // ไม่เคยมี heartbeat เลย — ยังไม่ได้ตั้งงานนี้ ไม่นับ
+    if(j.failAt>j.ok){
+      macIssue=true;
+      lines.push('<b>'+_OPS_LABEL[k]+'</b> — รอบล่าสุดล้มเหลว'+(j.failMsg?': '+esc(j.failMsg):'')+' ('+days(j.failAt)+' วันก่อน)');
+    }else if(days(j.ok)>lim){
+      macIssue=true;
+      lines.push('<b>'+_OPS_LABEL[k]+'</b> — สำเร็จล่าสุด '+days(j.ok)+' วันก่อน (เกินกำหนด '+lim+' วัน)');
+    }
+  });
+  if(d.storageMb!==null&&d.storageMb>=_OPS_STORAGE_WARN_MB){
+    if(d.storageMb>=_OPS_STORAGE_ERR_MB) level='er';
+    lines.push('<b>พื้นที่ Supabase Storage</b> — ใช้ไปประมาณ '+d.storageMb.toLocaleString()+' / '+_OPS_STORAGE_CAP_MB.toLocaleString()+' MB'+(d.storageMb>=_OPS_STORAGE_ERR_MB?' — ใกล้เต็ม อัปโหลดจะเริ่มล้มเหลว':''));
+  }
+  if(d.expiring){
+    lines.push('<b>บัญชี กนค. '+d.expiring.count+' บัญชีจะหมดอายุภายใน '+_OPS_EXPIRE_WARN_DAYS+' วัน</b> (เร็วสุด '+fd(new Date(d.expiring.first).toISOString())+') — ถ้ารุ่นนี้ยังทำงานต่อ ให้ต่ออายุในหน้าจัดการผู้ใช้ หรือรันสคริปต์ต่ออายุทั้งรุ่น (แบบ supabase/32_set_gnk_expires_2026.sql ไฟล์ใหม่ปีถัดไป) ก่อนวันนั้น ไม่งั้นทั้งรุ่นล็อกอินไม่ได้พร้อมกัน');
+  }
+  if(d.notifFail){
+    lines.push('<b>อีเมลแจ้งเตือนส่งไม่สำเร็จ '+d.notifFail.count+' ฉบับใน '+_OPS_NOTIF_FAIL_DAYS+' วัน</b> (ล่าสุด '+fdTime(new Date(d.notifFail.last).toISOString())+') — ผู้รับไม่ได้รับอีเมลนั้นและระบบไม่ส่งซ้ำ ตรวจใน Brevo: Security → Authorised IPs ต้องปิด (Edge Function ออกจาก IP ไม่คงที่), โควตารายวัน, และ sender ยืนยันแล้ว · รายละเอียดใน Dev Panel → บันทึกการแจ้งเตือน');
+  }
+  if(!lines.length) return '';
+  // LINE เข้ากลุ่ม จนท. วันละครั้งต่อเบราว์เซอร์ — ยิงเบื้องหลัง ไม่รอผล ไม่บล็อกหน้า
+  try{
+    var dayKey='saedu_ops_alert_'+new Date().toISOString().slice(0,10);
+    if(!localStorage.getItem(dayKey)&&typeof sendLineGroupPush==='function'){
+      localStorage.setItem(dayKey,'1');
+      var plain=lines.map(function(l){return '• '+l.replace(/<[^>]+>/g,'')}).join('\n');
+      sendLineGroupPush('⚠️ SaEDU Flow — งานเบื้องหลังของระบบมีปัญหา\n'+plain+(macIssue?'\n→ เปิดเครื่อง Mac ของผู้ดูแลระบบให้งานทำต่อ หรือดู ~/Library/Logs/saedu':''));
+    }
+  }catch(e){}
+  return '<div class="al al-'+level+' mb-4" style="align-items:flex-start;line-height:1.7">'+
+    '<span class="al-icon" style="margin-top:2px">'+svg('warn',14)+'</span>'+
+    '<div><div style="font-weight:700;margin-bottom:4px">งานเบื้องหลังของระบบต้องการความสนใจ</div>'+
+    '<ul style="margin:0;padding-left:18px">'+lines.map(function(l){return '<li>'+l+'</li>'}).join('')+'</ul>'+
+    (macIssue?'<div style="font-size:12px;opacity:.85;margin-top:6px">งานย้ายไฟล์/สำรองข้อมูลรันบน Mac ของผู้ดูแลระบบเท่านั้น — เปิดเครื่องทิ้งไว้ให้มันทำต่อ (launchd รันรอบที่พลาดให้ทันทีที่เครื่องตื่น) · รายละเอียดใน supabase/install-archive-launchd.sh --status</div>':'')+
+    '</div></div>';
 }
 
 /* ─── บอร์ดประกาศหน้า Home ───

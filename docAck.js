@@ -201,6 +201,9 @@ async function showAckModal(docId){
   var pdfs=await dg('document_files','?document_id=eq.'+safeId(docId)+'&file_type=like.application%2Fpdf');
   var sp=Array.isArray(pdfs)?_signPdfWorkingCopy(pdfs):null;
   _ackHasPdf=!!(sp&&sp.working);
+  // PDF มี แต่ทุกไฟล์ย้ายไปคลัง Google Drive แล้ว (_signPdfWorkingCopy กรองออก) — รับทราบได้
+  // แต่ประทับลายเซ็นบนไฟล์ไม่ได้ ต้องบอกเหตุผลจริงไม่ใช่ "ไม่มีไฟล์ PDF"
+  var _ackAllArchived=!_ackHasPdf&&Array.isArray(pdfs)&&pdfs.length>0&&pdfs.every(function(f){return _isArchivedPdfRow(f)});
 
   // reset state ลายเซ็นชุดเดียวกับ showActModal — ต้องล้างทุกครั้ง ไม่งั้นจุดวางของรอบก่อนค้าง
   _actSigMarks=[]; _actSigLastIdx=-1;
@@ -219,7 +222,9 @@ async function showAckModal(docId){
       '<button class="btn btn-soft sm btn-icon" data-action="closeModal">'+svg('x',14)+'</button></div>',
       '<div class="modal-body">',
       '<div class="al al-wa" style="margin-bottom:12px;align-items:flex-start"><span class="al-icon">'+svg('warn',13)+'</span>',
-      '<span style="line-height:1.7">เอกสารนี้ไม่มีไฟล์ PDF จึงลงลายเซ็นรับทราบบนเอกสารไม่ได้ — ระบบจะบันทึกเฉพาะว่าคุณรับทราบแล้ว</span></div>',
+      '<span style="line-height:1.7">'+(_ackAllArchived
+        ?'ไฟล์ PDF ของเอกสารนี้ถูกย้ายไปคลัง Google Drive แล้ว จึงประทับลายเซ็นรับทราบลงไฟล์ไม่ได้ — ระบบจะบันทึกเฉพาะว่าคุณรับทราบแล้ว (เปิดอ่านไฟล์ได้จากปุ่ม "เปิดใน Google Drive" ในหน้าเอกสาร)'
+        :'เอกสารนี้ไม่มีไฟล์ PDF จึงลงลายเซ็นรับทราบบนเอกสารไม่ได้ — ระบบจะบันทึกเฉพาะว่าคุณรับทราบแล้ว')+'</span></div>',
       '<div class="fg"><label class="fl">หมายเหตุ (ถ้ามี)</label>',
       '<textarea class="fi" id="anote" rows="2" placeholder="ความเห็น / ข้อสั่งการเพิ่มเติม"></textarea></div>',
       '</div>',

@@ -160,8 +160,18 @@ function _isSignedPdfRow(f){
 function _signFileBaseName(f){
   return f.file_name.replace(/^(\[(ลงนาม|ตีกลับ|แก้ไข)\]\s*)+/g,'').replace(/^(signed|reject|edited)_\d+_/,'');
 }
+/* ไฟล์ที่ย้ายไปคลัง (Google Drive) แล้ว — ตัวจริงไม่อยู่ใน Storage ดึงมาปั๊มลายเซ็นไม่ได้
+   ต้องกรองออกก่อนเลือกไฟล์ทุกครั้ง ไม่งั้นเอกสารที่จบแล้วแต่กลับเข้ากระบวนการ (จนท. ส่งคืน →
+   ส่งใหม่, เสนอเพื่อโปรดทราบทีหลัง) จะหยิบไฟล์ในคลังมาแล้วค้างที่ "โหลดเอกสารไม่สำเร็จ"
+   ถ้าผู้จัดทำอัปไฟล์ใหม่มาแก้ ตัวเลือกจะเห็นแค่ไฟล์ใหม่นั้น — ถ้าไม่มีเลยคืน null ให้ผู้เรียก
+   แจ้งเอง (ดึงไฟล์คืนจากคลังได้ด้วย supabase/52_restore_from_archive.mjs) */
+function _isArchivedPdfRow(f){return !!(f&&f.archive_url)}
+function _signablePdfs(pdfs){
+  return (pdfs||[]).filter(function(f){return f&&!_isArchivedPdfRow(f)});
+}
 function _primarySignPdf(pdfs){
-  if(!pdfs||!pdfs.length) return null;
+  pdfs=_signablePdfs(pdfs);
+  if(!pdfs.length) return null;
   var sorted=pdfs.slice().sort(function(a,b){
     var ta=a.uploaded_at?new Date(a.uploaded_at).getTime():0, tb=b.uploaded_at?new Date(b.uploaded_at).getTime():0;
     return (ta-tb)||((a.version||1)-(b.version||1));
@@ -169,6 +179,7 @@ function _primarySignPdf(pdfs){
   return sorted.find(function(f){return !_isSignedPdfRow(f)})||sorted[0];
 }
 function _signPdfWorkingCopy(pdfs){
+  pdfs=_signablePdfs(pdfs);
   var primary=_primarySignPdf(pdfs);
   if(!primary) return null;
   var bn=_signFileBaseName(primary);

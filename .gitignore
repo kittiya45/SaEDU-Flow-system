@@ -5,6 +5,7 @@ supabase/node_modules/
 supabase/.temp/
 node_modules/
 styles.tailwind.css
+dist/
 Icon?
 
 # ผลลัพธ์สคริปต์ ops ใน supabase/ — มีข้อมูลผู้ใช้จริง ห้าม commit
@@ -12,3 +13,21 @@ backup-*/
 saedu-backup-*.json*
 orphan-cleanup-*.json
 archive-to-drive-*.json
+migrate-archive-*.json
+repair-archive-*.json
+saedu-data-*.sql
+saedu-data-*.sql.gz
+saedu-data-*.manifest.json
+
+# ไฟล์เก็บ credential — ห้าม commit เด็ดขาด
+.env
+.env.*
+!.env.example
+
+# คู่มือ .docx ที่ npm run build:manual สร้างจาก manual.html (ไฟล์สร้างใหม่ได้เสมอ)
+manual-docx/
+# ภาพหน้าจอ/ไฟล์ตัวอย่างที่ npm run build:handover สร้างใหม่ได้ (ข้อมูลจำลอง)
+scripts/manual-handover/shots/
+scripts/manual-handover/assets/
+# ชุดผลผลิตส่งมอบ (npm run build:handover) — สร้างใหม่ได้ และมี zip ซอร์ส
+deliverables/

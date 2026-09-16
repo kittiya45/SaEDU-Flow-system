@@ -1,5 +1,5 @@
 // ============================================================================
-// SAEDU Flow — ย้ายไฟล์ของเอกสารที่จบแล้วไปเก็บบน Google Drive
+// SAEDU Flow — ย้ายไฟล์ของเอกสารที่จบแล้วไปเก็บบนคลาวด์ (Google Drive หรือ OneDrive ผ่าน rclone)
 //
 // ทำอะไร: เอกสารสถานะ completed/cancelled/rejected ที่นิ่งมาเกิน N วัน จะถูกย้าย
 //         "ไฟล์แนบ" ออกจาก Supabase Storage ไปไว้บน Google Drive
@@ -37,8 +37,20 @@
 //   --statuses=a,b     สถานะที่ย้าย (ค่าเริ่มต้น completed,cancelled,rejected)
 //   --root=ชื่อโฟลเดอร์ โฟลเดอร์บนสุดใน Drive (ค่าเริ่มต้น SaEDU-Archive)
 //   --limit=N          จำกัดจำนวนเอกสารต่อรอบ — ใช้ทดลองก่อนรันจริงทั้งหมด
-//   --share=anyone     ตั้งไฟล์เป็น "ใครมีลิงก์ก็เปิดได้"
-//                      ไม่ใส่ = inherit (ค่าเริ่มต้น) คือไม่แตะสิทธิ์ ใช้สิทธิ์ของโฟลเดอร์แม่
+//   --share=MODE       ลิงก์ที่จะบันทึกลง DB — ขึ้นกับชนิด remote (สคริปต์อ่านจาก rclone เอง):
+//                        inherit  Google Drive เท่านั้น (ค่าเริ่มต้น) ไม่แตะสิทธิ์ ลิงก์จาก file ID
+//                                 ใช้สิทธิ์ของโฟลเดอร์แม่ — ต้องแชร์โฟลเดอร์ root เองครั้งเดียว
+//                        org      OneDrive for Business เท่านั้น: ลิงก์เปิดได้เฉพาะคนในองค์กร
+//                                 (ทุกคนที่มีบัญชี M365 ของสถาบัน) — ค่าที่ควรใช้กับ OneDrive
+//                        anyone   ทั้งสองแบบ: ใครมีลิงก์ก็เปิดได้ ไม่หมดอายุ
+//                      OneDrive ไม่มีโหมด inherit เพราะไม่มี URL แบบ "เปิดตามสิทธิ์โฟลเดอร์" ให้สร้าง
+//                      โดยไม่ผ่าน API แชร์ — ต้องเลือก org หรือ anyone ชัด ๆ
+//
+// ── OneDrive ──────────────────────────────────────────────────────────────────
+//   rclone config → n → name> onedrive → Storage> onedrive → client_id/secret ข้าม → region> 1
+//   → advanced n → auto config y → ล็อกอิน Microsoft ในเบราว์เซอร์ → เลือก "OneDrive Personal or Business"
+//   → เลือก drive → y → q   แล้วรัน: node 47_archive_to_drive.mjs --remote=onedrive --share=org
+//   ถ้าเป็น SharePoint/Teams ของหน่วยงาน เลือก "SharePoint site" ตอน "Type of connection" แทน
 //
 // ── เรื่องสิทธิ์ ต้องตัดสินใจก่อนรัน ──────────────────────────────────────────
 //   inherit (ค่าเริ่มต้น) — ปลอดภัยกว่า ไฟล์เปิดได้เฉพาะคนที่มีสิทธิ์บนโฟลเดอร์คลัง
@@ -91,7 +103,7 @@ if (!remote) {
   process.exit(1);
 }
 if (!Number.isFinite(minAgeDays) || minAgeDays < 0) { console.error('--min-age-days ต้องเป็นตัวเลข >= 0'); process.exit(1); }
-if (!['inherit', 'anyone'].includes(shareMode)) { console.error("--share ต้องเป็น inherit หรือ anyone"); process.exit(1); }
+if (!['inherit', 'anyone', 'org'].includes(shareMode)) { console.error("--share ต้องเป็น inherit, org หรือ anyone"); process.exit(1); }
 const ALLOWED_ST = ['completed', 'cancelled', 'rejected', 'numbering', 'pending', 'draft', 'awaiting_submit'];
 const badSt = statuses.filter(s => !ALLOWED_ST.includes(s));
 if (badSt.length) { console.error('สถานะไม่รู้จัก: ' + badSt.join(', ')); process.exit(1); }
@@ -110,23 +122,81 @@ function rclone(argv, { json = false } = {}) {
   const out = execFileSync('rclone', argv, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
   return json ? JSON.parse(out || '[]') : out.trim();
 }
+/* ชนิดของ remote (drive / onedrive) — ตัดสินว่าใช้ flag อะไรตอนอัป และสร้างลิงก์แบบไหน */
+let remoteType = '';
 function checkRclone() {
   try { rclone(['version']); }
   catch { console.error('ไม่พบคำสั่ง rclone — ติดตั้งด้วย: brew install rclone'); process.exit(1); }
   let remotes;
-  try { remotes = rclone(['listremotes']).split('\n').map(s => s.trim().replace(/:$/, '')); }
-  catch { console.error('rclone listremotes ล้มเหลว'); process.exit(1); }
-  if (!remotes.includes(remote)) {
-    console.error(`ไม่พบ remote "${remote}" — ที่ตั้งไว้มี: ${remotes.filter(Boolean).join(', ') || '(ยังไม่มีเลย)'}`);
+  try {
+    remotes = rclone(['listremotes', '--long']).split('\n').map(l => l.trim()).filter(Boolean)
+      .map(l => { const m = l.match(/^([^:]+):\s+(\S+)/); return m ? { name: m[1], type: m[2] } : null; }).filter(Boolean);
+  } catch { console.error('rclone listremotes ล้มเหลว'); process.exit(1); }
+  const hit = remotes.find(r => r.name === remote);
+  if (!hit) {
+    console.error(`ไม่พบ remote "${remote}" — ที่ตั้งไว้มี: ${remotes.map(r => r.name).join(', ') || '(ยังไม่มีเลย)'}`);
     console.error('ตั้งใหม่ด้วย: rclone config');
+    process.exit(1);
+  }
+  remoteType = hit.type;
+  if (!['drive', 'onedrive'].includes(remoteType)) {
+    console.error(`remote "${remote}" เป็นชนิด ${remoteType} — สคริปต์นี้รองรับแค่ drive (Google Drive) กับ onedrive`);
+    process.exit(1);
+  }
+  if (remoteType === 'onedrive' && shareMode === 'inherit') {
+    console.error('OneDrive ไม่มีโหมด --share=inherit — เลือก --share=org (เฉพาะคนในองค์กร) หรือ --share=anyone');
+    process.exit(1);
+  }
+  if (remoteType === 'drive' && shareMode === 'org') {
+    console.error('Google Drive ไม่มีโหมด --share=org — ใช้ inherit (แชร์โฟลเดอร์เอง) หรือ anyone');
     process.exit(1);
   }
   try { rclone(['lsd', `${remote}:`]); }
   catch (e) { console.error(`ต่อ remote "${remote}" ไม่ได้: ${String(e.message || e).split('\n')[0]}`); process.exit(1); }
 }
 
+/* flag ตอนอัป + วิธีสร้างลิงก์ ต่อชนิด remote — ใช้ร่วมกับ 51_migrate_archive_remote.mjs */
+function uploadFlags() {
+  return remoteType === 'drive' ? ['--drive-chunk-size', '32M'] : [];
+}
+function makeLink(dest, id) {
+  if (remoteType === 'drive') {
+    if (shareMode === 'anyone') return rclone(['link', `${remote}:${dest}`]);
+    if (!id) throw new Error('ไม่ได้ ID ของไฟล์จาก Drive');
+    return `https://drive.google.com/file/d/${id}/view`;
+  }
+  // onedrive: rclone link สร้าง sharing link ผ่าน Graph API — scope ตามที่เลือก
+  const scope = shareMode === 'org' ? 'organization' : 'anonymous';
+  return rclone(['link', `${remote}:${dest}`, '--onedrive-link-scope', scope, '--onedrive-link-type', 'view']);
+}
+
 /* ── ชื่อโฟลเดอร์/ไฟล์ที่ปลอดภัยกับ Drive ── */
-const safeSeg = s => String(s || '').replace(/[\/\\:*?"<>|]/g, '-').replace(/\s+/g, ' ').trim().slice(0, 120) || 'ไม่มีชื่อ';
+// ตัดอักขระที่ทั้ง Drive และ OneDrive ไม่รับ + OneDrive ไม่รับชื่อที่ลงท้ายด้วยจุด/ช่องว่าง
+const safeSeg = s => String(s || '').replace(/[\/\\:*?"<>|]/g, '-').replace(/\s+/g, ' ').trim().replace(/[. ]+$/, '').slice(0, 120) || 'ไม่มีชื่อ';
+
+/* ชื่อไฟล์ปลายทางต้องไม่ซ้ำกันภายในเอกสารเดียว — บทเรียนราคาแพง (2026-09-14):
+   เอกสารหนึ่งมีหลายแถวชื่อเดียวกันเป็นเรื่องปกติของระบบนี้ ("[ลงนาม] X.pdf" ฉบับก่อนและหลังประทับเลข
+   เป็นคนละแถว, อัปไฟล์ชื่อเดิมซ้ำเป็น version ใหม่) เดิมตั้งชื่อปลายทางจาก file_name อย่างเดียว
+   → แถวที่ย้ายทีหลัง rclone copyto ทับไฟล์ของแถวก่อน ทั้งสองแถวได้ลิงก์เดียวกัน และ Drive ถือแค่
+   เนื้อหาของแถวสุดท้าย (99 path / 219 แถว, 31 ไฟล์ที่ Drive ถือเวอร์ชันผิด — กู้จาก Drive revision
+   ด้วย 53_repair_archive_collisions.mjs) ตอนนี้ชื่อซ้ำจะได้ " (vN)" ต่อท้าย และถ้า version ซ้ำอีก
+   เติม id สั้น ๆ — ชื่อที่ไม่ซ้ำอยู่แล้วคงเดิม ลิงก์เก่าไม่กระทบ */
+function uniqueDestNames(rows) {
+  const count = new Map();
+  for (const f of rows) { const n = safeSeg(f.file_name); count.set(n, (count.get(n) || 0) + 1); }
+  const used = new Set(), out = new Map();
+  for (const f of rows) {
+    let name = safeSeg(f.file_name);
+    if (count.get(name) > 1 || used.has(name)) {
+      const m = name.match(/^(.*?)(\.[^.]{1,8})?$/);
+      const base = m[1], ext = m[2] || '';
+      name = `${base} (v${f.version || 1})${ext}`;
+      if (used.has(name)) name = `${base} (v${f.version || 1}-${String(f.id).slice(0, 6)})${ext}`;
+    }
+    used.add(name); out.set(f.id, name);
+  }
+  return out;
+}
 const thaiYear = iso => { const d = new Date(iso); return Number.isNaN(d.getTime()) ? 'ไม่ทราบปี' : String(d.getFullYear() + 543); };
 const fmt = b => b >= 1048576 ? (b / 1048576).toFixed(1) + ' MB' : (b / 1024).toFixed(0) + ' kB';
 
@@ -137,14 +207,36 @@ const fmt = b => b >= 1048576 ? (b / 1048576).toFixed(1) + ' MB' : (b / 1024).to
   console.log(`โหมด    : ${apply ? '⚠️  ย้ายจริง (--apply)' : 'dry-run (ไม่ย้าย ไม่ลบอะไร)'}`);
   console.log(`ปลายทาง : ${remote}:${root}`);
   console.log(`สถานะ   : ${statuses.join(', ')} · นิ่งเกิน ${minAgeDays} วัน (ก่อน ${cutoff.slice(0, 10)})`);
-  console.log(`สิทธิ์   : ${shareMode === 'anyone' ? '⚠️  ใครมีลิงก์ก็เปิดได้' : 'inherit — ใช้สิทธิ์ของโฟลเดอร์คลัง'}\n`);
+  console.log(`ชนิด    : ${remoteType === 'drive' ? 'Google Drive' : 'OneDrive'}`);
+  console.log(`สิทธิ์   : ${shareMode === 'anyone' ? '⚠️  ใครมีลิงก์ก็เปิดได้' : shareMode === 'org' ? 'org — เฉพาะคนในองค์กร' : 'inherit — ใช้สิทธิ์ของโฟลเดอร์คลัง'}\n`);
 
   /* 1. เอกสารที่เข้าเกณฑ์ */
-  const { data: docs, error: dErr } = await sb.from('documents')
-    .select('id,doc_number,title,status,created_at,updated_at')
+  const { data: docsRaw, error: dErr } = await sb.from('documents')
+    .select('id,doc_number,title,status,created_at,updated_at,forwarded_to_id,forwarded_to_staff,accepted_at')
     .in('status', statuses).lt('updated_at', cutoff)
     .order('created_at', { ascending: true });
   if (dErr) { console.error('อ่านตาราง documents ล้มเหลว: ' + dErr.message); process.exit(1); }
+
+  /* 1b. "จบแล้ว" ไม่ได้แปลว่านิ่งแล้ว — สองกรณีนี้เอกสารยังต้องการไฟล์ใน Supabase อยู่ ห้ามย้ายไม่ว่าจะเก่ากี่วัน:
+     - completed ที่ส่งต่อให้ จนท. แล้วยังไม่มีใครรับ: จนท. กด "ไม่อนุมัติ — ส่งคืน" ได้ → กลับเป็น rejected
+       → ผู้สร้างส่งใหม่ → ผู้ลงนามต้องอ่าน PDF เดิมจาก Storage (เกิดมาแล้ว 3 ครั้ง)
+     - มี "เสนอเพื่อโปรดทราบ" ค้าง: ผู้รับทราบต้องประทับลายเซ็นลง PDF เดิม
+     ฝั่งเว็บก็กรองไฟล์ในคลังออกจากตัวเลือกลงนามแล้ว (utils.js _signablePdfs) แต่กันตั้งแต่ต้นทางดีกว่า */
+  const pendingFwd = new Set(docsRaw.filter(d => (d.forwarded_to_id || d.forwarded_to_staff) && !d.accepted_at).map(d => d.id));
+  const pendingAck = new Set();
+  {
+    const { data: acks, error: aErr } = await sb.from('document_acks').select('document_id').eq('status', 'pending');
+    if (aErr) {
+      // ตาราง document_acks มีเฉพาะโปรเจกต์ที่รัน 43 แล้ว — ไม่มีก็ถือว่าไม่มี ack ค้าง
+      if (!/document_acks|schema cache/i.test(aErr.message)) { console.error('อ่าน document_acks ล้มเหลว: ' + aErr.message); process.exit(1); }
+    } else for (const a of acks) pendingAck.add(a.document_id);
+  }
+  const docs = docsRaw.filter(d => !pendingFwd.has(d.id) && !pendingAck.has(d.id));
+  const heldFwd = docsRaw.filter(d => pendingFwd.has(d.id)).length;
+  const heldAck = docsRaw.filter(d => !pendingFwd.has(d.id) && pendingAck.has(d.id)).length;
+  if (heldFwd || heldAck) {
+    console.log(`กันไว้ไม่ย้าย: ${heldFwd} เอกสารยังค้างส่งต่อให้ จนท. · ${heldAck} เอกสารมีรับทราบค้าง (จะย้ายเมื่อขั้นนั้นจบ)`);
+  }
   if (!docs.length) { console.log('ไม่มีเอกสารที่เข้าเกณฑ์'); return; }
 
   /* 2. ไฟล์ที่ยังไม่ถูกย้าย */
@@ -152,7 +244,7 @@ const fmt = b => b >= 1048576 ? (b / 1048576).toFixed(1) + ' MB' : (b / 1024).to
   const filesByDoc = new Map();
   for (let i = 0; i < ids.length; i += 200) {
     const { data, error } = await sb.from('document_files')
-      .select('id,document_id,file_name,file_path,file_size,archive_url')
+      .select('id,document_id,file_name,file_path,file_size,version,uploaded_at,archive_url')
       .in('document_id', ids.slice(i, i + 200)).is('archive_url', null);
     if (error) {
       if (/archive_url/.test(error.message)) {
@@ -198,10 +290,11 @@ const fmt = b => b >= 1048576 ? (b / 1048576).toFixed(1) + ' MB' : (b / 1024).to
 
   for (const d of targets) {
     const folder = `${root}/${thaiYear(d.created_at)}/${safeSeg(d.doc_number || d.id.slice(0, 8))}`;
+    const destNames = uniqueDestNames(filesByDoc.get(d.id));
     for (const f of filesByDoc.get(d.id)) {
       n++;
       const label = `${d.doc_number || d.id.slice(0, 8)} · ${f.file_name}`;
-      const localName = safeSeg(f.file_name);
+      const localName = destNames.get(f.id);
       const dest = `${folder}/${localName}`;
       const tmpFile = join(tmp, 'f_' + f.id);
       try {
@@ -212,7 +305,7 @@ const fmt = b => b >= 1048576 ? (b / 1048576).toFixed(1) + ' MB' : (b / 1024).to
         writeFileSync(tmpFile, buf);
 
         // 2) อัปขึ้น Drive
-        rclone(['copyto', tmpFile, `${remote}:${dest}`, '--drive-chunk-size', '32M']);
+        rclone(['copyto', tmpFile, `${remote}:${dest}`, ...uploadFlags()]);
 
         // 3) ยืนยันขนาดบน Drive ตรงกับต้นฉบับ — ไม่ตรงคือไม่สำเร็จ อย่าลบอะไรทั้งนั้น
         const ls = rclone(['lsjson', `${remote}:${dest}`], { json: true });
@@ -220,11 +313,8 @@ const fmt = b => b >= 1048576 ? (b / 1048576).toFixed(1) + ' MB' : (b / 1024).to
         if (!up) throw new Error('อัปขึ้น Drive แล้วหาไฟล์ไม่เจอ');
         if (Number(up.Size) !== buf.length) throw new Error(`ขนาดไม่ตรง: Drive ${up.Size} · ต้นฉบับ ${buf.length}`);
 
-        // ลิงก์: inherit = ใช้ file id ตรง ๆ ไม่แตะสิทธิ์ · anyone = rclone link (เปิดสาธารณะ)
-        let url;
-        if (shareMode === 'anyone') url = rclone(['link', `${remote}:${dest}`]);
-        else if (up.ID) url = `https://drive.google.com/file/d/${up.ID}/view`;
-        else throw new Error('ไม่ได้ ID ของไฟล์จาก Drive');
+        // ลิงก์: Drive/inherit = file id ตรง ๆ ไม่แตะสิทธิ์ · อื่น ๆ = rclone link (แชร์ตาม scope)
+        const url = makeLink(dest, up.ID);
         if (!/^https:\/\//.test(url)) throw new Error('ลิงก์ที่ได้ไม่ใช่ URL: ' + url);
 
         // 4) เขียน DB แล้วอ่านกลับมายืนยันก่อนลบของจริง
@@ -255,7 +345,7 @@ const fmt = b => b >= 1048576 ? (b / 1048576).toFixed(1) + ' MB' : (b / 1024).to
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
   const manifest = `archive-to-drive-${stamp}.json`;
   writeFileSync(manifest, JSON.stringify({
-    ran_at: new Date().toISOString(), remote, root, statuses, min_age_days: minAgeDays,
+    ran_at: new Date().toISOString(), remote, remote_type: remoteType, root, statuses, min_age_days: minAgeDays,
     share_mode: shareMode, moved: done.length, moved_bytes: movedBytes,
     skipped: skipped.length, files: done, errors: skipped,
   }, null, 2));

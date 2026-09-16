@@ -15,7 +15,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <!-- คอมไพล์จาก tailwind.css ด้วย `npm run build` — ไม่ใช่ Tailwind CDN อีกต่อไป (ดู package.json) -->
-<link rel="stylesheet" href="styles.tailwind.css?v=6">
+<link rel="stylesheet" href="styles.tailwind.css?v=7">
 <link rel="stylesheet" href="styles.css?v=66">
 </head>
 <body>
@@ -28,7 +28,7 @@
 <script src="config.js?v=38" defer></script>
 
 <!-- รวมฟังก์ชันช่วยจัดการหน้าจอและแจ้งเตือน -->
-<script src="utils.js?v=41" defer></script>
+<script src="utils.js?v=43" defer></script>
 
 <!-- ตัวดักจับการคลิกและส่งคำสั่งจัดการหน้าเว็บ -->
 <script src="events.js?v=13" defer></script>
@@ -37,7 +37,7 @@
 <script src="auth.js?v=24" defer></script>
 
 <!-- หน้าสรุปผลและรายการงานล่าสุด (homeViews.js + dashboard.js สำรอง — ad blocker/cache มักบล็อกชื่อ dashboard.js) -->
-<script src="homeViews.js?v=24" defer></script>
+<script src="homeViews.js?v=26" defer></script>
 
 <!-- ตารางรายการเอกสารและการค้นหา -->
 <script src="docList.js?v=36" defer></script>
@@ -52,15 +52,15 @@
 <script src="report.js?v=4" defer></script>
 
 <!-- modal อนุมัติ/ส่งคืน และ signature placement (ต้องโหลดก่อน docDetail) -->
-<script src="docSign.js?v=19" defer></script>
+<script src="docSign.js?v=21" defer></script>
 
 <script src="sigProfile.js?v=2" defer></script>
 
 <!-- เสนอเอกสารเพื่อรับทราบ + ลงนามรับทราบ (ต้องหลัง docSign.js — ใช้ตัววางตำแหน่งลายเซ็นร่วมกัน) -->
-<script src="docAck.js?v=2" defer></script>
+<script src="docAck.js?v=4" defer></script>
 
 <!-- หน้าแสดงรายละเอียดเอกสาร อนุมัติ/ตีกลับ และฝังลายเซ็นใน PDF -->
-<script src="docDetail.js?v=62" defer></script>
+<script src="docDetail.js?v=63" defer></script>
 
 <!-- ออกเลขที่หนังสือขาออก (สร้างเลขอัตโนมัติในรูปแบบ SPPTNNN หรือ SPPTNNN-CC) -->
 <script src="docNum.js?v=28" defer></script>
@@ -69,13 +69,13 @@
 <script src="notif.js?v=23" defer></script>
 
 <!-- หน้าต่างเปิดดูไฟล์ PDF และรูปภาพ -->
-<script src="viewer.js?v=6" defer></script>
+<script src="viewer.js?v=7" defer></script>
 
 <!-- เครื่องมือแก้ไข PDF และใส่ลายเซ็น -->
 <script src="editor.js?v=3" defer></script>
 
 <!-- กราฟสถิติและติดตามงานค้าง -->
-<script src="stats.js?v=29" defer></script>
+<script src="stats.js?v=31" defer></script>
 
 <!-- หน้าจัดการระบบ: เลขที่เอกสาร -->
 <script src="sysAdmin.js?v=33" defer></script>

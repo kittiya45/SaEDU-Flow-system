@@ -25,14 +25,22 @@ function _fileBaseName(f){
 function _isSignedFile(f){
   return f.file_name.indexOf('[ลงนาม]')>=0||f.file_path.indexOf('signed/')===0||/^signed_/.test(f.file_path||'');
 }
-/* ── ไฟล์ที่ย้ายไปคลัง Google Drive แล้ว (supabase/46_+47_archive_to_drive) ──
+/* ── ไฟล์ที่ย้ายไปคลังภายนอกแล้ว (supabase/46_+47_archive_to_drive) ──
    เอกสารที่จบกระบวนการ (completed/cancelled/rejected) ถูกย้ายไฟล์ออกจาก Supabase Storage
    เพื่อคืนพื้นที่ — แถวใน document_files ยังอยู่ครบทุกแถว เปลี่ยนแค่ "ไฟล์จริงอยู่ที่ไหน"
-   ปุ่ม ดู/แก้ไข/โหลด ใช้ไม่ได้เพราะ file_path ไม่มีของจริงใน Storage แล้ว จึงแทนด้วยลิงก์ Drive
-   (เอกสารที่ยังเดินอยู่ไม่เคยถูกย้าย สคริปต์ปฏิเสธสถานะพวกนั้น — pipeline ลายเซ็นจึงไม่กระทบ) */
+   ปุ่ม ดู/แก้ไข/โหลด ใช้ไม่ได้เพราะ file_path ไม่มีของจริงใน Storage แล้ว จึงแทนด้วยลิงก์ไปคลัง
+   (เอกสารที่ยังเดินอยู่ไม่เคยถูกย้าย สคริปต์ปฏิเสธสถานะพวกนั้น — pipeline ลายเซ็นจึงไม่กระทบ)
+   คลังเคยเป็น Google Drive แล้วย้ายไป OneDrive (2026-09) — ระหว่างย้ายมีทั้งสองแบบปนกันได้
+   จึงอ่านชื่อผู้ให้บริการจากโดเมนของลิงก์แต่ละไฟล์ ไม่เขียนตายไว้ */
 function _isArchivedFile(f){return !!(f&&f.archive_url)}
+function _archiveProvider(url){
+  var h='';try{h=new URL(url).hostname.toLowerCase()}catch(e){}
+  if(/(^|\.)(drive|docs)\.google\.com$/.test(h))return 'Google Drive';
+  if(/sharepoint\.com$/.test(h)||/(^|\.)onedrive\.live\.com$/.test(h)||h==='1drv.ms')return 'OneDrive';
+  return 'คลังเอกสาร';
+}
 function _archivedFileActions(f){
-  return '<a class="btn btn-soft xs" href="'+esc(f.archive_url)+'" target="_blank" rel="noopener noreferrer">'+svg('dn',11)+' เปิดใน Google Drive</a>';
+  return '<a class="btn btn-soft xs" href="'+esc(f.archive_url)+'" target="_blank" rel="noopener noreferrer">'+svg('dn',11)+' เปิดใน '+esc(_archiveProvider(f.archive_url))+'</a>';
 }
 /* path ของไฟล์ฉบับลงนาม — ต้อง "ไม่ซ้ำเดิม" ทุกครั้งที่เซ็นทับ
    เดิมใช้ path คงที่ signed/{doc}/{name}.pdf แล้วอัปทับที่เดิม ทำให้ signed URL เดิม (แคชใน _furlCache
@@ -86,7 +94,7 @@ function _rCurFileRow(f,docId){
   if(isSigned) h.push('<span class="badge b-signed">ลงนามแล้ว</span>');
   if(isRejFile) h.push('<span class="badge b-rejected">ตีกลับ</span>');
   if(isEditFile) h.push('<span class="badge b-pending">แก้ไข</span>');
-  if(_isArchivedFile(f)) h.push('<span class="badge badge-muted" title="ย้ายไปเก็บใน Google Drive เพื่อประหยัดพื้นที่ ประวัติและลายเซ็นยังอยู่ครบ">'+svg('folder',10)+' ในคลัง</span>');
+  if(_isArchivedFile(f)) h.push('<span class="badge badge-muted" title="ย้ายไปเก็บใน '+esc(_archiveProvider(f.archive_url))+' เพื่อประหยัดพื้นที่ ประวัติและลายเซ็นยังอยู่ครบ">'+svg('folder',10)+' ในคลัง</span>');
   h.push('<span class="file-meta">'+ft.label+' · '+fsz(f.file_size)+(dtStr?' · '+dtStr:'')+'</span>');
   h.push('</div></div><div class="file-actions">');
   if(_isArchivedFile(f)){

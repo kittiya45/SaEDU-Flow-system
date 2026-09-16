@@ -41,7 +41,7 @@ async function vStat(){
   var allFiles=[];
   if(recentIds.length){
     try{
-      var _fr=await dg('document_files','?document_id=in.('+recentIds.join(',')+')'+'&select=id,document_id,file_name,file_path,version&order=version.desc,uploaded_at.desc');
+      var _fr=await dg('document_files','?document_id=in.('+recentIds.join(',')+')'+'&select=id,document_id,file_name,file_path,version,archive_url&order=version.desc,uploaded_at.desc');
       if(Array.isArray(_fr)) allFiles=_fr;
     }catch(e){}
   }
@@ -167,7 +167,7 @@ async function vStat(){
   var fmForScript={};
   Object.keys(fileMap).forEach(function(docId){
     fmForScript[docId]=fileMap[docId].map(function(f){
-      return {path:f.file_path,name:f.file_name};
+      return {path:f.file_path,name:f.file_name,archive_url:f.archive_url||null};
     });
   });
   window._sfm=fmForScript;
@@ -175,6 +175,8 @@ async function vStat(){
     var fs=window._sfm[docId]||[];
     if(!fs.length){showAlert('ไม่มีไฟล์แนบในเอกสารนี้','wa');return;}
     var f=fs[0];
+    // ไฟล์ที่ย้ายไปคลัง Google Drive แล้ว — ตัวจริงไม่อยู่ใน Storage เปิดลิงก์คลังแทน
+    if(f.archive_url){window.open(f.archive_url,'_blank','noopener');return;}
     try{
       var url=await resolveFilePath(f.path);
       if(!url){showAlert('ไม่สามารถสร้างลิงก์ดาวน์โหลดได้','er');return;}
@@ -431,6 +433,10 @@ async function _downloadStatProjZip(selYear){
 
     var zip=new JSZip();
     var fileCount=0;
+    // ไฟล์ของเอกสารที่จบแล้วส่วนใหญ่ถูกย้ายไปคลัง Google Drive (supabase/47_archive_to_drive.mjs)
+    // ดึงจาก Storage ไม่ได้และเบราว์เซอร์ดึงจาก Drive ตรง ๆ ก็ไม่ได้ (CSP) — เดิมโค้ดข้ามเงียบ ๆ
+    // จน ZIP ออกมาเกือบเปล่าโดยไม่มีใครรู้ ตอนนี้เก็บรายการไว้ใส่เป็น CSV ใน ZIP + แจ้งจำนวนตอนจบ
+    var archived=[];
 
     for(var i=0;i<yearDocs.length;i++){
       var doc=yearDocs[i];
@@ -446,6 +452,10 @@ async function _downloadStatProjZip(selYear){
         var rawName=f.file_path.split('/').pop();
         if(seen[rawName]) continue;
         seen[rawName]=true;
+        if(f.archive_url){
+          archived.push({proj:proj,num:doc.doc_number||'',name:f.file_name||rawName,url:f.archive_url});
+          continue;
+        }
         try{
           var resp=await fetch(await resolveFileUrl(f.file_path));
           if(!resp.ok) continue;
@@ -457,7 +467,14 @@ async function _downloadStatProjZip(selYear){
       if(btn) btn.textContent=(i+1)+'/'+yearDocs.length+' เอกสาร...';
     }
 
-    if(!fileCount){showAlert('ไม่พบไฟล์แนบในเอกสารปีนี้','wa');return;}
+    if(archived.length){
+      // BOM นำหน้าให้ Excel อ่านภาษาไทยถูก
+      var csv='\uFEFFโครงการ,เลขหนังสือ,ไฟล์,ลิงก์ Google Drive\n'+archived.map(function(r){
+        return [r.proj,r.num,r.name,r.url].map(function(v){return '"'+String(v).replace(/"/g,'""')+'"'}).join(',');
+      }).join('\n');
+      zip.file('ไฟล์ในคลัง Google Drive ('+archived.length+' ไฟล์).csv',csv);
+    }
+    if(!fileCount&&!archived.length){showAlert('ไม่พบไฟล์แนบในเอกสารปีนี้','wa');return;}
     if(btn) btn.textContent='กำลังสร้าง ZIP...';
 
     var content=await zip.generateAsync({type:'blob',compression:'DEFLATE',compressionOptions:{level:6}});
@@ -468,7 +485,9 @@ async function _downloadStatProjZip(selYear){
     a.click();
     document.body.removeChild(a);
     setTimeout(function(){URL.revokeObjectURL(a.href);},3000);
-    showAlert('ดาวน์โหลดสำเร็จ — รวม '+fileCount+' ไฟล์','ok');
+    showAlert(archived.length
+      ?'ดาวน์โหลดสำเร็จ — รวม '+fileCount+' ไฟล์ · อีก '+archived.length+' ไฟล์อยู่ในคลัง Google Drive (รายการลิงก์อยู่ในไฟล์ CSV ใน ZIP) — ดาวน์โหลดทั้งปีได้จากโฟลเดอร์ SaEDU-Archive/'+(selYear+543)+' ใน Drive ของ saeduflow'
+      :'ดาวน์โหลดสำเร็จ — รวม '+fileCount+' ไฟล์',archived.length?'wa':'ok');
   }catch(e){
     showAlert('เกิดข้อผิดพลาด: '+(e.message||e),'er');
   }finally{

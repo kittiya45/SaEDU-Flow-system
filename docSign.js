@@ -340,7 +340,12 @@ async function _loadSigPosPreview(docId){
     var files=await _sigWithTimeout(dg('document_files','?document_id=eq.'+safeId(docId)+'&file_type=like.application%2Fpdf'),15000,'ดึงรายการไฟล์');
     var _sp=_signPdfWorkingCopy(files);
     if(!_sp||!_sp.working){
-      _sigPreviewError('ไม่พบไฟล์ PDF ในเอกสารนี้ — ต้องมีไฟล์ PDF อย่างน้อย 1 ไฟล์จึงจะลงนามได้');
+      // มี PDF แต่ทุกไฟล์อยู่ในคลัง Google Drive แล้ว (เอกสารเคยจบแล้วถูกส่งกลับมาเดินใหม่)
+      // — บอกเหตุผลจริง ไม่ใช่ "ไม่พบไฟล์" ซึ่งจะทำให้คนไปไล่หาว่าไฟล์หายไปไหน
+      var _allArchived=Array.isArray(files)&&files.length&&files.every(function(f){return _isArchivedPdfRow(f)});
+      _sigPreviewError(_allArchived
+        ?'ไฟล์ PDF ของเอกสารนี้ถูกย้ายไปคลัง Google Drive แล้ว จึงลงนามบนไฟล์ไม่ได้ — ให้ผู้จัดทำอัปโหลดไฟล์ PDF ฉบับที่แก้แล้วเข้ามาใหม่ หรือแจ้งผู้ดูแลระบบให้ดึงไฟล์คืนจากคลัง'
+        :'ไม่พบไฟล์ PDF ในเอกสารนี้ — ต้องมีไฟล์ PDF อย่างน้อย 1 ไฟล์จึงจะลงนามได้');
       return;
     }
     _sigShowTargetFile(_sp,files);

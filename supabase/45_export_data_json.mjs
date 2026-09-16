@@ -149,9 +149,9 @@ async function listBucket(bucket, prefix = '') {
   const out = [];
   let offset = 0;
   for (;;) {
-    const { data, error } = await sb.storage.from(bucket).list(prefix, {
+    const { data, error } = await withRetry(`list ${bucket}/${prefix}`, () => sb.storage.from(bucket).list(prefix, {
       limit: 100, offset, sortBy: { column: 'name', order: 'asc' },
-    });
+    }));
     if (error) throw new Error(`list ${bucket}/"${prefix}" ล้มเหลว: ${error.message}`);
     if (!data || !data.length) break;
     for (const item of data) {
@@ -166,6 +166,29 @@ async function listBucket(bucket, prefix = '') {
 }
 
 const fmt = b => b >= 1048576 ? (b / 1048576).toFixed(1) + ' MB' : (b / 1024).toFixed(0) + ' kB';
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+/* ลองซ้ำเมื่อเครือข่ายสะดุด — ชุด backup แรกที่รันอัตโนมัติ (2026-09-15) ล้มทั้ง bucket ตั้งแต่ไฟล์ที่ 50
+   เพราะ arrayBuffer() โยน "terminated" (สายหลุดกลางไฟล์) ครั้งเดียว แล้ว list ของ bucket ถัดไปเจอ
+   "fetch failed" — Wi-Fi ของเครื่องผู้ดูแลหลุดเป็นช่วง ๆ เป็นเรื่องปกติของที่นี่ ต้องถอยแล้วลองใหม่
+   ไม่ใช่ทิ้งทั้ง backup */
+async function withRetry(label, fn, tries = 4) {
+  let wait = 2000;
+  for (let i = 1; ; i++) {
+    try { return await fn(); }
+    catch (e) {
+      if (i >= tries) throw e;
+      await sleep(wait); wait = Math.min(wait * 2, 15000);
+    }
+  }
+}
+async function downloadObject(bucket, path) {
+  return withRetry(`${bucket}/${path}`, async () => {
+    const { data, error } = await sb.storage.from(bucket).download(path);
+    if (error || !data) throw new Error(error?.message || 'ไม่มีข้อมูล');
+    return Buffer.from(await data.arrayBuffer());
+  });
+}
 
 (async () => {
   const dir = singleFile ? outRoot : join(outRoot, `backup-${stamp}`);
@@ -224,9 +247,9 @@ const fmt = b => b >= 1048576 ? (b / 1048576).toFixed(1) + ' MB' : (b / 1024).to
         const objects = await listBucket(bucket);
         let done = 0, bytes = 0, errs = 0;
         for (const o of objects) {
-          const { data, error } = await sb.storage.from(bucket).download(o.path);
-          if (error || !data) { errs++; continue; }
-          const buf = Buffer.from(await data.arrayBuffer());
+          let buf;
+          try { buf = await downloadObject(bucket, o.path); }
+          catch (e) { errs++; console.log(`  ✕ ${bucket}/${o.path} — ${e.message || e}`); continue; }
           const dest = join(dir, 'files', bucket, o.path);
           mkdirSync(dirname(dest), { recursive: true });
           writeFileSync(dest, buf);
@@ -236,6 +259,8 @@ const fmt = b => b >= 1048576 ? (b / 1048576).toFixed(1) + ' MB' : (b / 1024).to
         manifest.storage[bucket] = { files: done, bytes, failed: errs };
         totalBytes += bytes;
         console.log(`  ${bucket}: ${done}/${objects.length} ไฟล์ · ${fmt(bytes)}${errs ? ` · ล้มเหลว ${errs}` : ''}`);
+        // ไฟล์ที่โหลดไม่ได้แม้ลองซ้ำแล้ว = backup ไม่ครบ ต้องนับเป็นล้มเหลว ไม่ใช่แค่จดไว้ใน manifest
+        if (errs) failed++;
       } catch (e) {
         manifest.storage[bucket] = { error: e.message || String(e) };
         console.log(`  ${bucket}: ล้มเหลว — ${e.message || e}`);

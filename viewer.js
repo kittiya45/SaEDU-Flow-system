@@ -3,7 +3,10 @@ function _safeUrl(url){
   try{var u=new URL(url);return u.protocol==='https:'?url:'';}catch(e){return ''}
 }
 // toolbar + พื้นที่เลื่อนดู PDF ทุกหน้าแนวตั้ง — ใช้ทั้ง PDF ตรงๆ และ DOCX→PDF
-function _pdfBodyHtml(url,name,safeUrl){
+// dl (ไม่บังคับ) = {path,url,name} ไฟล์ที่ปุ่มดาวน์โหลดควรให้ — กรณี DOCX ต้องชี้ไป .docx ต้นฉบับ
+// ไม่ใช่ PDF ที่แปลงมาแสดง (ไม่งั้นได้ไฟล์ PDF ที่ตั้งชื่อ .docx เปิดด้วย Word ไม่ได้)
+function _pdfBodyHtml(url,name,safeUrl,dl){
+  var dlPath=(dl&&dl.path)||'', dlUrl=(dl&&dl.url)||safeUrl||url, dlName=(dl&&dl.name)||name;
   return '<div class="pdf-viewer-body">'+
     '<div class="ped-toolbar" style="flex-shrink:0">'+
     '<span id="pdf-page-info" style="font-size:12px;color:var(--text-3);min-width:120px">กำลังโหลด...</span>'+
@@ -12,7 +15,7 @@ function _pdfBodyHtml(url,name,safeUrl){
     '<span id="pdf-zoom-lbl" style="font-size:11px;color:var(--text-2);min-width:40px;text-align:center;font-weight:600">100%</span>'+
     '<button id="pdf-zoom-in" class="btn btn-soft sm btn-icon" title="ขยาย">'+svg('zin',13)+'</button>'+
     '<span style="font-size:11px;color:var(--text-3);margin-left:4px">เลื่อนในพื้นที่สีเทา</span>'+
-    '<button class="btn btn-ghost sm" style="margin-left:auto" data-action="dlFile" data-url="'+(safeUrl||url)+'" data-name="'+esc(name)+'">'+svg('dn',13)+' ดาวน์โหลด</button>'+
+    '<button class="btn btn-ghost sm" style="margin-left:auto" data-action="dlFile" data-path="'+esc(dlPath)+'" data-url="'+esc(dlUrl)+'" data-name="'+esc(dlName)+'">'+svg('dn',13)+' ดาวน์โหลด</button>'+
     '</div>'+
     (safeUrl?'<div id="pdf-canvas-wrap" class="ped-canvas-area pdf-viewer-scroll">'+
       '<div id="pdf-loading" style="padding:40px;text-align:center;color:var(--text-3);font-size:13px;display:flex;flex-direction:column;align-items:center;gap:10px">'+
@@ -87,7 +90,8 @@ function openViewer(url,name,storagePath){
     '<div><div class="modal-title">'+esc(name)+'</div><div style="font-size:11px;color:var(--text-3)">ดูเอกสาร</div></div>',
     '</div>',
     '<div style="display:flex;gap:8px">',
-    (isPDF?'':'<button class="btn btn-ghost sm" data-action="dlFile" data-url="'+url+'" data-name="'+esc(name)+'">'+svg('dn',13)+' ดาวน์โหลด</button>'),
+    // PDF และ Word มีปุ่มดาวน์โหลดใน toolbar ของตัวเองแล้ว — ไม่ซ้ำบน header
+    ((isPDF||isDocx)?'':'<button class="btn btn-ghost sm" data-action="dlFile" data-url="'+esc(url)+'" data-name="'+esc(name)+'">'+svg('dn',13)+' ดาวน์โหลด</button>'),
     '<button class="btn btn-soft sm btn-icon" data-action="closeModal">'+svg('x',14)+'</button>',
     '</div></div>',
     inner,
@@ -119,7 +123,8 @@ async function renderDocxAsPdf(url,name,storagePath){
       var errMsg=data.error||data.message||'แปลงไฟล์ไม่สำเร็จ';
       throw new Error(errMsg);
     }
-    if(body) body.outerHTML=_pdfBodyHtml(data.pdfUrl,name,data.pdfUrl);
+    // ปุ่มดาวน์โหลดใน toolbar ต้องให้ .docx ต้นฉบับ ไม่ใช่ PDF ที่แปลงมาแสดง
+    if(body) body.outerHTML=_pdfBodyHtml(data.pdfUrl,name,data.pdfUrl,{path:path||'',url:url||'',name:name});
     await renderPdfView(data.pdfUrl);
   }catch(e){
     if(status) status.textContent='แปลงไฟล์ไม่สำเร็จ';
