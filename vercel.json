@@ -2,6 +2,9 @@
   "framework": null,
   "buildCommand": "npm run build",
   "outputDirectory": ".",
+  "redirects": [
+    { "source": "/(.*)", "destination": "https://saeduflow.edu.chula.ac.th/$1", "permanent": false }
+  ],
   "headers": [
     {
       "source": "/",

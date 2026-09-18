@@ -31,3 +31,5 @@ scripts/manual-handover/shots/
 scripts/manual-handover/assets/
 # ชุดผลผลิตส่งมอบ (npm run build:handover) — สร้างใหม่ได้ และมี zip ซอร์ส
 deliverables/
+.vercel
+.env*
