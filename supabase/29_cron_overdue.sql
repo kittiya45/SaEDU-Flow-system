@@ -10,7 +10,8 @@
 --   WHERE key = 'overdue_cron_secret';
 --
 -- ทางเลือก: ตั้ง Schedule ใน Supabase Dashboard → Edge Functions → check-overdue
---   cron: 0 18 * * * (UTC) = 01:00 Asia/Bangkok
+--   cron: 0 1 * * * (UTC) = 08:00 Asia/Bangkok
+--   (เดิม 0 18 * * * = 01:00 น. — LINE เตือน "ค้างเกินกำหนด" ปลุกอาจารย์ตอนตี 1 เปลี่ยนบน production 2026-09-18)
 --   Header: x-cron-secret = <ค่า OVERDUE_CRON_SECRET>
 -- ============================================================================
 
@@ -44,7 +45,7 @@ END $$;
 
 SELECT cron.schedule(
   'saedu-check-overdue',
-  '0 18 * * *',
+  '0 1 * * *',
   $$
   SELECT net.http_post(
     url := 'https://jrubupvzltxqstzcpoov.supabase.co/functions/v1/check-overdue',

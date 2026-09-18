@@ -425,6 +425,11 @@ async function loadDocTypes(){
 var SETT={
   sla_cascade_days:3,
   session_timeout_min:30,
+  /* กำหนดเวลาต่อขั้นตอน (วันทำการ) ที่ใส่ให้ตอนสร้างสาย — ขั้นอาจารย์ให้นานกว่า:
+     วัดจริง 2569 อาจารย์ใช้เวลาเซ็นเฉลี่ย 2.5–3.7 วัน ขณะที่ค่าเดิม 2 วันทำให้โดนแจ้ง
+     "ค้างเกินกำหนด" ทั้งที่เร็วตามปกติของอาจารย์แล้ว (ผศ.ดร.ชนัญชิดา โดน 7 ครั้ง) */
+  step_days_default:2,
+  step_days_advisor:5,
   max_file_size_mb:10,
   email_prefix:'[กนค.]',
   system_announcement:'',

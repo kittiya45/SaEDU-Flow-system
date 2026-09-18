@@ -102,7 +102,10 @@ async function sendNotifEmail(docId, action, newStatus, note){
     if(_etRows&&_etRows[0]) _etmpl=_etRows[0];
   }catch(e){}
 
-  var _baseSubj=(SETT.email_prefix||'[กนค.]')+' '+(newStatus==='completed'?'เสร็จสิ้น: ':newStatus==='numbering'?'🔢 รอออกเลขหนังสือ: ':action==='reject'?'↩ ส่งคืนแก้ไข: ':action==='create'?'📋 เอกสารใหม่รอดำเนินการ: ':action==='overdue'?'⚠️ เลยกำหนด: ':'')+subj;
+  /* อีเมลที่ "ต้องทำ" (ถึงคิวลงนาม) ต้องเด่นกว่าอีเมลที่ "แค่บอก" — เดิมกลับกัน: อีเมลถึงคิวไม่มีคำนำหน้าเลย
+     ส่วนอีเมลเพื่อทราบมีไอคอน 🔢/✕/↩ ทุกฉบับ อาจารย์จึงมองข้ามฉบับที่ต้องเซ็นในกล่องจดหมายที่หัวข้อเหมือนกันหมด */
+  var _turnSubj=(action==='approve'||action==='create'||action==='resubmit')&&nextStep&&nextStep.assigned_to;
+  var _baseSubj=(SETT.email_prefix||'[กนค.]')+' '+(newStatus==='completed'?'เสร็จสิ้น: ':newStatus==='numbering'?'🔢 รอออกเลขหนังสือ: ':action==='reject'?'↩ ส่งคืนแก้ไข: ':_turnSubj?'✍️ รอท่านลงนาม: ':action==='create'?'📋 เอกสารใหม่รอดำเนินการ: ':action==='overdue'?'⚠️ เลยกำหนด: ':'')+subj;
   var emailSubj=_baseSubj+(_etmpl.subject_suffix?' '+_etmpl.subject_suffix:'');
   var sentEmails=[];
 
@@ -275,7 +278,7 @@ function buildEmailHtml(o){
   } else if(o.action==='overdue'){
     bannerBg='#FFEBEE'; bannerIcon='⚠️'; actionLabel='<span style="color:#C62828;font-weight:700">เอกสารเลยกำหนดส่งแล้ว กรุณาดำเนินการโดยด่วน</span>';
   } else {
-    bannerBg='#E3F2FD'; bannerIcon='📋'; actionLabel='<span style="color:#1565C0;font-weight:700">มีเอกสารรอการดำเนินการของคุณ</span>';
+    bannerBg='#E3F2FD'; bannerIcon='✍️'; actionLabel='<span style="color:#1565C0;font-weight:700">ถึงคิวของท่านแล้ว — กรุณาตรวจสอบและลงนามในระบบ</span>';
   }
 
   var rows='';
@@ -666,7 +669,10 @@ function buildLineText(o){
   else if(o.action==='reject')       head='↩️ เอกสารถูกส่งคืนเพื่อแก้ไข';
   else if(o.action==='reject_fyi')   head='ℹ️ แจ้งเพื่อทราบ: เอกสารที่ท่านเคยอนุมัติถูกส่งคืนแก้ไข';
   else if(o.action==='overdue')      head='⚠️ เอกสารเลยกำหนด — กรุณาดำเนินการด่วน';
-  else                               head='📋 มีเอกสารรอการดำเนินการของคุณ';
+  // รายบุคคล (มี recipName) = ถึงคิวคนนั้น · เข้ากลุ่ม จนท. (ไม่มี recipName) = แจ้งว่ามีเอกสารเข้า/ถึงคิว จนท.
+  else if(o.recipName)               head='✍️ ถึงคิวท่านลงนาม — กรุณาตรวจสอบและลงนามในระบบ';
+  else if(o.action==='approve')      head='📋 เอกสารถึงคิวเจ้าหน้าที่แล้ว';
+  else                               head='📋 มีเอกสารใหม่เข้าระบบ';
 
   var lines=[pfx+' '+head];
   if(o.recipName)   lines.push('เรียน '+o.recipName);

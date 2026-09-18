@@ -94,7 +94,7 @@ function _setWfAssignee(i,uid){
 function addAdvisorStep(){
   var used={}; FS.forEach(function(s){if(s.assigned_to)used[s.assigned_to]=1});
   var u=(FU||[]).find(function(x){return x.role_code==='ROLE-ADV'&&x.id!==CU.id&&!used[x.id]});
-  FS.push({step_name:'อาจารย์ที่ปรึกษา',role_required:'ROLE-ADV',assigned_to:u?u.id:null,deadline_days:2,locked:true,extra:true});
+  FS.push({step_name:'อาจารย์ที่ปรึกษา',role_required:'ROLE-ADV',assigned_to:u?u.id:null,deadline_days:stepDaysFor('ROLE-ADV'),locked:true,extra:true});
   var w=$e('wfwrap'); if(w) w.innerHTML=rWfPeople();
   calcDeadline()
 }
@@ -127,7 +127,7 @@ function addWfPerson(){
   }
   var role=u.role_code||'ROLE-CRT';
   var stepName=RTH[role]||u.full_name;
-  FS.push({step_name:stepName,role_required:role,assigned_to:uid,deadline_days:2});
+  FS.push({step_name:stepName,role_required:role,assigned_to:uid,deadline_days:stepDaysFor(role)});
   sel.value='';
   var w=$e('wfwrap'); if(w) w.innerHTML=rWfPeople();
   calcDeadline()

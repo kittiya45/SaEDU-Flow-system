@@ -375,6 +375,13 @@ function workingDaysElapsed(fromDate){
   return count;
 }
 /* เส้นตายของ workflow step ที่กำลังจะ active — deadlineDays วันทำการจากเวลานี้ สิ้นสุดวันนั้น 23:59 */
+/* จำนวนวันทำการที่ให้ขั้นตอนหนึ่ง ตามบทบาทของขั้นนั้น — ทุกจุดที่สร้าง step ใหม่ต้องใช้ตัวนี้
+   ไม่ใช่ตัวเลข 2 ตายตัว (docForm/workflow เคย hardcode คนละที่จนแก้ไม่ทั่ว) */
+function stepDaysFor(role){
+  var v=role==='ROLE-ADV'?SETT.step_days_advisor:SETT.step_days_default;
+  v=parseInt(v,10);
+  return v>0?v:(role==='ROLE-ADV'?5:2);
+}
 function stepDeadline(deadlineDays){
   var d=addWorkingDays(new Date(),deadlineDays||2);
   d.setHours(23,59,0,0);

@@ -413,7 +413,7 @@ async function _applyWfTemplate(docType){
     var creatorStep=FS.find(function(s){return s.step_name==='ผู้จัดทำ'||s.assigned_to===CU.id})||FS[0]||{step_name:'ผู้จัดทำ',role_required:'ROLE-CRT',assigned_to:CU.id,deadline_days:1};
     FS=[creatorStep];
     steps.forEach(function(s){
-      FS.push({step_name:s.step_name,role_required:s.role_required||'',assigned_to:s.assigned_to||null,deadline_days:s.deadline_days||2,locked:!!s.locked});
+      FS.push({step_name:s.step_name,role_required:s.role_required||'',assigned_to:s.assigned_to||null,deadline_days:s.deadline_days||stepDaysFor(s.role_required),locked:!!s.locked});
     });
     var ww=$e('wfwrap'); if(ww) ww.innerHTML=rWfPeople();
     showAlert('โหลด Template "'+esc(tmpl.name)+'" แล้ว','ok');
@@ -440,7 +440,7 @@ function _applyFixedFlow(){
       var u=(FU||[]).find(function(x){return x.id!==CU.id&&(f.pos?x.position_code===f.pos:(f.role?x.role_code===f.role:false))});
       uid=u?u.id:null;
     }
-    FS.push({step_name:f.step_name,role_required:f.role_required,assigned_to:uid,deadline_days:2,locked:true,fixSelf:!!f.self});
+    FS.push({step_name:f.step_name,role_required:f.role_required,assigned_to:uid,deadline_days:stepDaysFor(f.role_required),locked:true,fixSelf:!!f.self});
   });
   kept.forEach(function(s){FS.push(s)});
   var ww=$e('wfwrap'); if(ww) ww.innerHTML=rWfPeople();
