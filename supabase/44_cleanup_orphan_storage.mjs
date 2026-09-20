@@ -138,9 +138,13 @@ const fmt = b => b >= 1048576 ? (b / 1048576).toFixed(1) + ' MB' : (b / 1024).to
   const orphans = [], tooNew = [];
   let liveBytes = 0;
 
+  // _docx_cache/<sha256>.pdf คือผล CloudConvert ที่ convert-docx เก็บไว้ใช้ซ้ำ — ไม่มีแถวใน DB โดยธรรมชาติ
+  // จึงดูเหมือนกำพร้าเสมอ ลบแล้วไม่พัง (แปลงใหม่ได้) แต่เปลืองโควตา CloudConvert — เก็บไว้ 30 วันก่อนค่อยนับเป็นขยะ
+  const cacheCutoff = Date.now() - Math.max(minAgeDays, 30) * 86400000;
   for (const o of objects) {
     if (referenced.has(o.path)) { liveBytes += o.size; continue; }
-    if (new Date(o.created_at).getTime() > cutoff) tooNew.push(o);
+    const c = o.path.startsWith('_docx_cache/') ? cacheCutoff : cutoff;
+    if (new Date(o.created_at).getTime() > c) tooNew.push(o);
     else orphans.push(o);
   }
 
@@ -160,6 +164,7 @@ const fmt = b => b >= 1048576 ? (b / 1048576).toFixed(1) + ' MB' : (b / 1024).to
     : p.startsWith('edited_') ? 'edited_* (จาก PDF editor)'
     : p.startsWith('reject_') ? 'reject_* (ไฟล์แนบตอนส่งคืนแก้ไข)'
     : p.startsWith('tmpl_') ? 'tmpl_* (แบบฟอร์ม)'
+    : p.startsWith('_docx_cache/') ? '_docx_cache/* (แคชแปลง DOCX เกิน 30 วัน)'
     : 'อัปโหลดปกติ (ฟอร์มที่ถูกทิ้ง)';
   const byKind = {};
   for (const o of orphans) {
