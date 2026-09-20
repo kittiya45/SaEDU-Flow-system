@@ -1124,12 +1124,18 @@ async function showCancelDocModal(docId){
   var doc=(await dg('documents','?id=eq.'+safeId(docId)))[0]||{};
   // เอกสารที่ยื่นเข้าคณะไปแล้วต้องเตือนแรงกว่า — ระบบนี้ดึงเอกสารกลับจากคณะให้ไม่ได้
   var posted=POSTED_ST.indexOf(doc.status)!==-1;
+  // เอกสารที่ยกเลิกแล้วถูกลบทิ้งถาวรโดยงานกลางคืน (supabase/54_purge_cancelled_docs.mjs) หลัง
+  // SETT.cancel_purge_days วัน — บอกเลขเดียวกับที่สคริปต์ใช้ ผู้ใช้จะได้รู้ว่ามีเวลาเปลี่ยนใจแค่ไหน
+  var _purgeDays=+SETT.cancel_purge_days; if(isNaN(_purgeDays)) _purgeDays=3;
   var _postedWarn=posted
     ? '<div class="al al-er" style="margin-bottom:10px"><span class="al-icon">'+svg('warn',13)+'</span>'
       +'<span><strong>เอกสารนี้ออกเลขหนังสือและนำส่งออกไปแล้ว</strong>'
       +'<div style="margin-top:3px">การกดยกเลิกที่นี่เปลี่ยนแค่สถานะในระบบนี้ <strong>ไม่ได้ดึงเอกสารกลับจากคณะ/มหาวิทยาลัย</strong> — ต้องแจ้งยกเลิกกับเจ้าหน้าที่ที่รับเรื่องด้วยตนเองอีกทางหนึ่ง</div>'
-      +'<div style="margin-top:3px">เลขที่ '+esc(doc.doc_number||'—')+' จะยังผูกกับเอกสารใบนี้ไว้ ไม่ถูกนำไปใช้ซ้ำ</div></span></div>'
+      +'<div style="margin-top:3px">เลขที่ '+esc(doc.doc_number||'—')+' จะไม่ถูกนำไปใช้ซ้ำ แม้เอกสารจะถูกลบไปแล้ว</div></span></div>'
     : '';
+  var _purgeNote=_purgeDays>0
+    ? '<strong>ระบบจะลบเอกสารนี้ทิ้งถาวรโดยอัตโนมัติหลังจากยกเลิกครบ '+_purgeDays+' วัน</strong> (ไฟล์ ลายเซ็น และประวัติทั้งหมด) · ภายใน '+_purgeDays+' วันนี้ ผู้ดูแลระบบยังเปลี่ยนสถานะกลับมาเดินเรื่องต่อได้'
+    : 'ลายเซ็นและประวัติทั้งหมดจะถูกเก็บไว้เป็นหลักฐาน · หากต้องการนำกลับมาใช้ ผู้ดูแลระบบเปลี่ยนสถานะกลับได้';
   mw.innerHTML=[
     '<div class="mo"><div class="modal">',
     '<div class="modal-head"><span class="modal-title">'+svg('x',14)+' ยกเลิกเอกสาร</span>',
@@ -1138,8 +1144,8 @@ async function showCancelDocModal(docId){
     _postedWarn,
     '<div class="al al-wa" style="margin-bottom:10px"><span class="al-icon">'+svg('warn',13)+'</span>',
     '<span>เอกสารจะถูกปิดถาวรและไม่สามารถเดินเรื่องต่อได้ ผู้ที่ยังค้างงานอยู่จะไม่เห็นงานนี้อีก</span></div>',
-    '<div class="al al-in" style="margin-bottom:14px;font-size:12px"><span class="al-icon">'+svg('info',13)+'</span>',
-    '<span>ลายเซ็นและประวัติทั้งหมดจะถูกเก็บไว้เป็นหลักฐาน · เลขหนังสือยังผูกกับเอกสารใบนี้ ลำดับเลขจึงไม่ขาด · หากต้องการนำกลับมาใช้ ผู้ดูแลระบบเปลี่ยนสถานะกลับได้</span></div>',
+    '<div class="al '+(_purgeDays>0?'al-er':'al-in')+'" style="margin-bottom:14px;font-size:12px"><span class="al-icon">'+svg(_purgeDays>0?'trash':'info',13)+'</span>',
+    '<span>'+_purgeNote+'</span></div>',
     '<div class="fg"><label class="fl">เหตุผลที่ยกเลิก <span class="req">*</span></label>',
     '<textarea class="fi" id="cancel-doc-note" rows="3" placeholder="เช่น โครงการไม่ได้จัด / เปลี่ยนแผนการดำเนินงาน..."></textarea></div>',
     '</div>',

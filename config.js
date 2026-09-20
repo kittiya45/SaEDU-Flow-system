@@ -430,6 +430,9 @@ var SETT={
      "ค้างเกินกำหนด" ทั้งที่เร็วตามปกติของอาจารย์แล้ว (ผศ.ดร.ชนัญชิดา โดน 7 ครั้ง) */
   step_days_default:2,
   step_days_advisor:5,
+  /* เอกสารที่ "ยกเลิกแล้ว" ถูกลบทิ้งถาวรอัตโนมัติหลังกี่วัน (supabase/54_purge_cancelled_docs.mjs
+     อ่านค่านี้จาก app_settings ทุกคืน) — modal ยกเลิกแสดงเลขเดียวกันนี้ให้ผู้ใช้เห็น; 0 = ไม่ลบ */
+  cancel_purge_days:3,
   max_file_size_mb:10,
   email_prefix:'[กนค.]',
   system_announcement:'',

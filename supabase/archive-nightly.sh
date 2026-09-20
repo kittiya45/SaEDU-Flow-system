@@ -27,6 +27,9 @@
 #   ARCHIVE_MIN_AGE_DAYS           รอบ 1 (ค่าเริ่มต้น 3)
 #   ARCHIVE_REJECTED_MIN_AGE_DAYS  รอบ 2 (ค่าเริ่มต้น 30)
 #   ARCHIVE_ROOT                   โฟลเดอร์บนสุดในคลาวด์ (ค่าเริ่มต้น SaEDU-Archive)
+#   PURGE_CANCELLED                1 = ลบเอกสารที่ยกเลิกแล้วทิ้งถาวรก่อนรอบย้าย (ค่าเริ่มต้น 1; 0 = ไม่ลบ)
+#                                  อายุขั้นต่ำมาจาก app_settings.cancel_purge_days (ตั้งค่าระบบ; ค่าเริ่มต้น 3 วัน)
+#                                  — รันก่อน 47 เพื่อไม่ต้องขนไฟล์ของฉบับที่กำลังจะลบขึ้นคลาวด์ให้เสียเที่ยว
 #
 # ⚠️ remote "saedu" ที่ยังใช้ client_id กลางของ rclone จะหยุดทำงานเมื่อ Google ยกเลิกมัน (ภายในปี 2026)
 #    วันนั้นงานนี้จะล้มเหลวและเด้งเตือน — แก้ด้วยการสร้าง client_id ของตัวเอง แล้ว
@@ -40,6 +43,7 @@ SHARE="${ARCHIVE_SHARE:-inherit}"
 MIN_AGE="${ARCHIVE_MIN_AGE_DAYS:-3}"
 REJ_MIN_AGE="${ARCHIVE_REJECTED_MIN_AGE_DAYS:-30}"
 ROOT="${ARCHIVE_ROOT:-SaEDU-Archive}"
+PURGE="${PURGE_CANCELLED:-1}"
 LOG_DIR="$HOME/Library/Logs/saedu"
 mkdir -p "$LOG_DIR"
 LOG="$LOG_DIR/archive-$(date +%Y-%m).log"
@@ -91,6 +95,18 @@ run_pass() {
   [ -n "$summary" ] && SUMMARIES="${SUMMARIES:+$SUMMARIES · }$summary"
   return 0
 }
+# รอบ 0: ลบเอกสารที่ยกเลิกแล้วทิ้งถาวร (54) — ล้มก็ไม่กั้นรอบย้าย แค่นับเป็นล้มเหลวเพื่อเด้งเตือน
+# ลบจากทั้ง remote หลักและ mirror (backup-weekly.sh copy คลังไป onedrive) ไม่งั้น mirror เก็บซากไว้ตลอด
+if [ "$PURGE" = "1" ]; then
+  purge_out="$(mktemp -t saedu-purge)"
+  log "รอบ: ลบเอกสารที่ยกเลิกแล้ว (54_purge_cancelled_docs.mjs)"
+  node 54_purge_cancelled_docs.mjs --remotes="$REMOTE,${MIRROR_RCLONE_REMOTE:-onedrive}" --apply 2>&1 | tee -a "$LOG" > "$purge_out"
+  rc=${PIPESTATUS[0]}
+  summary="$(grep -E '^เสร็จ:' "$purge_out" | tail -1)"
+  rm -f "$purge_out"
+  if [ "$rc" -ne 0 ]; then FAILED=1; log "รอบลบเอกสารที่ยกเลิกแล้วล้มเหลว (exit $rc)"; fi
+  if [ -n "$summary" ] && [ "$summary" != "เสร็จ: ลบ 0 เอกสาร" ]; then SUMMARIES="${SUMMARIES:+$SUMMARIES · }$summary"; fi
+fi
 run_pass "completed,cancelled" "$MIN_AGE"
 run_pass "rejected" "$REJ_MIN_AGE"
 

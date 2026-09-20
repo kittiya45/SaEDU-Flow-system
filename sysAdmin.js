@@ -484,6 +484,7 @@ function rAppSettingsCard(settings){
     {key:'max_file_size_mb',    id:'sett-2', label:'ขนาดไฟล์สูงสุด',          unit:'MB',   desc:'ต่อไฟล์ที่อนุญาตให้อัปโหลด',          min:1,max:100},
     {key:'step_days_default',   id:'sett-days-def', label:'เวลาต่อขั้นตอน (ทั่วไป)',  unit:'วันทำการ', desc:'กำหนดเซ็นของขั้นนิสิต/เจ้าหน้าที่ ใส่ให้ตอนสร้างเอกสารใหม่', min:1,max:30},
     {key:'step_days_advisor',   id:'sett-days-adv', label:'เวลาต่อขั้นตอน (อาจารย์)', unit:'วันทำการ', desc:'กำหนดเซ็นของขั้นอาจารย์ที่ปรึกษา — สั้นเกินจะโดนแจ้ง "ค้างเกินกำหนด" ทั้งที่เร็วตามปกติ', min:1,max:30},
+    {key:'cancel_purge_days',   id:'sett-purge-days', label:'ลบเอกสารที่ยกเลิกแล้วหลัง', unit:'วัน', desc:'งานกลางคืนบนเครื่องผู้ดูแลลบเอกสารสถานะ "ยกเลิกแล้ว" ทิ้งถาวร (ไฟล์ ลายเซ็น ประวัติ) เมื่อพ้นจำนวนวันนี้ · 0 = ไม่ลบ', min:0,max:365},
   ];
   var numRow=numFields.map(function(f){
     return '<div style="background:#FAFAF8;border-radius:12px;padding:14px 16px;border:1px solid #EBEBEB">'+

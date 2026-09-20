@@ -83,7 +83,7 @@ case "${1:-}" in
   *) echo "ไม่รู้จัก: $1" >&2; exit 1 ;;
 esac
 
-for f in archive-nightly.sh backup-weekly.sh backup-to-drive.sh ops-heartbeat.sh 47_archive_to_drive.mjs 45_export_data_json.mjs 48_schema_dump.sql 49_export_sql_dump.mjs; do
+for f in archive-nightly.sh backup-weekly.sh backup-to-drive.sh ops-heartbeat.sh 47_archive_to_drive.mjs 54_purge_cancelled_docs.mjs 45_export_data_json.mjs 48_schema_dump.sql 49_export_sql_dump.mjs; do
   [ -f "$HERE/$f" ] || { echo "ไม่พบ $HERE/$f" >&2; exit 1; }
 done
 [ -d "$HERE/node_modules/@supabase" ] || { echo "ไม่พบ $HERE/node_modules — รัน npm install ใน $HERE ก่อน" >&2; exit 1; }
@@ -101,7 +101,7 @@ mkdir -p "$HOME/Library/LaunchAgents" "$LOG_DIR" "$RUNTIME"
 
 # sync ของที่งานนี้ใช้ไป RUNTIME (ดูเหตุผลในหัวไฟล์) — manifest เก่าใน RUNTIME ไม่ถูกลบ
 rsync -a "$HERE/archive-nightly.sh" "$HERE/backup-weekly.sh" "$HERE/backup-to-drive.sh" "$HERE/ops-heartbeat.sh" \
-         "$HERE/47_archive_to_drive.mjs" "$HERE/45_export_data_json.mjs" "$HERE/48_schema_dump.sql" "$HERE/49_export_sql_dump.mjs" \
+         "$HERE/47_archive_to_drive.mjs" "$HERE/54_purge_cancelled_docs.mjs" "$HERE/45_export_data_json.mjs" "$HERE/48_schema_dump.sql" "$HERE/49_export_sql_dump.mjs" \
          "$HERE/package.json" "$RUNTIME/"
 rsync -a --delete "$HERE/node_modules/" "$RUNTIME/node_modules/"
 chmod +x "$RUNTIME/archive-nightly.sh" "$RUNTIME/backup-weekly.sh" "$RUNTIME/backup-to-drive.sh"

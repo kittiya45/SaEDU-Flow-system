@@ -15,6 +15,7 @@ orphan-cleanup-*.json
 archive-to-drive-*.json
 migrate-archive-*.json
 repair-archive-*.json
+purge-cancelled-*.json
 saedu-data-*.sql
 saedu-data-*.sql.gz
 saedu-data-*.manifest.json
