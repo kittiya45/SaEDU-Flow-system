@@ -58,6 +58,7 @@ notify() { osascript -e "display notification \"$1\" with title \"SaEDU คล�
 # heartbeat: บันทึกเวลารอบล่าสุดลง app_settings ให้หน้าเว็บ (homeViews.js _rOpsWatch) เตือนแอดมินได้
 # เมื่อเครื่องนี้ไม่ได้รันงานมาหลายวัน — เพราะ launchd บนเครื่องที่ปิดอยู่เตือนใครไม่ได้
 . "$(dirname "$0")/ops-heartbeat.sh"
+keep_awake "$@"   # กันเครื่องหลับกลางรอบ (รอบ 2026-09-19/20 ค้าง 1–2 ชม. กับไฟล์ 3 ไฟล์เพราะเน็ตหลุดตอนเครื่องกึ่งหลับ)
 
 # กันรันซ้อน (เช่น รอบก่อนยังอัปไม่เสร็จเพราะเน็ตช้า) — mkdir เป็น atomic บน bash 3.2
 LOCK="$LOG_DIR/.archive-lock"
@@ -76,6 +77,13 @@ if [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
   exit 1
 fi
 export SUPABASE_SERVICE_ROLE_KEY
+
+# launchd รันรอบที่พลาดทันทีที่เครื่องตื่น — Wi-Fi มักยังไม่ต่อ ต้องรอก่อน ไม่งั้นทุกไฟล์ "fetch failed"
+if ! wait_for_network 10; then
+  log "ล้มเหลว: ต่อ Supabase ไม่ได้ภายใน 10 นาที — ข้ามรอบนี้ คืนถัดไปลองใหม่"
+  notify "คลังเอกสาร: ไม่มีเน็ต ข้ามรอบนี้"
+  exit 1
+fi
 
 log "เริ่ม: remote=$REMOTE share=$SHARE root=$ROOT · completed,cancelled ≥$MIN_AGE วัน · rejected ≥$REJ_MIN_AGE วัน"
 

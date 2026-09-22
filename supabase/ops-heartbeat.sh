@@ -13,7 +13,37 @@
 #             ops_<งาน>_last_fail  (ISO|ข้อความสั้น ๆ) — เขียนเมื่อรอบล้มเหลว หน้าเว็บโชว์ถ้าใหม่กว่า last_ok
 # ไม่มีรอบไหนพัง ถ้าเขียน heartbeat ไม่ได้ — แค่ log แล้วไปต่อ (มันคือตัวเสริม ไม่ใช่ตัวงาน)
 # ต้องมี env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY และฟังก์ชัน log() ของผู้เรียก
+#
+# นอกจาก heartbeat ไฟล์นี้ยังถือ 2 ตัวช่วยที่งานกลางคืนทั้งคู่ต้องใช้ (มันถูก source อยู่แล้ว):
+#   wait_for_network [นาที]  รอจน Supabase ตอบ (poll ทุก 15 วิ) — launchd รันงานที่พลาดรอบทันทีที่
+#                            เครื่องตื่น ซึ่ง Wi-Fi ยังไม่ต่อ ผลคือ "fetch failed" ทุกตาราง (2026-09-20:
+#                            backup เริ่ม 04:09 ตอนเครื่องกึ่งหลับ ค้าง 8 ชม. จบ 12:27 ตอนตื่นแต่เน็ตยังไม่มา
+#                            แล้วรอไปอีก 7 วันกว่าจะได้ลองใหม่) — รอไม่ไหวคืน 1 ให้ผู้เรียก fail ชัด ๆ
+#   keep_awake               re-exec ตัวเองใต้ caffeinate -i (กัน idle sleep ระหว่างรัน; ปิดฝา/แบตหมด
+#                            กันไม่ได้) — เรียกบรรทัดแรก ๆ ก่อน lock/trap เพราะมัน exec ทับ process
 # ============================================================================
+
+keep_awake() {
+  [ "${SAEDU_CAFFEINATED:-}" = "1" ] && return 0
+  command -v caffeinate >/dev/null 2>&1 || return 0
+  # ผู้เรียกทั้งสอง cd เข้าโฟลเดอร์ตัวเองแล้ว → $PWD/ชื่อไฟล์ คือ path สัมบูรณ์ที่ถูกเสมอ
+  # ($0 ดิบใช้ไม่ได้: เรียกเป็น bash supabase/x.sh จาก repo root มันจะกลายเป็น supabase/supabase/x.sh)
+  local self="$PWD/$(basename "$0")"
+  SAEDU_CAFFEINATED=1 exec caffeinate -i /bin/bash "$self" "$@"
+}
+wait_for_network() {
+  local max_min="${1:-10}" tries i
+  tries=$(( max_min * 4 ))
+  for (( i = 1; i <= tries; i++ )); do
+    if curl -sS -o /dev/null --max-time 8 -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY:-}" "$SUPABASE_URL/rest/v1/" 2>/dev/null; then
+      [ "$i" -gt 1 ] && log "เน็ตกลับมาแล้วหลังรอ $(( (i - 1) * 15 )) วิ" 2>/dev/null
+      return 0
+    fi
+    [ "$i" -eq 1 ] && log "ยังต่อ Supabase ไม่ได้ — รอเน็ตสูงสุด $max_min นาที" 2>/dev/null
+    sleep 15
+  done
+  return 1
+}
 
 _hb_put() {   # $1 key  $2 value  $3 label
   local key="$1" val="$2" label="$3" now body code

@@ -6,7 +6,7 @@
 
 import { corsHeaders, json } from '../_shared/cors.ts';
 import { serviceAdmin } from '../_shared/requireAuth.ts';
-import { sendBrevoEmail } from '../_shared/brevo.ts';
+import { sendBrevoEmail, brevoErrText } from '../_shared/brevo.ts';
 
 function addWorkingDays(from: Date, days: number): Date {
   const d = new Date(from);
@@ -456,9 +456,11 @@ async function scanStuckStages(
 
         const em = u.contact_email || u.email || '';
         let status = 'skipped';
+        let errMsg: string | null = null;
         if (okEmail(em)) {
           const r = await sendBrevoEmail({ to: em, subject: emailSubj, html });
           status = r.ok ? 'sent' : 'failed';
+          errMsg = r.ok ? null : brevoErrText(r);
         }
 
         const lineText = [
@@ -498,6 +500,7 @@ async function scanStuckStages(
           body: html,
           notification_type: 'stage_stuck',
           status: status === 'skipped' ? lineStatus : status,
+          error_message: errMsg,
           sent_at: new Date().toISOString(),
         });
       }
@@ -698,9 +701,11 @@ async function sendOverdueWarning(admin: ReturnType<typeof serviceAdmin>, doc: D
       <p style="color:#888;font-size:12px">อีเมลนี้ส่งโดยระบบอัตโนมัติ (cron)</p>`;
 
     let status = 'failed';
+    let errMsg: string | null = 'ไม่มีอีเมลที่ใช้ได้';
     if (okEmail(em)) {
       const r = await sendBrevoEmail({ to: em, subject: emailSubj, html });
       status = r.ok ? 'sent' : 'failed';
+      errMsg = r.ok ? null : brevoErrText(r);
     }
 
     // insert ตรง ไม่ผ่าน log_notification RPC — RPC ตรวจสิทธิ์ด้วย current_profile()
@@ -716,6 +721,7 @@ async function sendOverdueWarning(admin: ReturnType<typeof serviceAdmin>, doc: D
       body: html,
       notification_type: 'overdue',
       status,
+      error_message: errMsg,
       sent_at: new Date().toISOString(),
     });
     // เขียน log ไม่ลง = dedup พัง ต้องดังพอให้เห็นใน stats.errors ไม่ใช่เงียบ
@@ -747,9 +753,11 @@ async function sendPostAutoEmail(
 
   const em = creator.contact_email || creator.email || '';
   let status = 'failed';
+  let errMsg: string | null = 'ไม่มีอีเมลที่ใช้ได้';
   if (okEmail(em)) {
     const r = await sendBrevoEmail({ to: em, subject: emailSubj, html });
     status = r.ok ? 'sent' : 'failed';
+    errMsg = r.ok ? null : brevoErrText(r);
   }
 
   // insert ตรงด้วยเหตุผลเดียวกับใน sendOverdueWarning (service role ไม่มี auth.uid())
@@ -762,6 +770,7 @@ async function sendPostAutoEmail(
     body: html,
     notification_type: 'approve',
     status,
+    error_message: errMsg,
     sent_at: new Date().toISOString(),
   });
   if (logErr) console.error('log post-auto failed:', doc.id, logErr.message);

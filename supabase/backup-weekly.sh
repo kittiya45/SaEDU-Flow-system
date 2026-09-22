@@ -49,6 +49,7 @@ export SUPABASE_URL="${SUPABASE_URL:-https://jrubupvzltxqstzcpoov.supabase.co}"
 log()    { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" >> "$LOG"; }
 notify() { osascript -e "display notification \"$1\" with title \"SaEDU สำรองข้อมูล\"" >/dev/null 2>&1 || true; }
 . "$HERE/ops-heartbeat.sh"
+keep_awake "$@"   # กันเครื่องหลับกลางรอบ — รอบ 2026-09-20 เริ่ม 04:09 ค้างข้ามการหลับไปจบ 12:27 โดยไม่ได้อะไรเลย
 
 case "$KEEP" in ''|*[!0-9]*) log "BACKUP_KEEP ต้องเป็นตัวเลข"; exit 1;; esac
 [ "$KEEP" -ge 1 ] || { log "BACKUP_KEEP ต้องอย่างน้อย 1"; exit 1; }
@@ -72,6 +73,10 @@ remote_type() { rclone listremotes --long 2>/dev/null | awk -v r="$1:" '$1==r{pr
 [ -n "$(remote_type "$REMOTE")" ] || { log "ล้มเหลว: ไม่พบ remote $REMOTE ใน rclone"; notify "สำรองข้อมูลล้มเหลว: ไม่พบ remote $REMOTE"; heartbeat_fail backup "ไม่พบ remote $REMOTE"; exit 1; }
 
 fail() { log "ล้มเหลว: $1"; notify "สำรองข้อมูลล้มเหลว — ดู log ที่ ~/Library/Logs/saedu"; heartbeat_fail backup "$1"; exit 1; }
+
+# รอบที่พลาด (เครื่องปิด/หลับตอนอาทิตย์ 04:00) launchd จะรันทันทีที่ตื่น ซึ่ง Wi-Fi ยังไม่ต่อ —
+# ถ้าไม่รอ backup จะล้มทั้งชุดแล้วเงียบไปอีก 7 วัน
+wait_for_network 15 || fail "ต่อ Supabase ไม่ได้ภายใน 15 นาที (ไม่มีเน็ต) — ข้ามรอบนี้"
 
 log "เริ่ม: remote=$REMOTE mirror=$MIRROR keep=$KEEP local=$LOCAL"
 
