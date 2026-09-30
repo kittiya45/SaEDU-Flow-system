@@ -704,13 +704,20 @@ async function _notifyNumberForward(docId, docNum, note, fwdId, fwdStaffAll, lbl
   }catch(fe){console.warn('Forward notify failed:',fe)}
 }
 
-/* แจ้ง จนท.ทุกคนเมื่อส่งเข้ากิจการทั้งหมด — อีเมลเท่านั้น (LINE เฉพาะคิวเซ็น ROLE-STF) */
+/* แจ้ง จนท.ทุกคนเมื่อส่งเข้ากิจการทั้งหมด — อีเมล + LINE รายคน
+   LINE เพิ่ม 2026-09-30 แทนข้อความกลุ่มที่ปิดไป (SETT.line_group_doc_notify) — นี่คืองานที่ จนท. ต้องกดรับจริง
+   คนที่ยังไม่ผูก LINE ได้ skipped จาก send-line (ไม่ใช่ error, ไม่ถูก log) */
 async function _notifyStaffPoolForward(docId, docNum, note, lbl){
   lbl=lbl||'ขาออก';
   var doc2=(await dg('documents','?id=eq.'+safeId(docId)))[0]||{};
   var staff=await dg('user_directory','?role_code=eq.ROLE-STF&is_active=eq.true&approval_status=eq.approved&select=id,full_name,email,contact_email');
   if(!Array.isArray(staff)) staff=[];
   var fwdSubj='[กนค.] ส่งเข้ากิจการทั้งหมด: '+(doc2.title||'');
+  var _lnSteps=[];
+  try{
+    var _wf=await dg('workflow_steps','?document_id=eq.'+safeId(docId)+'&order=step_number&select=step_number,step_name,assigned_to,status');
+    _lnSteps=await _lineStepsInfo(Array.isArray(_wf)?_wf:[]);
+  }catch(_se){}
   for(var i=0;i<staff.length;i++){
     var u=staff[i];
     var em=u.contact_email||u.email||'';
@@ -724,6 +731,25 @@ async function _notifyStaffPoolForward(docId, docNum, note, lbl){
       }
       await logNotifRow({document_id:docId,recipient_id:u.id,recipient_email:em||'',subject:fwdSubj,body:body,notification_type:'forward',status:st,sent_at:new Date().toISOString()});
     }catch(e){console.warn('Staff pool email failed',u.id,e)}
+    try{
+      var _lTxt=(SETT.email_prefix||'[กนค.]')+' 📥 เอกสารเข้าคิวเจ้าหน้าที่ — รอกดรับ\n'+
+        'เรียน '+u.full_name+'\nเรื่อง: '+(doc2.title||'')+'\nเลขที่: '+docNum+
+        (note?'\nหมายเหตุ: '+note:'')+
+        '\n\nท่านหรือเจ้าหน้าที่ท่านอื่นกดรับเอกสารได้\n'+
+        (SETT.app_url?('เข้าสู่ระบบ: '+SETT.app_url):'กรุณาเข้าสู่ระบบ SAEDU Flow');
+      var _lFlex=null;
+      try{
+        _lFlex=buildLineFlex({
+          headText:'📥 เอกสารเข้าคิวเจ้าหน้าที่', headIcon:'receive',
+          subj:doc2.title||'', recipName:u.full_name,
+          rows:[['เลขที่',docNum],['ประเภท','หนังสือ'+lbl]],
+          steps:_lnSteps,
+          infoText:'ท่านหรือเจ้าหน้าที่ท่านอื่นกดรับเอกสารได้ — ผู้ที่กดรับก่อนจะเป็นผู้ถือเอกสาร',
+          button:'เปิดเอกสารเพื่อกดรับ'
+        });
+      }catch(fe){}
+      await sendLineWithLog(docId,u.id,em,fwdSubj,_lTxt,'forward',_lFlex);
+    }catch(e){console.warn('Staff pool LINE failed',u.id,e)}
   }
 }
 

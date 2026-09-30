@@ -534,19 +534,36 @@ async function recallDocumentRpc(docId){
 }
 
 /* บันทึก notifications ผ่าน RPC (ตรวจสิทธิ์ฝั่งเซิร์ฟเวอร์) */
+/* สาเหตุที่ส่งไม่สำเร็จ — sendEmailEdge/sendLinePush จดไว้ต่อ (เอกสาร, ผู้รับ) แล้ว logNotifRow หยิบไปใส่
+   notifications.error_message เอง ไม่ต้องแก้จุดเรียก 16 จุดที่ส่งแค่ status:r.ok?'sent':'failed'
+   (เพิ่ม 2026-09-30 คู่กับ supabase/57_log_notification_error_message.sql) */
+var _notifErrs={};
+function _notifErrKey(docId,recipId){return (docId||'')+'|'+(recipId||'')}
+function _noteNotifErr(docId,recipId,msg){_notifErrs[_notifErrKey(docId,recipId)]=String(msg||'').slice(0,1000)}
+
 async function logNotifRow(row){
+  var _k=_notifErrKey(row.document_id,row.recipient_id);
+  var _err=row.error_message!=null?row.error_message:(row.status==='failed'?(_notifErrs[_k]||null):null);
+  delete _notifErrs[_k];   // แถว sent ก็ล้างด้วย กันสาเหตุเก่าไปติดแถวที่ล้มครั้งหลัง
+  var args={
+    p_document_id:row.document_id||null,
+    p_recipient_id:row.recipient_id,
+    p_recipient_email:row.recipient_email||'',
+    p_subject:row.subject||'',
+    p_body:row.body||'',
+    p_notification_type:row.notification_type||'email',
+    p_status:row.status||'sent',
+    p_sent_at:row.sent_at||new Date().toISOString()
+  };
+  // ส่ง p_error_message เฉพาะตอนมีค่า — DB ที่ยังไม่ได้รัน 57 จะไม่รู้จักพารามิเตอร์นี้
+  if(_err) args.p_error_message=_err;
   try{
-    await drpc('log_notification',{
-      p_document_id:row.document_id||null,
-      p_recipient_id:row.recipient_id,
-      p_recipient_email:row.recipient_email||'',
-      p_subject:row.subject||'',
-      p_body:row.body||'',
-      p_notification_type:row.notification_type||'email',
-      p_status:row.status||'sent',
-      p_sent_at:row.sent_at||new Date().toISOString()
-    });
+    await drpc('log_notification',args);
   }catch(e){
+    if(_err&&rpcFnMissing(e)){
+      delete args.p_error_message;
+      try{await drpc('log_notification',args);return}catch(e2){e=e2}
+    }
     if(rpcFnMissing(e)) await dp('notifications',row);
     else throw e;
   }
@@ -554,16 +571,25 @@ async function logNotifRow(row){
 
 /* เรียก Edge Function send-email (ส่ง documentId/recipientUserId เพื่อตรวจสิทธิ์ฝั่ง server) */
 async function sendEmailEdge(opts){
-  return fetch(SU+'/functions/v1/send-email',{
-    method:'POST',
-    headers:{'Content-Type':'application/json','Authorization':H.Authorization,'apikey':SK},
-    body:JSON.stringify({
-      to:opts.to,subject:opts.subject,html:opts.html,
-      documentId:opts.documentId||null,
-      recipientUserId:opts.recipientUserId||null,
-      testSelf:!!opts.testSelf
-    })
-  });
+  var r;
+  try{
+    r=await fetch(SU+'/functions/v1/send-email',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':H.Authorization,'apikey':SK},
+      body:JSON.stringify({
+        to:opts.to,subject:opts.subject,html:opts.html,
+        documentId:opts.documentId||null,
+        recipientUserId:opts.recipientUserId||null,
+        testSelf:!!opts.testSelf
+      })
+    });
+  }catch(e){
+    _noteNotifErr(opts.documentId,opts.recipientUserId,'email network: '+((e&&e.message)||e));
+    throw e;
+  }
+  // clone — ผู้เรียกบางจุดอ่าน r.json() ต่อ body อ่านได้ครั้งเดียว
+  if(!r.ok){try{_noteNotifErr(opts.documentId,opts.recipientUserId,'email HTTP '+r.status+': '+(await r.clone().text()))}catch(_e){}}
+  return r;
 }
 
 /* รีสตาร์ท workflow ตั้งแต่ต้น (หลังดึงกลับ/ส่งใหม่/ส่งจากฉบับร่าง) — step 1 done, step 2 active, ที่เหลือ pending

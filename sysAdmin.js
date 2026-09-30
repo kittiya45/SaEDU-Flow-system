@@ -553,7 +553,7 @@ function rAppSettingsCard(settings){
             (SETT.line_group_id
               ?'<span style="color:#06C755;font-weight:700">● เชื่อมต่อแล้ว</span>'
               :'<span style="color:#a89e99">○ ยังไม่เชื่อมต่อ</span>')+'</div>'+
-          '<div style="font-size:10px;color:#a89e99;line-height:1.7">แจ้งเข้ากลุ่มเมื่อ <strong>มีเอกสารใหม่/ส่งใหม่</strong> และเมื่อ <strong>เอกสารเดินมาถึงคิวเจ้าหน้าที่</strong> — เชิญบอท OA เข้ากลุ่ม แล้วกดสร้างรหัส นำรหัสไปพิมพ์ส่งในกลุ่มภายใน 10 นาที</div>'+
+          '<div style="font-size:10px;color:#a89e99;line-height:1.7">ใช้แจ้ง<strong>งานเบื้องหลังของระบบมีปัญหา</strong> และ (ถ้าเปิดด้านล่าง) แจ้งเอกสารใหม่/ถึงคิวเจ้าหน้าที่ — เชิญบอท OA เข้ากลุ่ม แล้วกดสร้างรหัส นำรหัสไปพิมพ์ส่งในกลุ่มภายใน 10 นาที</div>'+
         '</div>'+
         '<div style="display:flex;gap:8px;flex-shrink:0">'+
           (SETT.line_group_id?'<button type="button" class="btn btn-soft sm" onclick="_lineGroupTest(this)">'+svg('send',12)+' ทดสอบส่ง</button>':'')+
@@ -562,6 +562,20 @@ function rAppSettingsCard(settings){
         '</div>'+
       '</div>'+
       '<div id="line-group-box"></div>'+
+      /* ปิดเป็นค่าเริ่มต้น 2026-09-30 — ข้อความกลุ่มหักโควตาตามจำนวนสมาชิก ดู config.js line_group_doc_notify */
+      (function(){
+        var on=_val('line_group_doc_notify','false')==='true';
+        return '<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:12px;padding-top:12px;border-top:1px solid #EBEBEB">'+
+          '<div style="flex:1;min-width:220px">'+
+            '<div style="font-size:11px;font-weight:700;color:#18120E;margin-bottom:2px">แจ้งเอกสารเข้ากลุ่ม</div>'+
+            '<div style="font-size:10px;color:#a89e99;line-height:1.7">ข้อความเข้ากลุ่ม 1 ครั้งหักโควตา LINE เท่าจำนวนสมาชิกในกลุ่ม · ปิดไว้ = เจ้าหน้าที่ได้ LINE รายคนเมื่อถึงคิวลงนามหรือมีเอกสารเข้าคิวรอกดรับ (ต้องผูก LINE ของตัวเองก่อน)</div>'+
+          '</div>'+
+          '<select id="sett-line-2" data-key="line_group_doc_notify" class="fi text-[12px]" style="width:150px;flex-shrink:0;font-weight:700">'+
+            '<option value="false"'+(on?'':' selected')+'>ไม่ส่ง (แนะนำ)</option>'+
+            '<option value="true"'+(on?' selected':'')+'>ส่ง</option>'+
+          '</select>'+
+        '</div>';
+      })()+
     '</div>';
 
   // ── กลุ่ม 3: ประกาศระบบ ──

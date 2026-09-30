@@ -192,8 +192,11 @@ async function sendNotifEmail(docId, action, newStatus, note){
      เงื่อนไขข้อ 2 จึงคุม approve ไว้ให้เหลือครั้งเดียวต่อเอกสาร
 
      ประวัติ: 26 ก.ค. 69 เคยตัดเหลือเฉพาะข้อ 2 อย่างเดียว ทำให้กลุ่มเงียบสนิท
-     ตั้งแต่ 10 ส.ค. เพราะไม่มีเอกสารใบไหนเดินมาถึงขั้นเจ้าหน้าที่เลย */
-  try{
+     ตั้งแต่ 10 ส.ค. เพราะไม่มีเอกสารใบไหนเดินมาถึงขั้นเจ้าหน้าที่เลย
+
+     30 ก.ย. 69: ทั้งบล็อกนี้ปิดเป็นค่าเริ่มต้น (SETT.line_group_doc_notify) — โควตา LINE หมด
+     เพราะข้อความกลุ่มหักตามจำนวนสมาชิก จนท. ได้รับแจ้งรายคนแทน (ดู config.js) */
+  if(settOn('line_group_doc_notify',false)) try{
     var _staffActive=false;
     if(nextStep&&nextStep.assigned_to){
       var _na=recipients.find(function(r){return r.user&&r.user.id===nextStep.assigned_to});
@@ -618,8 +621,13 @@ async function sendLinePush(recipientId, text, flex, documentId, testSelf){
     if(r.ok&&j.ok) return 'sent';
     if(j&&j.skipped) return 'skipped';
     console.warn('LINE push failed:',j);
+    if(typeof _noteNotifErr==='function') _noteNotifErr(documentId,recipientId,'LINE HTTP '+r.status+': '+JSON.stringify(j));
     return 'failed';
-  }catch(e){console.warn('LINE push error:',e);return 'failed'}
+  }catch(e){
+    console.warn('LINE push error:',e);
+    if(typeof _noteNotifErr==='function') _noteNotifErr(documentId,recipientId,'LINE network: '+((e&&e.message)||e));
+    return 'failed';
+  }
 }
 
 /* ส่งเข้ากลุ่ม LINE เจ้าหน้าที่ — send-line resolve groupId จาก app_settings ฝั่ง server
