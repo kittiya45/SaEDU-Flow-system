@@ -636,7 +636,15 @@ async function doForward(docId){
       }
       await logNotifRow({document_id:docId,recipient_id:toId,recipient_email:recipEmail||'',subject:emailSubj,body:emailBody,notification_type:'forward',status:fwdStatus,sent_at:new Date().toISOString()});
     }catch(fe){console.warn('Forward notify failed:',fe)}
-    // LINE: ไม่แจ้งส่งต่อ — แจ้งเฉพาะเมื่อถึงคิวเซ็นของเจ้าหน้าที่
+    // LINE: ส่งต่อถึงคนที่ระบุชื่อ = ถึงคิวเขากดรับ → แจ้ง (2026-10-04, ดู _shouldSendLineForTurn)
+    try{
+      if(typeof sendLineWithLog==='function'){
+        await sendLineWithLog(docId,toId,recipEmail||'',emailSubj,
+          (SETT.email_prefix||'[กนค.]')+' 📥 ส่งต่อเอกสารถึงท่าน — รอกดรับ\nเรียน '+(toUser?toUser.full_name:'')+'\nเรื่อง: '+(doc2.title||'')+
+          (doc2.doc_number?'\nเลขที่: '+doc2.doc_number:'')+(note?'\nหมายเหตุ: '+note:'')+
+          (SETT.app_url?'\n\nเข้าสู่ระบบ: '+SETT.app_url:''),'forward',null);
+      }
+    }catch(le){console.warn('Forward LINE failed:',le)}
     $e('mwrap').innerHTML='';
     var a=$e('dal');if(a)a.innerHTML=alrtH('ok','ส่งต่อเอกสารเรียบร้อยแล้ว และแจ้งเตือนทางอีเมลแล้ว');
     setTimeout(function(){nav('det',docId)},900)
@@ -657,8 +665,10 @@ function doAcceptFwd(docId){
 async function _doAcceptFwdConfirmed(docId){
   try{
     await acceptForwardedDoc(docId);
-    try{await notifyDocAccepted(docId,CU.id,CU.full_name)}catch(ne){console.warn('Accept notify failed:',ne)}
-    var a=$e('dal');if(a)a.innerHTML=alrtH('ok','รับเอกสารแล้ว — แจ้งผู้จัดทำแล้ว · สถานะ: รอเจ้าหน้าที่ยื่นในระบบ');
+    // แจ้งผู้จัดทำว่ารับแล้ว = เพื่อทราบ — ส่งเฉพาะเมื่อเปิด notify_fyi (2026-10-04); ปุ่ม "แจ้งผู้จัดทำอีกครั้ง" ยังส่งได้เสมอ
+    var _accTold=false;
+    if(settOn('notify_fyi',false)){try{_accTold=await notifyDocAccepted(docId,CU.id,CU.full_name)}catch(ne){console.warn('Accept notify failed:',ne)}}
+    var a=$e('dal');if(a)a.innerHTML=alrtH('ok','รับเอกสารแล้ว'+(_accTold?' — แจ้งผู้จัดทำแล้ว':'')+' · สถานะ: รอเจ้าหน้าที่ยื่นในระบบ');
     if(CV==='docs'){try{fDocs();}catch(e){nav('docs')}}
     else setTimeout(function(){nav('det',docId)},900);
   }catch(e){showAlert('เกิดข้อผิดพลาด: '+e.message,'er')}
@@ -877,7 +887,7 @@ async function doAct(action,docId){
   if(action==='reject'){
     // แจ้งเตือน (เพื่อทราบเท่านั้น) ผู้ที่อนุมัติ/ลงนามไปแล้วก่อนหน้า step ที่ตีกลับ
     var _priorApproved=wf.filter(function(s){return s.step_number>1&&s.step_number<cur.step_number&&s.status==='done'&&s.assigned_to});
-    if(_priorApproved.length){
+    if(_priorApproved.length&&settOn('notify_fyi',false)){   // เพื่อทราบ — ปิดเป็นค่าเริ่มต้น (2026-10-04)
       try{
         var _paIds=_priorApproved.map(function(s){return s.assigned_to});
         var _paUsers=await dg('user_directory','?id=in.('+_paIds.map(safeId).join(',')+')'+'&select=id,full_name,contact_email,email');
@@ -1070,7 +1080,7 @@ async function _doRecallConfirmed(docId){
     var rpcRes=await recallDocumentRpc(docId);
     var _notifyIds={};
     (rpcRes.notify_ids||[]).forEach(function(uid){_notifyIds[uid]=true});
-    if(doc.notify_step!==false){
+    if(doc.notify_step!==false&&settOn('notify_fyi',false)){   // แจ้งดึงกลับ = เพื่อทราบ (2026-10-04)
       for(var uid in _notifyIds){
         try{
           var _ru=await dg('user_directory','?id=eq.'+safeId(uid)+'&select=id,full_name,contact_email,email');
@@ -1171,7 +1181,7 @@ async function doCancelDoc(docId){
     var _cancelTargets=settOn('notify_signers_on_cancel',false)?wf:_openSteps;
     _cancelTargets.forEach(function(s){if(s.assigned_to&&s.assigned_to!==CU.id)_ids[s.assigned_to]=true});
     if(doc.created_by&&doc.created_by!==CU.id) _ids[doc.created_by]=true;
-    if(doc.notify_step!==false){
+    if(doc.notify_step!==false&&settOn('notify_fyi',false)){   // แจ้งยกเลิก = เพื่อทราบ (2026-10-04)
       for(var uid in _ids){
         try{
           var _ru=await dg('user_directory','?id=eq.'+safeId(uid)+'&select=id,full_name,contact_email,email');

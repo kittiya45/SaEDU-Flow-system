@@ -52,6 +52,10 @@ type DocRow = {
 
 type UserRow = { id: string; full_name: string; email: string; contact_email: string | null };
 
+/* app_settings.notify_fyi — ส่งอีเมล "แจ้งเพื่อทราบ" (ถึงผู้จัดทำที่ไม่ได้ถือเอกสาร) ไหม
+   ค่าเริ่มต้นปิด (2026-10-04): แจ้งเฉพาะคนที่เอกสารถึงคิว — ตรงกับ settOn('notify_fyi',false) ฝั่ง client */
+let NOTIFY_FYI = false;
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
@@ -71,6 +75,9 @@ Deno.serve(async (req: Request) => {
 
     const { data: prefixRow } = await admin.from('app_settings').select('value').eq('key', 'email_prefix').maybeSingle();
     const emailPrefix = prefixRow?.value || '[กนค.]';
+
+    const { data: fyiRow } = await admin.from('app_settings').select('value').eq('key', 'notify_fyi').maybeSingle();
+    NOTIFY_FYI = ['true', '1', 'yes', 'on'].includes(String(fyiRow?.value ?? '').trim().toLowerCase());
 
     const { data: pendDocs } = await admin
       .from('documents')
@@ -418,7 +425,7 @@ async function scanStuckStages(
         if (doc.created_by) targets.push({ id: doc.created_by, line: true, action: 'กรุณาเข้าระบบแล้วกด "ออกเลขหนังสือ" เพื่อให้เอกสารเดินต่อ' });
       } else {
         if (doc.accepted_by) targets.push({ id: doc.accepted_by, line: true, action: 'ท่านเป็นผู้รับเอกสารนี้ไว้ — กรุณายื่นเข้าระบบมหาวิทยาลัยแล้วอัปโหลดฉบับประทับกลับเข้าระบบ' });
-        if (doc.created_by && doc.created_by !== doc.accepted_by) targets.push({ id: doc.created_by, line: false, action: 'เอกสารของท่านอยู่กับเจ้าหน้าที่ — กรุณาติดตามหากเรื่องเร่งด่วน' });
+        if (NOTIFY_FYI && doc.created_by && doc.created_by !== doc.accepted_by) targets.push({ id: doc.created_by, line: false, action: 'เอกสารของท่านอยู่กับเจ้าหน้าที่ — กรุณาติดตามหากเรื่องเร่งด่วน' });
       }
       if (!targets.length) continue;
 
@@ -656,24 +663,30 @@ async function sendOverdueWarning(admin: ReturnType<typeof serviceAdmin>, doc: D
   const active = (steps ?? []).find((s) => s.status === 'active');
   const subj = doc.subject_line && doc.subject_line.length >= 3 ? doc.subject_line : (doc.title || '');
 
+  // ผู้ถือเอกสาร = คนที่ต้องลงมือ — ผู้จัดทำได้ด้วยเฉพาะเมื่อเปิด notify_fyi หรือไม่มีผู้ถือที่ติดต่อทางอีเมลได้
+  // (กันเอกสารเงียบ: แถว failed ไม่นับว่าเตือนแล้ว ตาม 56_overdue_warn_must_be_delivered.sql)
   const recipientIds = new Set<string>();
   if (active?.assigned_to) recipientIds.add(active.assigned_to);
   if (doc.status === 'completed' && doc.forwarded_to_id) recipientIds.add(doc.forwarded_to_id);
-  if (doc.created_by) recipientIds.add(doc.created_by);
 
-  if (!recipientIds.size) return;
-
-  const { data: users } = await admin
-    .from('users')
-    .select('id, full_name, email, contact_email')
-    .in('id', [...recipientIds]);
+  let users: UserRow[] = [];
+  if (recipientIds.size) {
+    const { data } = await admin.from('users').select('id, full_name, email, contact_email').in('id', [...recipientIds]);
+    users = (data ?? []) as UserRow[];
+  }
+  const holderReachable = users.some((u) => okEmail(u.contact_email || u.email));
+  if (doc.created_by && !recipientIds.has(doc.created_by) && (NOTIFY_FYI || !holderReachable)) {
+    const { data: cr } = await admin.from('users').select('id, full_name, email, contact_email').eq('id', doc.created_by).maybeSingle();
+    if (cr) users.push(cr as UserRow);
+  }
+  if (!users.length) return;
 
   const emailSubj = `${prefix} ⚠️ เลยกำหนด: ${subj}`;
   const deadlineStr = doc.due_date
     ? new Date(doc.due_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: '2-digit' })
     : '';
 
-  for (const u of (users ?? []) as UserRow[]) {
+  for (const u of users) {
     const em = u.contact_email || u.email || '';
     const html = `<p>เรียน <strong>${u.full_name}</strong></p>
       <p>เอกสารเรื่อง "<strong>${subj}</strong>" เลยกำหนดส่งแล้ว กรุณาดำเนินการโดยด่วน</p>
@@ -716,6 +729,8 @@ async function sendPostAutoEmail(
   prefix: string,
 ) {
   if (!doc.created_by) return;
+  // approved_numbering = ถึงคิวผู้จัดทำออกเลข → แจ้งเสมอ; approved_completed = เพื่อทราบ
+  if (result !== 'approved_numbering' && !NOTIFY_FYI) return;
   const { data: creator } = await admin
     .from('users')
     .select('id, full_name, email, contact_email')

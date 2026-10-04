@@ -382,7 +382,8 @@ async function doAckConfirm(docId){
     if(embedErr){
       try{ await dp('document_history',{document_id:docId,action:'ฝังลายเซ็นรับทราบไม่สำเร็จ',performed_by:CU.id,note:embedErr}); }catch(_he){}
     }
-    try{ await _notifyAcked(docId,note); }catch(ne){console.warn('ack-back notify failed:',ne)}
+    // "รับทราบแล้ว" กลับผู้เสนอ = เพื่อทราบ — ปิดเป็นค่าเริ่มต้น (2026-10-04)
+    if(settOn('notify_fyi',false)){ try{ await _notifyAcked(docId,note); }catch(ne){console.warn('ack-back notify failed:',ne)} }
 
     if(w) w.innerHTML='';
     var a=$e('dal');

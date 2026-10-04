@@ -8,11 +8,14 @@
    ถึงคิว = (1) create/resubmit/approve ที่ทำให้ขั้นของผู้รับเป็น active
             (2) reject ที่ส่งเอกสารกลับมาให้ผู้รับแก้: cascade → ขั้นก่อนหน้าที่ถูกเปิดใหม่,
                 ตีกลับถึงต้นทาง (ไม่มี active step) → ผู้จัดทำ
-   numbering/completed/overdue ไม่นับ — ผู้จัดทำได้อีเมลอยู่แล้ว ส่วนเตือนค้างไปทาง check-overdue
+   (3) numbering → ผู้จัดทำ (ต้องกดออกเลข) · completed/overdue ไม่นับ — เตือนค้างไปทาง check-overdue
+   อีเมลใช้หลักเดียวกัน: ข้อความเพื่อทราบส่งเฉพาะเมื่อเปิด SETT.notify_fyi (ค่าเริ่มต้นปิด)
    จุดอื่นที่ส่ง LINE รายคนต้องเป็น "ถึงคิว" เท่านั้นเหมือนกัน: คิวรับเอกสารของ จนท.
    (_notifyStaffPoolForward), ขอให้รับทราบ (docAck.js), เตือนผู้ที่ขั้นค้าง (check-overdue) */
-function _shouldSendLineForTurn(recipUser, nextStep, action, doc){
+function _shouldSendLineForTurn(recipUser, nextStep, action, doc, newStatus){
   if(!recipUser||!action) return false;
+  if(newStatus==='numbering') return !!(doc&&doc.created_by&&recipUser.id===doc.created_by);   // ถึงคิวผู้จัดทำออกเลข
+  if(newStatus==='completed') return false;
   if(action==='reject'){
     if(nextStep&&nextStep.assigned_to) return recipUser.id===nextStep.assigned_to;
     return !!(doc&&doc.created_by&&recipUser.id===doc.created_by);
@@ -38,7 +41,8 @@ async function sendNotifEmail(docId, action, newStatus, note){
   // อีเมลส่งเฉพาะคน emailOk, LINE ลองส่งทุกคน (send-line ข้ามเงียบ ๆ ถ้าไม่ได้ผูก)
   var recipients=[];
   function _okEmail(em){return em&&em.includes('@')&&!em.includes('@gnk.student')}
-  function _push(u){if(!u)return;if(recipients.some(function(r){return r.user.id===u.id}))return;var em=u.contact_email||u.email||'';recipients.push({user:u,email:em,emailOk:!!_okEmail(em)})}
+  /* ไม่แจ้งคนที่เพิ่งกดเอง (เช่น ผู้จัดทำส่งเอกสารที่ตัวเองต้องออกเลขต่อ) — ยกเว้น overdue ที่รันตอน login ของใครก็ได้ */
+  function _push(u){if(!u)return;if(action!=='overdue'&&typeof CU!=='undefined'&&CU&&u.id===CU.id)return;if(recipients.some(function(r){return r.user.id===u.id}))return;var em=u.contact_email||u.email||'';recipients.push({user:u,email:em,emailOk:!!_okEmail(em)})}
   if(newStatus==='completed'||newStatus==='numbering'){
     /* แจ้ง "ผู้จัดทำ" เป็นหลัก — เขาคือคนที่ต้องกดออกเลขหนังสือต่อ (ดู _canNum ใน docDetail.js)
        ผู้ลงนามขั้นอื่นไม่ได้รับ เว้นแต่แอดมินเปิดสวิตช์ใน "ตั้งค่าระบบ" → ลดอีเมลรบกวน:
@@ -46,7 +50,8 @@ async function sendNotifEmail(docId, action, newStatus, note){
        ได้อีเมล "กรุณาออกเลขที่หนังสือ" กลับมาทันทีที่กดอนุมัติ ทั้งที่ไม่ใช่หน้าที่ตัวเอง
        — LINE ไม่กระทบ: ตอน numbering/completed ไม่มี active step อยู่แล้ว
        _shouldSendLineForTurn() จึงไม่เคยยิงในเคสนี้ตั้งแต่แรก */
-    if(doc.created_by){
+    /* numbering = ถึงคิวผู้จัดทำออกเลข → แจ้ง; completed = แจ้งเพื่อทราบ → เฉพาะเมื่อเปิด notify_fyi (2026-10-04) */
+    if(doc.created_by&&(newStatus==='numbering'||settOn('notify_fyi',false))){
       var creatorUser=await dg('user_directory','?id=eq.'+safeId(doc.created_by));
       _push(creatorUser[0]);
     }
@@ -84,11 +89,15 @@ async function sendNotifEmail(docId, action, newStatus, note){
     if(nextStep&&nextStep.assigned_to) overdueIds.push(nextStep.assigned_to);
     // เอกสาร completed ที่รอผู้รับปลายทางกดรับ — เตือนผู้รับปลายทางด้วย
     if(doc.status==='completed'&&doc.forwarded_to_id) overdueIds.push(doc.forwarded_to_id);
-    if(doc.created_by) overdueIds.push(doc.created_by);
     var uniqueOIds=[...new Set(overdueIds)];
-    if(uniqueOIds.length){
-      var overdueUsers=await dg('user_directory','?id=in.('+uniqueOIds.join(',')+')'+'&select=id,full_name,email,contact_email');
-      overdueUsers.forEach(function(u){_push(u)})
+    var overdueUsers=uniqueOIds.length?await dg('user_directory','?id=in.('+uniqueOIds.join(',')+')'+'&select=id,full_name,email,contact_email'):[];
+    if(!Array.isArray(overdueUsers)) overdueUsers=[];
+    overdueUsers.forEach(function(u){_push(u)});
+    /* ผู้จัดทำได้เตือนเฉพาะเมื่อ (ก) เปิด notify_fyi หรือ (ข) ไม่มีผู้ถือเอกสารที่ติดต่อทางอีเมลได้เลย
+       ข้อ (ข) กันเอกสารเงียบ: ผู้ถือที่ใช้อีเมล @gnk.student ได้แถว failed → ไม่นับว่าเตือนแล้ว (56_...sql) */
+    if(doc.created_by&&(settOn('notify_fyi',false)||!recipients.some(function(r){return r.emailOk}))){
+      var _crO=await dg('user_directory','?id=eq.'+safeId(doc.created_by)+'&select=id,full_name,email,contact_email');
+      if(Array.isArray(_crO)) _push(_crO[0]);
     }
   }
 
@@ -178,7 +187,7 @@ async function sendNotifEmail(docId, action, newStatus, note){
     }
 
     // ── LINE: เฉพาะเมื่อเอกสารถึงคิวผู้รับคนนี้ (ทุกบทบาท) ──
-    if(_shouldSendLineForTurn(recip.user, nextStep, action, doc)){
+    if(_shouldSendLineForTurn(recip.user, nextStep, action, doc, newStatus)){
       try{
         var _lineO={
           recipName:recip.user.full_name, action:action, newStatus:newStatus,
@@ -235,6 +244,7 @@ async function sendNotifEmail(docId, action, newStatus, note){
 
 /* ── อีเมลแจ้งเพื่อทราบ (ไม่ต้อง action) ไปยังผู้ที่อนุมัติ/ลงนามไปแล้วก่อนหน้า step ที่ตีกลับ ── */
 async function sendRejectFyiEmail(docId, recipientUser, rejectedStepName, note){
+  if(!settOn('notify_fyi',false)) return;   // แจ้งเพื่อทราบ — ปิดเป็นค่าเริ่มต้น (2026-10-04)
   var em=recipientUser.contact_email||recipientUser.email||'';
   var emOk=!!(em&&em.includes('@')&&!em.includes('@gnk.student'));
   var doc=(await dg('documents','?id=eq.'+docId))[0]; if(!doc) return;

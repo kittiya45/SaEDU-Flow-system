@@ -653,7 +653,8 @@ async function _doSetDocNumberConfirmed(docId,cap){
         }
       }catch(_se){console.warn('PDF stamp failed:',_se)}
     }
-    if(doc.doc_type==='incoming'){
+    /* แจ้งผู้รับหนังสือขาเข้าซ้ำตอนออกเลข — ซ้ำกับอีเมลตอนสร้างเอกสาร (docForm.js) จึงส่งเฉพาะเมื่อเปิด notify_fyi (2026-10-04) */
+    if(doc.doc_type==='incoming'&&settOn('notify_fyi',false)){
       try{
         var posUsers=await dg('user_directory','?position_code=eq.'+encodeURIComponent(doc.addressed_to)+'&is_active=eq.true&approval_status=eq.approved&limit=1');
         var posUser=posUsers[0];
@@ -701,6 +702,12 @@ async function _notifyNumberForward(docId, docNum, note, fwdId, fwdStaffAll, lbl
       if(r.ok&&typeof showEmailToast==='function') showEmailToast(fwdEmail,fwdSubj);
     }
     await logNotifRow({document_id:docId,recipient_id:fwdId,recipient_email:fwdEmail||'',subject:fwdSubj,body:fwdBody,notification_type:'forward',status:fwdEmailStatus,sent_at:new Date().toISOString()});
+    // LINE: ส่งต่อถึงคนที่ระบุชื่อ = ถึงคิวเขากดรับ (2026-10-04)
+    try{
+      if(typeof sendLineWithLog==='function') await sendLineWithLog(docId,fwdId,fwdEmail||'',fwdSubj,
+        (SETT.email_prefix||'[กนค.]')+' 📥 ส่งต่อหนังสือ'+lbl+'ถึงท่าน — รอกดรับ\nเรียน '+(fwdUser?fwdUser.full_name:'')+'\nเรื่อง: '+(doc2.title||'')+'\nเลขที่: '+docNum+
+        (SETT.app_url?'\n\nเข้าสู่ระบบ: '+SETT.app_url:''),'forward',null);
+    }catch(le){console.warn('Forward LINE failed:',le)}
   }catch(fe){console.warn('Forward notify failed:',fe)}
 }
 
