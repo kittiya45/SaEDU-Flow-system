@@ -2,12 +2,23 @@
 
 /* LINE: แจ้งเฉพาะเมื่อถึงคิวขั้นตอนของเจ้าหน้าที่ (ROLE-STF) ให้เซ็น/อนุมัติ
    อีเมลยังส่งตามปกติทุกกรณี — จำกัดเฉพาะช่องทาง LINE */
-function _shouldSendLineForStaffSign(recipUser, nextStep, action){
-  // แจ้ง LINE เฉพาะตอนที่เอกสารเพิ่งถึงคิวเซ็นของเจ้าหน้าที่ (ไม่รวม overdue/reject/forward/ฯลฯ)
-  if(!action||['create','resubmit','approve'].indexOf(action)<0) return false;
-  if(!recipUser||!nextStep||!nextStep.assigned_to) return false;
-  if(recipUser.id!==nextStep.assigned_to) return false;
-  return recipUser.role_code==='ROLE-STF';
+/* LINE ส่งเฉพาะ "เอกสารถึงคิวท่านแล้ว" — ทุกบทบาท (2026-10-04, ตามที่ผู้ดูแลระบบกำหนด)
+   เดิมส่งเฉพาะ ROLE-STF ส่วนผู้ลงนามอื่นได้แต่อีเมล และ LINE รายคนส่วนใหญ่กลับเป็นข้อความ
+   "แจ้งเพื่อทราบ" (ก.ย. 69: 54 จาก 63 ฉบับ) จนโควตาหมด — ข้อความเพื่อทราบทั้งหมดจึงเหลือแค่อีเมล
+   ถึงคิว = (1) create/resubmit/approve ที่ทำให้ขั้นของผู้รับเป็น active
+            (2) reject ที่ส่งเอกสารกลับมาให้ผู้รับแก้: cascade → ขั้นก่อนหน้าที่ถูกเปิดใหม่,
+                ตีกลับถึงต้นทาง (ไม่มี active step) → ผู้จัดทำ
+   numbering/completed/overdue ไม่นับ — ผู้จัดทำได้อีเมลอยู่แล้ว ส่วนเตือนค้างไปทาง check-overdue
+   จุดอื่นที่ส่ง LINE รายคนต้องเป็น "ถึงคิว" เท่านั้นเหมือนกัน: คิวรับเอกสารของ จนท.
+   (_notifyStaffPoolForward), ขอให้รับทราบ (docAck.js), เตือนผู้ที่ขั้นค้าง (check-overdue) */
+function _shouldSendLineForTurn(recipUser, nextStep, action, doc){
+  if(!recipUser||!action) return false;
+  if(action==='reject'){
+    if(nextStep&&nextStep.assigned_to) return recipUser.id===nextStep.assigned_to;
+    return !!(doc&&doc.created_by&&recipUser.id===doc.created_by);
+  }
+  if(['create','resubmit','approve'].indexOf(action)<0) return false;
+  return !!(nextStep&&nextStep.assigned_to&&recipUser.id===nextStep.assigned_to);
 }
 
 /* ── EMAIL NOTIFICATION (ส่งจริงผ่าน Supabase Edge Function + Resend) ── */
@@ -34,7 +45,7 @@ async function sendNotifEmail(docId, action, newStatus, note){
        เดิมส่งหาผู้รับผิดชอบทุกขั้น ทำให้ผู้เซ็นขั้นสุดท้าย (มักเป็นอาจารย์ที่ปรึกษา)
        ได้อีเมล "กรุณาออกเลขที่หนังสือ" กลับมาทันทีที่กดอนุมัติ ทั้งที่ไม่ใช่หน้าที่ตัวเอง
        — LINE ไม่กระทบ: ตอน numbering/completed ไม่มี active step อยู่แล้ว
-       _shouldSendLineForStaffSign() จึงไม่เคยยิงในเคสนี้ตั้งแต่แรก */
+       _shouldSendLineForTurn() จึงไม่เคยยิงในเคสนี้ตั้งแต่แรก */
     if(doc.created_by){
       var creatorUser=await dg('user_directory','?id=eq.'+safeId(doc.created_by));
       _push(creatorUser[0]);
@@ -166,8 +177,8 @@ async function sendNotifEmail(docId, action, newStatus, note){
       }catch(e){}
     }
 
-    // ── LINE: เฉพาะเมื่อผู้รับคือ จนท. และถึงคิวขั้นตอนของเขา ──
-    if(_shouldSendLineForStaffSign(recip.user, nextStep, action)){
+    // ── LINE: เฉพาะเมื่อเอกสารถึงคิวผู้รับคนนี้ (ทุกบทบาท) ──
+    if(_shouldSendLineForTurn(recip.user, nextStep, action, doc)){
       try{
         var _lineO={
           recipName:recip.user.full_name, action:action, newStatus:newStatus,
@@ -504,22 +515,7 @@ async function sendStepStallLineNotifs(force){
             notification_type:'step_overdue',status:st1,sent_at:new Date().toISOString()})}catch(e){}
         }
       }
-      // 2) ผู้จัดทำ — ให้รู้ว่าเอกสารตัวเองติดอยู่ที่ใคร จะได้ตามได้ถูกคน
-      if(doc.created_by&&doc.created_by!==info.step.assigned_to){
-        var cr=uMap[doc.created_by];
-        var _o2={role:'creator',name:cr?cr.full_name:'',subj:subj,info:info,
-          holder:assignee?assignee.full_name:'',steps:stallSteps};
-        var _f2=null; try{_f2=buildStepStallLineFlex(_o2)}catch(fe){}
-        var st2=await sendLinePush(doc.created_by,
-          buildStepStallLineText(_o2),_f2,doc.id);
-        if(st2!=='skipped'){
-          sent=true;
-          try{await logNotifRow({document_id:doc.id,recipient_id:doc.created_by,recipient_email:'',
-            subject:'[LINE] เอกสารของท่านค้างเกินกำหนด: '+subj,
-            body:'ค้างที่ '+(info.step.step_name||'')+' '+info.days+' วันทำการ',
-            notification_type:'step_overdue',status:st2,sent_at:new Date().toISOString()})}catch(e){}
-        }
-      }
+      // ผู้จัดทำไม่ได้รับ LINE "เอกสารของท่านค้าง" แล้ว (2026-10-04) — ดู _shouldSendLineForTurn; คู่กับ check-overdue
       if(!sent) continue;   // ไม่มีใครผูก LINE ไว้ — ไม่บันทึก จะได้เตือนใหม่เมื่อผูกแล้ว
     }catch(e){console.warn('Step-stall LINE notif failed:',doc.id,e)}
   }

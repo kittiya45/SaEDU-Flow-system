@@ -687,28 +687,7 @@ async function notifyDocAccepted(docId, staffId, staffName){
     }
     if(emailOk) await logNotifRow({document_id:docId,recipient_id:cr.id,recipient_email:em,subject:subj,body:bodyTxt,notification_type:'accepted',status:st,sent_at:new Date().toISOString()});
   }catch(e){console.warn('Accept email failed:',e)}
-  try{
-    var lineTxt=(SETT.email_prefix||'[กนค.]')+' ✅ เจ้าหน้าที่รับเอกสารแล้ว\n'+
-      'เรียน '+cr.full_name+'\nเรื่อง: '+(doc.title||'')+(doc.doc_number?'\nเลขที่: '+doc.doc_number:'')+
-      '\nผู้รับเอกสาร: '+who+'\nเมื่อ: '+whenStr+
-      '\nสถานะ: รอเจ้าหน้าที่ยื่นในระบบมหาวิทยาลัย\n\n'+
-      (SETT.app_url?('เข้าสู่ระบบ: '+SETT.app_url):'กรุณาเข้าสู่ระบบ SAEDU Flow เพื่อติดตามสถานะ');
-    // การ์ด Flex — หัวการ์ดเขียวเพราะเป็นข่าวดีที่ผู้จัดทำไม่ต้องทำอะไรต่อ (ไม่ใช่งานค้าง)
-    var _accFlex=null;
-    try{
-      var _wf=await dg('workflow_steps','?document_id=eq.'+safeId(docId)+'&order=step_number'+
-        '&select=step_number,step_name,assigned_to,status');
-      _accFlex=buildLineFlex({
-        headText:'✅ เจ้าหน้าที่รับเอกสารแล้ว', headColor:'#0F8C46', headIcon:'receive',
-        subj:doc.title||'', recipName:cr.full_name,
-        rows:[['ผู้รับเอกสาร',who],['เมื่อ',whenStr]].concat(doc.doc_number?[['เลขที่',doc.doc_number]]:[]),
-        steps:await _lineStepsInfo(Array.isArray(_wf)?_wf:[]),
-        infoText:'ขณะนี้รอเจ้าหน้าที่ยื่นในระบบมหาวิทยาลัย — เมื่ออัปโหลดฉบับประทับกลับมา สถานะจะเป็นเสร็จสมบูรณ์',
-        button:'เปิดดูเอกสาร', buttonColor:'#0F8C46'
-      });
-    }catch(fe){}
-    await sendLineWithLog(docId,cr.id,em,subj,lineTxt,'accepted',_accFlex);
-  }catch(e){console.warn('Accept LINE failed:',e)}
+  // ไม่ส่ง LINE — "เจ้าหน้าที่รับเอกสารแล้ว" เป็นข้อความเพื่อทราบ LINE ส่งเฉพาะถึงคิว (2026-10-04, ดู _shouldSendLineForTurn)
   return true;
 }
 
@@ -1191,15 +1170,6 @@ async function doCancelDoc(docId){
     var _ids={};
     var _cancelTargets=settOn('notify_signers_on_cancel',false)?wf:_openSteps;
     _cancelTargets.forEach(function(s){if(s.assigned_to&&s.assigned_to!==CU.id)_ids[s.assigned_to]=true});
-    // ขั้นตอนสำหรับการ์ด LINE — ใช้ภาพหลังยกเลิก (pending/active กลายเป็น cancelled)
-    // เพื่อให้ผู้รับเห็นว่าเอกสารหยุดตรงไหน ใครเซ็นไปแล้วบ้าง
-    var _cSteps=[];
-    try{
-      _cSteps=await _lineStepsInfo(wf.map(function(s){
-        return (s.status==='pending'||s.status==='active')
-          ? Object.assign({},s,{status:'cancelled'}) : s;
-      }));
-    }catch(se){}
     if(doc.created_by&&doc.created_by!==CU.id) _ids[doc.created_by]=true;
     if(doc.notify_step!==false){
       for(var uid in _ids){
@@ -1214,25 +1184,7 @@ async function doCancelDoc(docId){
             if(_er.ok&&typeof showEmailToast==='function') showEmailToast(_em,_subj);
             await logNotifRow({document_id:docId,recipient_id:_u.id,recipient_email:_em,subject:_subj,body:_body,notification_type:'cancel',status:_er.ok?'sent':'failed',sent_at:new Date().toISOString()});
           }
-          if(typeof sendLineWithLog==='function'){
-            var _cTxt=(SETT.email_prefix||'[กนค.]')+' ✕ ยกเลิกเอกสาร\n'+
-              'เรียน '+_u.full_name+'\nเรื่อง: '+(doc.title||'')+(doc.doc_number?'\nเลขที่: '+doc.doc_number:'')+
-              '\nเหตุผล: '+note+'\nไม่ต้องดำเนินการต่อ'+
-              (SETT.app_url?('\n\nเปิดดูเอกสาร: '+SETT.app_url):'');
-            var _cFlex=null;
-            try{
-              _cFlex=buildLineFlex({
-                headText:'✕ ยกเลิกเอกสารแล้ว', headColor:'#6B6157', headIcon:'cancel',
-                subj:doc.title||'', recipName:_u.full_name,
-                // เหตุผลคือข้อมูลชิ้นเดียวที่ผู้รับต้องอ่านจริง — เน้นตัวหนาให้ต่างจากแถวอื่น
-                rows:[['เหตุผล',note,'#18120E',true],['ผู้ยกเลิก',CU.full_name||'']].concat(doc.doc_number?[['เลขที่',doc.doc_number]]:[]),
-                steps:_cSteps,
-                infoText:'ไม่ต้องดำเนินการใด ๆ ต่อ',
-                button:'เปิดดูเอกสาร', buttonStyle:'secondary'
-              });
-            }catch(fe){}
-            await sendLineWithLog(docId,_u.id,_em,_subj,_cTxt,'cancel',_cFlex);
-          }
+          // ไม่ส่ง LINE แจ้งยกเลิก — เป็นข้อความเพื่อทราบ (2026-10-04)
         }catch(ne){console.warn('Cancel notify failed:',ne)}
       }
     }

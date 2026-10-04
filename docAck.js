@@ -573,12 +573,6 @@ async function _notifyAcked(docId,note){
         await logNotifRow({document_id:docId,recipient_id:u.id,recipient_email:em,subject:subj,body:body,notification_type:'ack',status:r.ok?'sent':'failed',sent_at:new Date().toISOString()});
       }
     }catch(e){console.warn('acked email failed',u.id,e)}
-    try{
-      if(typeof sendLineWithLog==='function'){
-        await sendLineWithLog(docId,u.id,em,subj,
-          (SETT.email_prefix||'[กนค.]')+' ✅ รับทราบเอกสารแล้ว\n'+(CU.full_name||'')+' รับทราบ "'+(doc.title||'')+'" แล้ว'+
-          (note?'\nหมายเหตุ: '+note:''),'ack',null);
-      }
-    }catch(e){}
+    // ไม่ส่ง LINE "รับทราบแล้ว" กลับผู้เสนอ — เป็นข้อความเพื่อทราบ (2026-10-04)
   }
 }

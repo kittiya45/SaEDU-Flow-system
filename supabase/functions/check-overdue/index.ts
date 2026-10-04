@@ -296,30 +296,9 @@ async function scanStalledSteps(
           }),
         });
       }
-      if (doc.created_by && doc.created_by !== act.assigned_to) {
-        const crName = nameOf.get(doc.created_by) || '';
-        targets.push({
-          id: doc.created_by,
-          subject: `[LINE] เอกสารของท่านค้างเกินกำหนด: ${subj}`,
-          text: [
-            `${prefix} ⏰ เอกสารของท่านค้างเกินกำหนด`,
-            crName ? `เรียน ${crName}` : '',
-            `เรื่อง: ${subj}`,
-            `ค้างที่ขั้นตอน: ${act.step_name || ''}${holder ? ` (${holder})` : ''}`,
-            `ครบกำหนดลงนาม: ${ddlStr}`,
-            `ค้างมาแล้ว: ${days} วันทำการ`,
-            'กรุณาติดตามกับผู้รับผิดชอบขั้นตอนนี้',
-            appUrl,
-          ].filter(Boolean).join('\n'),
-          flex: mkFlex({
-            head: '⏰ เอกสารของท่านค้างเกินกำหนด',
-            recipName: crName,
-            rows: [['ครบกำหนดลงนาม', ddlStr], ['ค้างมาแล้ว', `${days} วันทำการ`]],
-            infoText: 'กรุณาติดตามกับผู้รับผิดชอบขั้นตอนนี้',
-            button: 'เปิดดูเอกสาร',
-          }),
-        });
-      }
+      /* ผู้จัดทำไม่ได้รับ LINE "เอกสารของท่านค้างเกินกำหนด" อีกต่อไป (2026-10-04)
+         LINE ส่งเฉพาะคนที่เอกสารถึงคิวตัวเอง — ผู้จัดทำทำอะไรกับขั้นที่ค้างไม่ได้ และ ก.ย. 69
+         ข้อความกลุ่มนี้ (27 ฉบับ) คือส่วนใหญ่ของโควตา LINE รายคน ดู _lineOnlyTurn ใน notif.js */
 
       for (const t of targets) {
         const status = await pushLine(admin, t.id, t.text, t.flex);
@@ -433,12 +412,13 @@ async function scanStuckStages(
 
       // numbering = ผู้จัดทำต้องกด "ออกเลขหนังสือ"
       // awaiting_submit = จนท.ที่กดรับไปถืออยู่ (แจ้งผู้จัดทำด้วยเพื่อให้ตามได้)
-      const targets: { id: string; action: string }[] = [];
+      // line=false → อีเมลอย่างเดียว: LINE ส่งเฉพาะคนที่เอกสารอยู่ในมือ (2026-10-04)
+      const targets: { id: string; action: string; line: boolean }[] = [];
       if (doc.status === 'numbering') {
-        if (doc.created_by) targets.push({ id: doc.created_by, action: 'กรุณาเข้าระบบแล้วกด "ออกเลขหนังสือ" เพื่อให้เอกสารเดินต่อ' });
+        if (doc.created_by) targets.push({ id: doc.created_by, line: true, action: 'กรุณาเข้าระบบแล้วกด "ออกเลขหนังสือ" เพื่อให้เอกสารเดินต่อ' });
       } else {
-        if (doc.accepted_by) targets.push({ id: doc.accepted_by, action: 'ท่านเป็นผู้รับเอกสารนี้ไว้ — กรุณายื่นเข้าระบบมหาวิทยาลัยแล้วอัปโหลดฉบับประทับกลับเข้าระบบ' });
-        if (doc.created_by && doc.created_by !== doc.accepted_by) targets.push({ id: doc.created_by, action: 'เอกสารของท่านอยู่กับเจ้าหน้าที่ — กรุณาติดตามหากเรื่องเร่งด่วน' });
+        if (doc.accepted_by) targets.push({ id: doc.accepted_by, line: true, action: 'ท่านเป็นผู้รับเอกสารนี้ไว้ — กรุณายื่นเข้าระบบมหาวิทยาลัยแล้วอัปโหลดฉบับประทับกลับเข้าระบบ' });
+        if (doc.created_by && doc.created_by !== doc.accepted_by) targets.push({ id: doc.created_by, line: false, action: 'เอกสารของท่านอยู่กับเจ้าหน้าที่ — กรุณาติดตามหากเรื่องเร่งด่วน' });
       }
       if (!targets.length) continue;
 
@@ -485,7 +465,7 @@ async function scanStuckStages(
             buttonColor: '#C77A1A',
           });
         } catch { /* การ์ดพัง → ส่ง text ธรรมดาต่อ */ }
-        const lineStatus = await pushLine(admin, t.id, lineText, lineCard);
+        const lineStatus = t.line ? await pushLine(admin, t.id, lineText, lineCard) : 'skipped';
 
         // ไม่ได้ผูก LINE และไม่มีอีเมลใช้ได้ → ไม่มีอะไรถูกส่งจริง ห้ามบันทึกเป็น "เตือนแล้ว"
         // ไม่งั้นคนที่ติดต่อไม่ได้เลยจะถูก dedup กลบไปตลอดกาล
