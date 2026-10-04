@@ -124,12 +124,14 @@ if [ "$MIRROR" != "-" ] && [ -n "$(remote_type "$MIRROR")" ]; then
   else
     heartbeat_fail mirror "rclone copy/sync ไป $MIRROR มี error (ดู log)"; MIRROR_MSG=" · ⚠️ สำเนาไป $MIRROR ไม่ครบ"; log "สำเนาไม่ครบ — รอบหน้าจะเก็บตกเอง (copy/sync ทำต่อจากที่ค้างได้)"
   fi
+  heartbeat_space "$MIRROR"
   FREE_M="$(rclone about "$MIRROR:" 2>/dev/null | awk '/^Free:/{print $2" "$3}')"
   [ -n "$FREE_M" ] && { log "พื้นที่เหลือบน $MIRROR: $FREE_M"; case "$FREE_M" in *KiB|*MiB|*" B") notify "⚠️ พื้นที่ $MIRROR เหลือแค่ $FREE_M";; esac; }
 else
   log "ไม่มี remote สำเนา ($MIRROR) — ข้ามขั้นสำเนา"
 fi
 
+heartbeat_space "$REMOTE"
 FREE="$(rclone about "$REMOTE:" 2>/dev/null | awk '/^Free:/{print $2" "$3}')"
 [ -n "$FREE" ] && { log "พื้นที่เหลือบน $REMOTE: $FREE"; case "$FREE" in *KiB|*MiB|*" B") notify "⚠️ พื้นที่ $REMOTE เหลือแค่ $FREE";; esac; }
 

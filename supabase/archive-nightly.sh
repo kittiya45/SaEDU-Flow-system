@@ -132,6 +132,7 @@ else
 fi
 heartbeat_ok archive
 
+heartbeat_space "$REMOTE"
 FREE="$(rclone about "$REMOTE:" 2>/dev/null | awk '/^Free:/{print $2" "$3}')"
 if [ -n "$FREE" ]; then
   log "พื้นที่เหลือบนคลาวด์: $FREE"

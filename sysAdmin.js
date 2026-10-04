@@ -84,12 +84,20 @@ async function _vSysContent(opts){
     {k:'settings', ico:'gear',    label:'ตั้งค่าระบบ'+_annDot, badge:''},
     {k:'email',    ico:'bell',    label:'แม่แบบอีเมล',   badge:''},
     {k:'workflow', ico:'refresh', label:'Workflow',        badge:_wfTmplArr.length>0?'<span style="display:inline-flex;align-items:center;justify-content:center;background:#E83A00;color:#fff;font-size:9px;font-weight:800;border-radius:20px;padding:1px 6px;margin-left:4px;line-height:1.4">'+_wfTmplArr.length+'</span>':''},
-    {k:'refdata',  ico:'list',    label:'รายการอ้างอิง', badge:''}
+    {k:'refdata',  ico:'list',    label:'รายการอ้างอิง', badge:''},
+    {k:'quota',    ico:'chart',   label:'โควตา & พื้นที่', badge:''}
   ];
 
-  var tabNav='<div style="background:#F5F3F0;padding:5px;border-radius:16px;display:flex;gap:3px;margin-bottom:22px;overflow-x:auto;flex-wrap:nowrap">';
+  var tabNav=opts.embed
+    ?'<div style="display:flex;gap:2px;margin-bottom:22px;overflow-x:auto;flex-wrap:nowrap;border-bottom:1px solid #EBEBEB">'
+    :'<div style="background:#F5F3F0;padding:5px;border-radius:16px;display:flex;gap:3px;margin-bottom:22px;overflow-x:auto;flex-wrap:nowrap">';
   _tabs.forEach(function(t){
     var isAct=t.k===_sysTab;
+    if(opts.embed){
+      tabNav+='<button style="min-width:max-content;padding:9px 14px;border:none;border-bottom:2px solid '+(isAct?'#E83A00':'transparent')+';margin-bottom:-1px;background:transparent;cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-size:12.5px;white-space:nowrap;color:'+(isAct?'#E83A00':'#6b6560')+';font-weight:'+(isAct?'800':'600')+'" '+
+        'onclick="setSysTab(\''+t.k+'\')" data-systab="'+t.k+'" data-sysline="1">'+svg(t.ico,12)+t.label+t.badge+'</button>';
+      return;
+    }
     var activeStyle=isAct?'background:#fff;color:#E83A00;font-weight:800;box-shadow:0 1px 4px rgba(0,0,0,.1);':'background:transparent;color:#6b6560;font-weight:600;';
     tabNav+='<button style="flex:1;min-width:max-content;padding:8px 14px;border-radius:11px;border:none;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;font-size:12px;white-space:nowrap;'+activeStyle+'" '+
       'onclick="setSysTab(\''+t.k+'\')" data-systab="'+t.k+'">'+
@@ -105,24 +113,34 @@ async function _vSysContent(opts){
     settings: rAppSettingsCard(_settings)+(typeof _rDevExtraSettingsCards==='function'?_rDevExtraSettingsCards(_settings,_anns):''),
     email:    rEmailTemplatesCard(_emailTmpls),
     workflow: rWfTemplatesCard(_wfTmpls),
-    refdata:  rRefDataCard()
+    refdata:  rRefDataCard(),
+    quota:    rMsgQuotaCard()+rStorageCard()
   };
 
   var html=(opts.embed?'':_pageHeader)+tabNav;
   _tabs.forEach(function(t){
     html+='<div id="sys-tab-'+t.k+'" style="display:'+(t.k===_sysTab?'block':'none')+'">'+_panelContent[t.k]+'</div>';
   });
+  // แท็บโควตาโหลดข้อมูลทีหลัง (เรียก Edge Function ภายนอก) — ไม่ให้หน่วงการเปิดหน้าจัดการระบบ
+  if(_sysTab==='quota') setTimeout(function(){_loadMsgQuota(false);_loadStorage(false)},0);
   return html;
 }
 
 function setSysTab(tab){
   _sysTab=tab;
-  ['docnum','doctypes','projects','settings','email','workflow','refdata'].forEach(function(t){
+  if(tab==='quota'){_loadMsgQuota(false);_loadStorage(false);}
+  ['docnum','doctypes','projects','settings','email','workflow','refdata','quota'].forEach(function(t){
     var el=$e('sys-tab-'+t);
     if(el) el.style.display=t===tab?'block':'none';
   });
   document.querySelectorAll('[data-systab]').forEach(function(btn){
     var isAct=btn.dataset.systab===tab;
+    if(btn.dataset.sysline){
+      btn.style.borderBottomColor=isAct?'#E83A00':'transparent';
+      btn.style.color=isAct?'#E83A00':'#6b6560';
+      btn.style.fontWeight=isAct?'800':'600';
+      return;
+    }
     btn.style.background=isAct?'#fff':'transparent';
     btn.style.color=isAct?'#E83A00':'#6b6560';
     btn.style.fontWeight=isAct?'800':'600';
@@ -547,37 +565,9 @@ function rAppSettingsCard(settings){
         '<input id="sett-line-1" data-key="app_url" type="text" class="fi text-[13px]" style="font-family:monospace" value="'+esc(_val('app_url',''))+'" placeholder="https://...">'+
       '</div>'+
     '</div>'+
-    // ── กลุ่ม LINE เจ้าหน้าที่ (แจ้งเอกสารใหม่ + เลยกำหนดเข้ากลุ่มเดียวทั้งระบบ) ──
-    '<div style="background:#FAFAF8;border-radius:12px;padding:14px 16px;border:1px solid #EBEBEB;margin-top:10px">'+
-      '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">'+
-        '<div style="flex:1;min-width:220px">'+
-          '<div style="font-size:11px;font-weight:700;color:#18120E;margin-bottom:2px">กลุ่ม LINE เจ้าหน้าที่ '+
-            (SETT.line_group_id
-              ?'<span style="color:#06C755;font-weight:700">● เชื่อมต่อแล้ว</span>'
-              :'<span style="color:#a89e99">○ ยังไม่เชื่อมต่อ</span>')+'</div>'+
-          '<div style="font-size:10px;color:#a89e99;line-height:1.7">ใช้แจ้ง<strong>งานเบื้องหลังของระบบมีปัญหา</strong> และ (ถ้าเปิดด้านล่าง) แจ้งเอกสารใหม่/ถึงคิวเจ้าหน้าที่ — เชิญบอท OA เข้ากลุ่ม แล้วกดสร้างรหัส นำรหัสไปพิมพ์ส่งในกลุ่มภายใน 10 นาที</div>'+
-        '</div>'+
-        '<div style="display:flex;gap:8px;flex-shrink:0">'+
-          (SETT.line_group_id?'<button type="button" class="btn btn-soft sm" onclick="_lineGroupTest(this)">'+svg('send',12)+' ทดสอบส่ง</button>':'')+
-          '<button type="button" class="btn btn-soft sm" onclick="_genLineGroupCode(this)">สร้างรหัสเชื่อมกลุ่ม</button>'+
-          (SETT.line_group_id?'<button type="button" class="btn btn-soft sm" style="color:#DC2626;border-color:#FECACA" onclick="_lineGroupDisconnect()">ยกเลิก</button>':'')+
-        '</div>'+
-      '</div>'+
-      '<div id="line-group-box"></div>'+
-      /* ปิดเป็นค่าเริ่มต้น 2026-09-30 — ข้อความกลุ่มหักโควตาตามจำนวนสมาชิก ดู config.js line_group_doc_notify */
-      (function(){
-        var on=_val('line_group_doc_notify','false')==='true';
-        return '<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:12px;padding-top:12px;border-top:1px solid #EBEBEB">'+
-          '<div style="flex:1;min-width:220px">'+
-            '<div style="font-size:11px;font-weight:700;color:#18120E;margin-bottom:2px">แจ้งเอกสารเข้ากลุ่ม</div>'+
-            '<div style="font-size:10px;color:#a89e99;line-height:1.7">ข้อความเข้ากลุ่ม 1 ครั้งหักโควตา LINE เท่าจำนวนสมาชิกในกลุ่ม · ปิดไว้ = เจ้าหน้าที่ได้ LINE รายคนเมื่อถึงคิวลงนามหรือมีเอกสารเข้าคิวรอกดรับ (ต้องผูก LINE ของตัวเองก่อน)</div>'+
-          '</div>'+
-          '<select id="sett-line-2" data-key="line_group_doc_notify" class="fi text-[12px]" style="width:150px;flex-shrink:0;font-weight:700">'+
-            '<option value="false"'+(on?'':' selected')+'>ไม่ส่ง (แนะนำ)</option>'+
-            '<option value="true"'+(on?' selected':'')+'>ส่ง</option>'+
-          '</select>'+
-        '</div>';
-      })()+
+    // กลุ่ม LINE เจ้าหน้าที่ — ยกเลิก 2026-10-04 (หักโควตาเท่าจำนวนสมาชิก) เหลือแค่คำอธิบายว่าส่งรายคนแทน
+    '<div style="background:#FAFAF8;border-radius:12px;padding:12px 16px;border:1px solid #EBEBEB;margin-top:10px;font-size:11px;color:#6b6560;line-height:1.7">'+
+      '<strong style="color:#18120E">ไม่ส่งเข้ากลุ่ม LINE</strong> — ทุกคน (รวมเจ้าหน้าที่) ได้ LINE รายคนเฉพาะเมื่อเอกสารถึงคิวของตัวเอง เช่น ถึงคิวลงนาม ถูกส่งคืนแก้ไขมาที่ตน หรือมีเอกสารรอกดรับ · ต้องผูก LINE ของตัวเองที่กระดิ่งแจ้งเตือนก่อน'+
     '</div>';
 
   // ── กลุ่ม 3: ประกาศระบบ ──
@@ -664,65 +654,6 @@ async function _setAppSetting(key,val){
   SETT[key]=val;
 }
 
-async function _genLineGroupCode(btn){
-  if(btn){btn.disabled=true;btn.innerHTML='<span class="sp sp-dark"></span>'}
-  var code=String(Math.floor(100000+Math.random()*900000));
-  var exp=new Date(Date.now()+10*60000).toISOString();
-  try{
-    await _setAppSetting('line_group_link_code',code);
-    await _setAppSetting('line_group_link_expires',exp);
-    var box=$e('line-group-box');
-    if(box) box.innerHTML=
-      '<div style="background:#F0FDF4;border:1.5px dashed #06C755;border-radius:12px;padding:14px;text-align:center;margin-top:12px">'+
-        '<div style="font-size:10px;color:#a89e99;margin-bottom:4px">รหัสเชื่อมกลุ่ม (หมดอายุใน 10 นาที)</div>'+
-        '<div class="mono" style="font-size:26px;font-weight:800;letter-spacing:7px;color:#18120E">'+code+'</div>'+
-        '<div style="font-size:11px;color:#18120E;margin-top:6px;line-height:1.7">พิมพ์รหัสนี้ส่งใน<strong>กลุ่ม LINE</strong> ที่เชิญบอทเข้าไปแล้ว<br>เมื่อบอทตอบยืนยันในกลุ่ม กดปุ่มตรวจสอบด้านล่าง</div>'+
-        '<button type="button" class="btn btn-soft sm" style="margin-top:10px" onclick="_lineGroupRefresh(this)">'+svg('refresh',12)+' เชื่อมแล้ว — ตรวจสอบสถานะ</button>'+
-      '</div>';
-  }catch(e){showAlert('เกิดข้อผิดพลาด: '+esc(e.message||String(e)),'er')}
-  finally{if(btn){btn.disabled=false;btn.innerHTML='สร้างรหัสใหม่'}}
-}
-
-async function _lineGroupRefresh(btn){
-  if(btn){btn.disabled=true;btn.innerHTML='<span class="sp sp-dark"></span>'}
-  try{await loadAppSettings()}catch(e){}
-  if(SETT.line_group_id){
-    showAlert('เชื่อมต่อกลุ่ม LINE เรียบร้อยแล้ว! เอกสารใหม่และเอกสารที่ถึงคิวเจ้าหน้าที่จะแจ้งเข้ากลุ่ม','ok');
-    nav('sys');
-  }else{
-    showAlert('ยังไม่พบการเชื่อมต่อ — กรุณาพิมพ์รหัส 6 หลักส่งในกลุ่ม LINE ก่อน แล้วตรวจสอบอีกครั้ง','wa');
-    if(btn){btn.disabled=false;btn.innerHTML=svg('refresh',12)+' เชื่อมแล้ว — ตรวจสอบสถานะ'}
-  }
-}
-
-/* ทดสอบส่งเข้ากลุ่ม — เป็นทางเดียวที่ยืนยันได้ว่าบอทยังอยู่ในกลุ่มจริง
-   LINE ไม่มี API ให้ถามว่า "ยังอยู่ในกลุ่มไหม" ปกติ leave event จะล้าง line_group_id ให้เอง
-   แต่ถ้าบอทถูกลบตอน webhook ล่ม ค่าจะค้างอยู่โดยไม่มีใครรู้ว่ากลุ่มไม่ได้รับอะไรแล้ว
-   (ไม่บันทึกลง notifications — เหมือน group push ปกติ ดู sendLineGroupPush) */
-async function _lineGroupTest(btn){
-  var old=btn?btn.innerHTML:'';
-  if(btn){btn.disabled=true;btn.innerHTML='<span class="sp sp-dark"></span>'}
-  try{
-    var msg=(SETT.email_prefix||'[กนค.]')+' ✅ ทดสอบการแจ้งเตือนเข้ากลุ่ม\n'+
-      'ส่งจากหน้าตั้งค่าระบบโดย '+((CU&&CU.full_name)||'')+'\n'+
-      new Date().toLocaleString('th-TH');
-    var st=await sendLineGroupPush(msg);
-    if(st==='sent') showAlert('ส่งข้อความทดสอบเข้ากลุ่มแล้ว — เปิดกลุ่ม LINE ดูได้เลย','ok');
-    else if(st==='skipped') showAlert('ยังไม่ได้เชื่อมกลุ่ม — กดสร้างรหัสเชื่อมกลุ่มก่อน','wa');
-    else showAlert('ส่งไม่สำเร็จ — บอทอาจถูกลบออกจากกลุ่มแล้ว หรือโควตา push ของ LINE OA เดือนนี้หมด ลองเชิญบอทเข้ากลุ่มแล้วเชื่อมใหม่','er');
-  }catch(e){showAlert('เกิดข้อผิดพลาด: '+esc(e.message||String(e)),'er')}
-  finally{if(btn){btn.disabled=false;btn.innerHTML=old}}
-}
-
-function _lineGroupDisconnect(){
-  showConfirm('ยกเลิกการเชื่อมกลุ่ม LINE','กลุ่มจะไม่ได้รับการแจ้งเตือนเอกสารอีก (การแจ้งเตือนรายคนและอีเมลยังทำงานตามปกติ) ต้องการยกเลิกหรือไม่?',async function(){
-    try{
-      await _setAppSetting('line_group_id','');
-      showAlert('ยกเลิกการเชื่อมกลุ่มเรียบร้อยแล้ว','ok');
-      nav('sys');
-    }catch(e){showAlert('เกิดข้อผิดพลาด: '+esc(e.message||String(e)),'er')}
-  });
-}
 
 /* ══════════════════════════════════════════════
    📧  EMAIL TEMPLATES CARD
@@ -1644,4 +1575,264 @@ async function _rdSave(type){
   }catch(e){
     if(al) al.innerHTML='<div class="al al-er" style="margin:0 16px 8px"><span class="al-icon">'+svg('warn',13)+'</span><span>เกิดข้อผิดพลาด: '+esc(e.message||String(e))+'</span></div>';
   }
+}
+
+/* ─── โควตาการส่ง (LINE OA / อีเมล Brevo) ───
+   ข้อมูลจาก Edge Function message-quota: เพดาน/ยอดใช้จริงจาก LINE + Brevo และยอดที่ระบบนับเองจาก notifications
+   LINE นับต่อผู้รับ — push เข้ากลุ่มนับเท่าจำนวนสมาชิกและไม่มีแถวใน notifications (โควตาหมดเมื่อ 2026-09-28
+   ทั้งที่ตารางนับได้ไม่ถึง) ตัวเลขที่ใช้ตัดสินจึงต้องเป็นของ LINE เอง ส่วนต่างแสดงให้เห็นว่ากลุ่มกินไปเท่าไร
+   แคชใน sessionStorage 30 นาที — หน้า Home ของ จนท./แอดมินใช้ผลเดียวกันใน _rOpsWatch() */
+var _MSGQ_CACHE_KEY='saedu_msg_quota', _MSGQ_TTL_MS=30*60000;
+var _BREVO_FREE_DAILY=300;   // Brevo ไม่คืนเพดานรายวันมาใน API — แผนฟรีคือ 300 ฉบับ/วัน
+async function _fetchMsgQuota(force){
+  if(!force){
+    try{
+      var c=JSON.parse(sessionStorage.getItem(_MSGQ_CACHE_KEY)||'null');
+      if(c&&Date.now()-c.at<_MSGQ_TTL_MS) return c.data;
+    }catch(e){}
+  }
+  // อย่าส่ง H ตรง ๆ ไป /functions/v1 — Prefer header ทำ CORS preflight ล้มเงียบ
+  var r=await fetch(SU+'/functions/v1/message-quota',{method:'GET',headers:{apikey:SK,Authorization:H.Authorization}});
+  var j=await r.json().catch(function(){return null});
+  if(!r.ok||!j||!j.ok) throw new Error((j&&j.error)||('HTTP '+r.status));
+  try{sessionStorage.setItem(_MSGQ_CACHE_KEY,JSON.stringify({at:Date.now(),data:j}));}catch(e){}
+  return j;
+}
+
+/* สรุปเป็นตัวเลขที่ใช้ทั้งการ์ดและแบนเนอร์ — คืน null ส่วนที่อ่านไม่ได้ */
+function _msgQuotaSummary(q){
+  var out={line:null, email:null};
+  var l=q&&q.line;
+  if(l&&l.configured&&!l.error){
+    var now=new Date(), loc=new Date(now.getTime()+7*3600000);
+    var dim=new Date(Date.UTC(loc.getUTCFullYear(),loc.getUTCMonth()+1,0)).getUTCDate();
+    var dayFrac=Math.max(1,(loc.getUTCDate()-1)+loc.getUTCHours()/24);
+    out.line={used:l.used, limit:l.limit,
+      pct:l.limit?Math.round(l.used/l.limit*100):null,
+      // 4 วันแรกของเดือนข้อมูลน้อยเกิน ประมาณการจะเตือนเกินจริง — ไม่คำนวณ
+      forecast:dayFrac>=4?Math.round(l.used/dayFrac*dim):null};
+  }
+  var b=q&&q.brevo;
+  if(b&&b.configured&&!b.error&&b.remaining!==null){
+    var daily=b.plan==='free'&&b.credits_type==='sendLimit';
+    out.email={remaining:b.remaining, daily:daily, limit:daily?_BREVO_FREE_DAILY:null,
+      pct:daily?Math.round((_BREVO_FREE_DAILY-b.remaining)/_BREVO_FREE_DAILY*100):null};
+  }
+  return out;
+}
+
+function rMsgQuotaCard(){
+  return '<div class="card">'+
+    '<div class="card-head">'+
+      '<div style="width:26px;height:26px;border-radius:7px;background:#FFF3EE;display:flex;align-items:center;justify-content:center;color:#E83A00">'+svg('chart',13)+'</div>'+
+      '<span class="card-head-title">โควตาการส่งแจ้งเตือน</span>'+
+      '<button class="btn btn-soft sm ml-auto" onclick="_loadMsgQuota(true)">'+svg('refresh',12)+' โหลดใหม่</button>'+
+    '</div>'+
+    '<div class="card-body msgq-body"><div class="al al-busy"><span class="sp sp-dark"></span><span>กำลังอ่านโควตาจาก LINE และ Brevo…</span></div></div>'+
+  '</div>';
+}
+
+/* เติมทุกการ์ดโควตาที่อยู่ในหน้า — Dev Panel วาดไว้สองที่ (สุขภาพระบบ + จัดการระบบ) */
+async function _loadMsgQuota(force){
+  var els=[].slice.call(document.querySelectorAll('.msgq-body')); if(!els.length) return;
+  var put=function(h){els.forEach(function(el){el.innerHTML=h})};
+  if(force) put('<div class="al al-busy"><span class="sp sp-dark"></span><span>กำลังอ่านโควตาจาก LINE และ Brevo…</span></div>');
+  try{
+    put(_rMsgQuotaBody(await _fetchMsgQuota(force)));
+  }catch(e){
+    // alrtH() escape ข้อความทั้งก้อน — ต้องการ <code> จึงเขียน markup เอง
+    put('<div class="al al-wa"><span class="al-icon">'+svg('warn',13)+'</span><span>อ่านโควตาไม่ได้: '+esc(e.message||String(e))+
+      ' — ถ้ายังไม่ได้ deploy ให้รัน <code class="mono">npx supabase functions deploy message-quota</code> (เบราว์เซอร์อาจแสดง Failed to fetch แทน 404)</span></div>');
+  }
+}
+
+function _msgqBar(pct){
+  var p=Math.max(0,Math.min(100,pct||0));
+  var cl=p>=95?'#DC2626':p>=80?'#D97706':'#16A34A';
+  return '<div style="height:8px;border-radius:99px;background:#F0EDEA;overflow:hidden;margin:8px 0 4px">'+
+    '<div style="height:100%;width:'+p+'%;background:'+cl+';border-radius:99px"></div></div>';
+}
+function _msgqRow(label,val){
+  return '<div style="display:flex;justify-content:space-between;gap:12px;font-size:12.5px;line-height:1.8">'+
+    '<span style="color:#6b6560">'+label+'</span><span style="font-weight:700;color:#18120E;white-space:nowrap">'+val+'</span></div>';
+}
+function _rMsgQuotaBody(q){
+  var s=_msgQuotaSummary(q), c=q.counts||{}, n=function(x){return (+x||0).toLocaleString()};
+  var box=function(title,inner){
+    return '<div style="flex:1;min-width:260px;border:1px solid #EBEBEB;border-radius:12px;padding:14px 16px">'+
+      '<div style="font-size:13.5px;font-weight:800;color:#18120E;margin-bottom:2px">'+title+'</div>'+inner+'</div>';
+  };
+
+  /* ── LINE ── */
+  var l=q.line||{}, lh='';
+  if(!l.configured) lh=alrtH('in','ยังไม่ได้ตั้ง LINE_CHANNEL_ACCESS_TOKEN');
+  else if(l.error) lh=alrtH('wa','LINE ตอบกลับผิดพลาด: '+l.error);
+  else{
+    var L=s.line, logged=c.line?c.line.month.sent:0, other=Math.max(0,L.used-logged);
+    lh=(L.limit
+        ?'<div style="font-size:22px;font-weight:900;color:#18120E;margin-top:6px">'+n(L.used)+' <span style="font-size:13px;font-weight:600;color:#a89e99">/ '+n(L.limit)+' ข้อความเดือนนี้</span></div>'+_msgqBar(L.pct)+
+         '<div style="font-size:11.5px;color:#a89e99;margin-bottom:8px">เหลือ '+n(Math.max(0,L.limit-L.used))+' · ใช้ไป '+L.pct+'%'+(L.forecast!==null?' · อัตรานี้ทั้งเดือนจะได้ประมาณ '+n(L.forecast):'')+'</div>'
+        :'<div style="font-size:22px;font-weight:900;color:#18120E;margin-top:6px">'+n(L.used)+' <span style="font-size:13px;font-weight:600;color:#a89e99">ข้อความเดือนนี้ (แพ็กเกจไม่จำกัด)</span></div>')+
+      _msgqRow('ส่งรายบุคคล (ระบบบันทึกไว้)',n(logged))+
+      _msgqRow('ส่งจากที่อื่น (OA Manager / เบราว์เซอร์รุ่นเก่า)',n(other))+
+      _msgqRow('ส่งไม่สำเร็จเดือนนี้',n(c.line?c.line.month.failed:0))+
+      _msgqRow('ส่งวันนี้',n(c.line?c.line.today.sent:0))+
+      (L.limit&&L.pct>=100?alrtH('er','โควตาเดือนนี้หมดแล้ว — LINE จะปฏิเสธทุกข้อความ (429) จนถึงต้นเดือนหน้า ผู้ใช้ยังได้อีเมลตามปกติ'):
+       L.limit&&L.forecast!==null&&L.forecast>L.limit?alrtH('wa','ด้วยอัตราปัจจุบันโควตาจะหมดก่อนสิ้นเดือน — ปิดการส่งเข้ากลุ่ม (ตั้งค่าระบบ → กลุ่ม LINE เจ้าหน้าที่) หรืออัปเกรดแพ็กเกจ OA'):'');
+  }
+
+  /* ── อีเมล ── */
+  var b=q.brevo||{}, eh='';
+  var ce=c.email||{month:{},today:{}};
+  if(!b.configured) eh=alrtH('in','ยังไม่ได้ตั้ง BREVO_API_KEY');
+  else if(b.error) eh=alrtH('wa','Brevo ตอบกลับผิดพลาด: '+b.error);
+  else if(s.email&&s.email.daily){
+    var E=s.email;
+    eh='<div style="font-size:22px;font-weight:900;color:#18120E;margin-top:6px">'+n(E.limit-E.remaining)+' <span style="font-size:13px;font-weight:600;color:#a89e99">/ '+n(E.limit)+' ฉบับวันนี้</span></div>'+_msgqBar(E.pct)+
+      '<div style="font-size:11.5px;color:#a89e99;margin-bottom:8px">ส่งได้อีก '+n(E.remaining)+' ฉบับวันนี้ · แผนฟรีของ Brevo จำกัดรายวัน ไม่จำกัดรายเดือน</div>';
+  }else{
+    eh='<div style="font-size:13px;color:#6b6560;margin:6px 0 8px">แผน '+esc(b.plan||'-')+' · เครดิตคงเหลือ '+(b.remaining===null?'-':n(b.remaining))+(b.end_date?' · หมดรอบ '+fd(b.end_date):'')+'</div>';
+  }
+  if(b.configured){
+    eh+=_msgqRow('ส่งวันนี้ (ระบบนับ)',n(ce.today.sent))+
+      _msgqRow('ส่งเดือนนี้ (ระบบนับ)',n(ce.month.sent))+
+      _msgqRow('ส่งไม่สำเร็จเดือนนี้',n(ce.month.failed));
+    if(s.email&&s.email.daily&&s.email.remaining<=30) eh+=alrtH(s.email.remaining<=0?'er':'wa','โควตาอีเมลวันนี้ใกล้หมด — ฉบับที่เกินจะถูก Brevo ปฏิเสธและบันทึกเป็น "ส่งไม่สำเร็จ" (ระบบไม่ส่งซ้ำ)');
+  }
+
+  return '<div style="display:flex;gap:14px;flex-wrap:wrap">'+box('LINE OA',lh)+box('อีเมล (Brevo)',eh)+'</div>'+
+    '<div style="font-size:11.5px;color:#a89e99;line-height:1.7;margin-top:12px">'+
+      'ตัวเลขโควตาอ่านจาก LINE และ Brevo โดยตรง · "ระบบนับ" มาจากบันทึกการแจ้งเตือนของระบบ (เดือน/วันตามเวลาไทย) · '+
+      'LINE คิดต่อผู้รับ · อัปเดตล่าสุด '+fdTime(q.checked_at)+
+    '</div>';
+}
+
+/* ─── พื้นที่จัดเก็บ (Supabase Storage + คลังบน Google Drive/OneDrive) ───
+   - Supabase: ประมาณจาก file_size ของไฟล์ที่ยังไม่ย้ายขึ้นคลัง + form_templates (วิธีเดียวกับ _opsWatchData)
+     แผนฟรีจำกัด 1 GB — เคยเต็มมาแล้วเดือน ส.ค. 69
+   - คลังบนคลาวด์: หน้าเว็บอ่านโควตา Drive/OneDrive เองไม่ได้ งานบน Mac ของผู้ดูแล (archive-nightly.sh /
+     backup-weekly.sh → heartbeat_space ใน ops-heartbeat.sh) เขียนผล rclone about ลง app_settings.ops_space_<remote>
+   - จำนวนไฟล์ที่ย้ายขึ้นคลัง: นับแถว document_files ที่มี archive_url (แยกผู้ให้บริการจากโดเมนของลิงก์) */
+var _STOR_SB_CAP=1000*1048576;
+function _gbFmt(b){
+  b=+b||0;
+  if(b>=1073741824) return (b/1073741824).toFixed(2)+' GB';
+  if(b>=1048576) return Math.round(b/1048576).toLocaleString()+' MB';
+  return Math.round(b/1024).toLocaleString()+' KB';
+}
+function _cloudSpaces(){
+  var out=[];
+  Object.keys(SETT||{}).forEach(function(k){
+    if(k.indexOf('ops_space_')!==0) return;
+    try{var v=typeof SETT[k]==='string'?JSON.parse(SETT[k]):SETT[k]; if(v&&v.total) out.push(v);}catch(e){}
+  });
+  // Google Drive (คลังหลัก) ก่อน OneDrive (สำเนา)
+  return out.sort(function(a,b){return (a.type==='drive'?0:1)-(b.type==='drive'?0:1)});
+}
+async function _fetchStorageData(){
+  var rs=await Promise.all([
+    dg('document_files','?archive_url=is.null&select=file_size'),
+    dg('form_templates','?select=file_size').catch(function(){return []}),
+    dg('document_files','?archive_url=not.is.null&select=archive_url,archived_at,file_size&order=archived_at.desc')
+  ]);
+  var d={sbBytes:null, arch:null};
+  if(Array.isArray(rs[0])&&Array.isArray(rs[1])){
+    d.sbBytes=rs[0].concat(rs[1]).reduce(function(s,f){return s+(+f.file_size||0)},0);
+  }
+  if(Array.isArray(rs[2])){
+    var loc=new Date(Date.now()+7*3600000);
+    var mStart=new Date(Date.UTC(loc.getUTCFullYear(),loc.getUTCMonth(),1)-7*3600000).getTime();
+    var a={count:0, bytes:0, monthCount:0, monthBytes:0, byProv:{}, last:null};
+    rs[2].forEach(function(f){
+      var sz=+f.file_size||0, prov=typeof _archiveProvider==='function'?_archiveProvider(f.archive_url):'คลังเอกสาร';
+      a.count++; a.bytes+=sz;
+      var p=a.byProv[prov]=a.byProv[prov]||{count:0,bytes:0}; p.count++; p.bytes+=sz;
+      var t=Date.parse(f.archived_at||'');
+      if(t>=mStart){a.monthCount++; a.monthBytes+=sz;}
+      if(t&&(!a.last||t>a.last)) a.last=t;
+    });
+    d.arch=a;
+  }
+  return d;
+}
+
+function rStorageCard(){
+  return '<div class="card">'+
+    '<div class="card-head">'+
+      '<div style="width:26px;height:26px;border-radius:7px;background:#EFF6FF;display:flex;align-items:center;justify-content:center;color:#2563EB">'+svg('database',13)+'</div>'+
+      '<span class="card-head-title">พื้นที่จัดเก็บ</span>'+
+      '<button class="btn btn-soft sm ml-auto" onclick="_loadStorage(true)">'+svg('refresh',12)+' โหลดใหม่</button>'+
+    '</div>'+
+    '<div class="card-body stor-body"><div class="al al-busy"><span class="sp sp-dark"></span><span>กำลังคำนวณพื้นที่…</span></div></div>'+
+  '</div>';
+}
+
+async function _loadStorage(force){
+  var els=[].slice.call(document.querySelectorAll('.stor-body')); if(!els.length) return;
+  var put=function(h){els.forEach(function(el){el.innerHTML=h})};
+  if(force){
+    put('<div class="al al-busy"><span class="sp sp-dark"></span><span>กำลังคำนวณพื้นที่…</span></div>');
+    try{await loadAppSettings()}catch(e){}   // ตัวเลขคลาวด์มาจาก app_settings — ดึงค่าล่าสุดที่ Mac เพิ่งเขียน
+  }
+  try{ put(_rStorageBody(await _fetchStorageData(), _cloudSpaces())); }
+  catch(e){ put(alrtH('wa','คำนวณพื้นที่ไม่ได้: '+(e.message||String(e)))); }
+}
+
+function _rStorageBody(d, clouds){
+  var n=function(x){return (+x||0).toLocaleString()};
+  var box=function(title,sub,inner){
+    return '<div style="flex:1;min-width:240px;border:1px solid #EBEBEB;border-radius:12px;padding:14px 16px">'+
+      '<div style="font-size:13.5px;font-weight:800;color:#18120E">'+title+'</div>'+
+      '<div style="font-size:11px;color:#a89e99;margin-bottom:2px">'+sub+'</div>'+inner+'</div>';
+  };
+  var meter=function(used,total,unitNote){
+    var pct=total?Math.round(used/total*100):0;
+    return '<div style="font-size:20px;font-weight:900;color:#18120E;margin-top:6px">'+_gbFmt(used)+' <span style="font-size:12.5px;font-weight:600;color:#a89e99">/ '+_gbFmt(total)+'</span></div>'+
+      _msgqBar(pct)+
+      '<div style="font-size:11.5px;color:#6b6560">เหลือ <b style="color:#18120E">'+_gbFmt(Math.max(0,total-used))+'</b> · ใช้ไป '+pct+'%'+(unitNote||'')+'</div>';
+  };
+  var boxes=[];
+
+  // Supabase Storage
+  boxes.push(box('Supabase Storage','พื้นที่หลักของระบบ (แผนฟรี 1 GB)',
+    d.sbBytes===null?alrtH('wa','อ่านขนาดไฟล์ไม่ได้')
+      :meter(d.sbBytes,_STOR_SB_CAP,' · ประมาณจากขนาดไฟล์ในฐานข้อมูล')));
+
+  // คลาวด์ — จาก heartbeat บน Mac
+  if(!clouds.length){
+    boxes.push(box('คลังบนคลาวด์','Google Drive / OneDrive',
+      alrtH('in','ยังไม่มีข้อมูล — งานย้ายไฟล์บน Mac ของผู้ดูแลจะส่งตัวเลขมาเองในรอบถัดไป (ต้องติดตั้งสคริปต์รุ่นใหม่ด้วย install-archive-launchd.sh)')));
+  }
+  clouds.forEach(function(c){
+    var name=c.type==='drive'?'Google Drive':c.type==='onedrive'?'OneDrive':esc(c.remote);
+    var role=c.type==='drive'?'คลังเอกสารหลัก + ชุดสำรองข้อมูล':c.type==='onedrive'?'สำเนาคลัง (กันข้อมูลหาย)':'คลังบนคลาวด์';
+    var age=Math.floor((Date.now()-Date.parse(c.at))/86400000);
+    var low=(+c.free||0)<1073741824;
+    boxes.push(box(name, role+' · remote <span class="mono">'+esc(c.remote)+'</span>',
+      meter(+c.used||0,+c.total||0)+
+      '<div style="font-size:11px;color:'+(age>4?'#D97706':'#a89e99')+';margin-top:4px">ข้อมูลจากเครื่องผู้ดูแล '+fdTime(c.at)+(age>4?' — เก่าแล้ว '+age+' วัน (Mac ไม่ได้รันงาน)':'')+'</div>'+
+      (low?alrtH('er','พื้นที่เหลือไม่ถึง 1 GB — งานย้ายไฟล์/สำรองข้อมูลจะเริ่มล้มเหลว'):'')+
+      (c.type==='drive'?'<div style="font-size:10.5px;color:#a89e99;margin-top:4px">ยอดใช้รวมทุกอย่างในบัญชี Google นี้ (Gmail, Photos) ไม่ใช่แค่ไฟล์ของระบบ</div>':'')));
+  });
+
+  // จำนวนไฟล์ที่ย้ายขึ้นคลัง
+  var a=d.arch, ah;
+  if(!a) ah=alrtH('wa','อ่านรายการไฟล์ในคลังไม่ได้');
+  else{
+    ah='<div style="display:flex;gap:28px;flex-wrap:wrap;margin-top:8px">'+
+      '<div><div style="font-size:11.5px;color:#6b6560">ทั้งหมด</div><div style="font-size:20px;font-weight:900;color:#18120E">'+n(a.count)+' <span style="font-size:12.5px;font-weight:600;color:#a89e99">ไฟล์ · '+_gbFmt(a.bytes)+'</span></div></div>'+
+      '<div><div style="font-size:11.5px;color:#6b6560">เดือนนี้</div><div style="font-size:20px;font-weight:900;color:#18120E">'+n(a.monthCount)+' <span style="font-size:12.5px;font-weight:600;color:#a89e99">ไฟล์ · '+_gbFmt(a.monthBytes)+'</span></div></div>'+
+      '<div><div style="font-size:11.5px;color:#6b6560">ย้ายล่าสุด</div><div style="font-size:14px;font-weight:800;color:#18120E;margin-top:4px">'+(a.last?fdTime(new Date(a.last).toISOString()):'—')+'</div></div>'+
+    '</div>'+
+    '<div style="margin-top:8px">'+Object.keys(a.byProv).map(function(k){
+      return _msgqRow('ลิงก์ไปที่ '+esc(k),n(a.byProv[k].count)+' ไฟล์ · '+_gbFmt(a.byProv[k].bytes));
+    }).join('')+'</div>';
+  }
+
+  return '<div style="display:flex;gap:14px;flex-wrap:wrap">'+boxes.join('')+'</div>'+
+    '<div style="border:1px solid #EBEBEB;border-radius:12px;padding:14px 16px;margin-top:14px">'+
+      '<div style="font-size:13.5px;font-weight:800;color:#18120E">ไฟล์ที่ย้ายขึ้นคลังแล้ว</div>'+
+      '<div style="font-size:11px;color:#a89e99">ไฟล์ของเอกสารที่จบแล้ว ถูกย้ายจาก Supabase ขึ้นคลังทุกคืนเพื่อคืนพื้นที่ (เดือนนับตามเวลาไทย · ขนาดตามที่บันทึกตอนอัปโหลด)</div>'+
+      ah+
+    '</div>';
 }

@@ -1,5 +1,5 @@
 // Supabase Edge Function: send-line
-// Body: { recipientId, text, group?, flex?, documentId?, testSelf? }
+// Body: { recipientId, text, flex?, documentId?, testSelf? }  (group:true ถูกปฏิเสธตั้งแต่ 2026-10-04)
 // @ts-nocheck
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.108.2';
@@ -17,8 +17,12 @@ Deno.serve(async (req: Request) => {
   try {
     const body = await req.json();
     const { recipientId, text, group, flex, documentId, testSelf } = body;
-    if ((!recipientId && group !== true) || !text) {
-      return json({ error: 'Missing required fields: recipientId (or group:true), text' }, 400);
+    /* ยกเลิกการส่งเข้ากลุ่ม LINE เจ้าหน้าที่ 2026-10-04 — ข้อความกลุ่มหักโควตาเท่าจำนวนสมาชิก
+       (โควตาเดือน ก.ย. 69 หมดวันที่ 28) ปฏิเสธที่ฝั่ง server ด้วย เพราะเบราว์เซอร์ที่ยังถือ JS รุ่นเก่า
+       จะยังยิง group:true มาได้จนกว่าจะรีเฟรช — แจ้งรายคนเฉพาะคนที่เอกสารถึงคิวแทน */
+    if (group === true) return json({ ok: false, skipped: 'group_disabled' });
+    if (!recipientId || !text) {
+      return json({ error: 'Missing required fields: recipientId, text' }, 400);
     }
 
     const { caller, admin } = await requireAuth(req);
@@ -28,26 +32,14 @@ Deno.serve(async (req: Request) => {
     const LINE_TOKEN = Deno.env.get('LINE_CHANNEL_ACCESS_TOKEN') ?? '';
     if (!LINE_TOKEN) return json({ error: 'LINE_CHANNEL_ACCESS_TOKEN not configured' }, 500);
 
-    let to: string;
-    if (group === true) {
-      const { data: row, error: gErr } = await admin
-        .from('app_settings')
-        .select('value')
-        .eq('key', 'line_group_id')
-        .maybeSingle();
-      if (gErr) return json({ error: gErr.message }, 500);
-      if (!row?.value) return json({ ok: false, skipped: 'no_group' });
-      to = row.value;
-    } else {
-      const { data: profile, error: qErr } = await admin
-        .from('users')
-        .select('line_user_id')
-        .eq('id', recipientId)
-        .maybeSingle();
-      if (qErr) return json({ error: qErr.message }, 500);
-      if (!profile?.line_user_id) return json({ ok: false, skipped: 'not_linked' });
-      to = profile.line_user_id;
-    }
+    const { data: profile, error: qErr } = await admin
+      .from('users')
+      .select('line_user_id')
+      .eq('id', recipientId)
+      .maybeSingle();
+    if (qErr) return json({ error: qErr.message }, 500);
+    if (!profile?.line_user_id) return json({ ok: false, skipped: 'not_linked' });
+    const to: string = profile.line_user_id;
 
     const lineRes = await fetch('https://api.line.me/v2/bot/message/push', {
       method: 'POST',

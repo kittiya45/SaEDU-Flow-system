@@ -32,15 +32,6 @@ async function vDev(){
   var _migPending=_migResults.filter(function(r){return r.ok===false&&!r.optional;}).length;
   var _sqlWarn=_migPending?'<div class="al al-wa" style="margin-bottom:16px"><span class="al-icon">'+svg('warn',13)+'</span><span><strong>พบ SQL migration ค้าง '+_migPending+' รายการ</strong> — ดูรายละเอียดและคัดลอก SQL ได้ที่แท็บ <strong>สุขภาพระบบ</strong></span></div>':'';
 
-  var _pageHeader=
-    '<div style="display:flex;align-items:center;gap:14px;margin-bottom:20px;flex-wrap:wrap">'+
-      '<div style="width:44px;height:44px;border-radius:14px;background:linear-gradient(135deg,#18120E,#3A332E);display:flex;align-items:center;justify-content:center;color:#fff;flex-shrink:0;box-shadow:0 4px 12px rgba(24,18,14,.3)">'+svg('code',21)+'</div>'+
-      '<div>'+
-        '<div style="font-size:20px;font-weight:900;color:#18120E;letter-spacing:-.5px;line-height:1.1">เครื่องมือนักพัฒนา</div>'+
-        '<div style="font-size:12px;color:#a89e99;margin-top:3px">ตรวจสุขภาพระบบ ดูบันทึก และซ่อมข้อมูลเอกสาร — สำหรับผู้ดูแลด้านเทคนิค</div>'+
-      '</div>'+
-    '</div>';
-
   var _tabs=[
     {k:'health',  ico:'activity',    label:'สุขภาพระบบ'},
     {k:'logs',    ico:'scroll-text', label:'บันทึกระบบ'},
@@ -68,8 +59,9 @@ async function vDev(){
     info:    _devInfoPanel(_sqlReady)
   };
   // ผูก event ของแท็บทดสอบระบบหลัง DOM ถูกวาด (canvas ลายเซ็น + คำนวณ SLA เริ่มต้น)
-  setTimeout(function(){_sbxWireSig();_sbxCalcSla();},120);
-  var html=_pageHeader+_sqlWarn+tabNav;
+  setTimeout(function(){_sbxWireSig();_sbxCalcSla();if(typeof _loadMsgQuota==='function'){_loadMsgQuota(false);_loadStorage(false);}},120);
+  // ไม่ใส่ _pageHeader — แถบบนของแอปแสดงชื่อหน้า "เครื่องมือนักพัฒนา" อยู่แล้ว ซ้ำสองชั้นทำให้หน้าแน่นโดยไม่ได้อะไร
+  var html=_sqlWarn+tabNav;
   _tabs.forEach(function(t){
     html+='<div id="dev-tab-'+t.k+'" style="display:'+(t.k===_devTab?'block':'none')+'">'+_panels[t.k]+'</div>';
   });
@@ -189,7 +181,7 @@ function _devMigrationCard(results){
       '</div>'+
     '</div>';
   }).join('');
-  return '<div class="card"><div class="card-head">'+
+  return '<div class="card" id="dev-mig-card"><div class="card-head">'+
     '<div style="width:26px;height:26px;border-radius:7px;background:'+(pending?'#FEF3C7':'#ECFDF5')+';display:flex;align-items:center;justify-content:center;color:'+(pending?'#D97706':'#16A34A')+'">'+svg('list',13)+'</div>'+
     '<div><div class="card-head-title">เช็กลิสต์ SQL Migration'+(pending?' — ค้าง '+pending+' รายการ':' — ครบแล้ว')+'</div>'+
     '<div style="font-size:10px;color:#a89e99;margin-top:1px">ตรวจอัตโนมัติจากฐานข้อมูล · รันใน Supabase Dashboard → SQL Editor · schema เป้าหมาย v'+REQUIRED_SCHEMA_VERSION+' (ปัจจุบัน: '+esc(String(SETT.schema_version||'—'))+')</div></div>'+
@@ -200,8 +192,11 @@ function _devMigrationCard(results){
     '<span style="color:#DC2626">'+svg('x',11)+' ค้าง <strong>'+pending+'</strong></span>'+
     '<span style="color:#D97706">'+svg('info',11)+' ตรวจด้วยมือ <strong>'+results.filter(function(r){return r.ok===null;}).length+'</strong></span>'+
   '</div>'+
+  // ครบแล้ว = ไม่มีอะไรต้องทำ — พับรายการยาว ๆ เก็บไว้ ไม่ให้ดันการ์ดที่ต้องดูจริงลงไปล่างสุด
+  (pending?'':'<details id="dev-mig-details"><summary style="padding:10px 16px;font-size:12px;font-weight:700;color:#6b6560;cursor:pointer">แสดงรายการทั้งหมด ('+results.length+' ไฟล์)</summary>')+
   rows+
   '<div class="al al-in" style="margin:12px 16px 16px"><span class="al-icon">'+svg('info',13)+'</span><span style="font-size:11.5px">กด <strong>คัดลอก SQL</strong> แล้ววางใน SQL Editor → Run ทีละไฟล์ตามลำดับ · ไฟล์ idempotent รันซ้ำได้ปลอดภัย</span></div>'+
+  (pending?'':'</details>')+
   '</div>';
 }
 
@@ -269,7 +264,7 @@ async function _devFetchIntegrationStatus(){
 
 function _devIntegrationCard(data){
   if(data.missing){
-    return '<div class="card"><div class="card-head">'+
+    return '<div class="card" id="dev-integ-card"><div class="card-head">'+
       '<div style="width:26px;height:26px;border-radius:7px;background:#FEF3C7;display:flex;align-items:center;justify-content:center;color:#D97706">'+svg('plug',13)+'</div>'+
       '<div><div class="card-head-title">สถานะบริการภายนอก</div>'+
       '<div style="font-size:10px;color:#a89e99;margin-top:1px">Edge Function integration-status ยังไม่ได้ deploy</div></div>'+
@@ -278,7 +273,7 @@ function _devIntegrationCard(data){
     '</div></div>';
   }
   if(data.error){
-    return '<div class="card"><div class="card-body"><div class="al al-er"><span class="al-icon">'+svg('warn',13)+'</span><span>อ่านสถานะไม่ได้: '+esc(data.error)+'</span></div></div></div>';
+    return '<div class="card" id="dev-integ-card"><div class="card-body"><div class="al al-er"><span class="al-icon">'+svg('warn',13)+'</span><span>อ่านสถานะไม่ได้: '+esc(data.error)+'</span></div></div></div>';
   }
   var items=Object.keys(data.integrations||{}).map(function(k){
     var it=data.integrations[k];
@@ -295,7 +290,7 @@ function _devIntegrationCard(data){
       '<span style="font-size:10px;font-weight:700;color:'+(ok?'#16A34A':'#DC2626')+'">'+(ok?'ตั้งค่าแล้ว':'ยังไม่ตั้งค่า')+'</span>'+
     '</div>';
   }).join('');
-  return '<div class="card"><div class="card-head">'+
+  return '<div class="card" id="dev-integ-card"><div class="card-head">'+
     '<div style="width:26px;height:26px;border-radius:7px;background:#EFF6FF;display:flex;align-items:center;justify-content:center;color:#2563EB">'+svg('plug',13)+'</div>'+
     '<div><div class="card-head-title">สถานะบริการภายนอก</div>'+
     '<div style="font-size:10px;color:#a89e99;margin-top:1px">ตรวจ secret ใน Supabase (ไม่แสดงค่าจริง) · อัปเดตล่าสุด '+esc(data.checked_at?fdTime(data.checked_at):'—')+'</div></div>'+
@@ -366,16 +361,15 @@ async function _devHealthPanel(sqlReady,migResults){
   }).join(''):'<div style="padding:24px 16px;text-align:center;color:#16A34A;font-size:12.5px">'+svg('ok',14)+' ไม่พบเอกสารที่สถานะไม่สอดคล้องกับขั้นตอน</div>';
 
   var issueCard=
-    '<div class="card"><div class="card-head">'+
+    '<div class="card" id="dev-issue-card"><div class="card-head">'+
       '<div style="width:26px;height:26px;border-radius:7px;background:'+(issues.length?'#FEF3C7':'#ECFDF5')+';display:flex;align-items:center;justify-content:center;color:'+(issues.length?'#D97706':'#16A34A')+'">'+svg(issues.length?'warn':'ok',13)+'</div>'+
       '<div><div class="card-head-title">ตรวจความสอดคล้องเอกสาร'+(issues.length?' — พบ '+issues.length+' รายการ':'')+'</div>'+
       '<div style="font-size:10px;color:#a89e99;margin-top:1px">เทียบสถานะเอกสารกับสถานะขั้นตอน (เกิดได้เมื่อการอนุมัติ/ตีกลับเขียนข้อมูลไม่ครบเพราะเน็ตหลุดกลางทาง)</div></div>'+
     '</div><div id="dev-issue-al"></div>'+issueRows+'</div>';
 
   // ── error ล่าสุดจาก system_logs ──
-  var errCard='';
+  var errCard='', errs=[];
   if(sqlReady){
-    var errs=[];
     try{var er=await dg('system_logs','?order=at.desc&limit=5');if(Array.isArray(er))errs=er;}catch(e){}
     var errRows=errs.length?errs.map(function(l){
       return '<div style="padding:9px 16px;border-top:1px solid #F9F8F7">'+
@@ -384,7 +378,7 @@ async function _devHealthPanel(sqlReady,migResults){
         '<div style="font-size:11.5px;color:#18120E;margin-top:2px;word-break:break-word">'+esc(l.message||'')+'</div>'+
       '</div>';
     }).join(''):'<div style="padding:20px 16px;text-align:center;color:#a89e99;font-size:12px">ยังไม่มี error ที่ถูกบันทึก</div>';
-    errCard='<div class="card"><div class="card-head">'+
+    errCard='<div class="card" id="dev-err-card"><div class="card-head">'+
       '<div style="width:26px;height:26px;border-radius:7px;background:#FEF2F2;display:flex;align-items:center;justify-content:center;color:#DC2626">'+svg('bug',13)+'</div>'+
       '<div><div class="card-head-title">Error ล่าสุดจากเบราว์เซอร์ผู้ใช้</div>'+
       '<div style="font-size:10px;color:#a89e99;margin-top:1px">JS error ที่ระบบดักได้เอง — ดูทั้งหมดที่แท็บ "บันทึกระบบ"</div></div>'+
@@ -392,7 +386,39 @@ async function _devHealthPanel(sqlReady,migResults){
     '</div>'+errRows+'</div>';
   }
 
-  return migCard+integCard+countCard+issueCard+
+  // ── สรุปบนสุด: 4 ช่องตอบคำถาม "ตอนนี้มีอะไรต้องทำไหม" ก่อน แล้วค่อยเป็นรายละเอียด/เครื่องมือ ──
+  var migPend=migResults.filter(function(r){return r.ok===false&&!r.optional}).length;
+  var migDone=migResults.filter(function(r){return r.ok===true}).length;
+  var integ=(integData&&integData.integrations)||null;
+  var integKeys=integ?Object.keys(integ).filter(function(k){return !integ[k].optional}):[];
+  var integBad=integKeys.filter(function(k){return !integ[k].configured}).length;
+  var err24=errs.filter(function(l){return Date.now()-Date.parse(l.at)<86400000}).length;
+  var tiles=[
+    {label:'SQL Migration', val:migDone+'/'+migResults.filter(function(r){return r.ok!==null}).length,   /* ไฟล์ที่ต้องตรวจด้วยมือไม่นับ — 11/15 "ครบแล้ว" อ่านแล้วขัดกันเอง */
+      ok:!migPend, note:migPend?'ค้าง '+migPend+' ไฟล์':'ครบแล้ว', go:"_devJump('dev-mig-card')"},
+    {label:'บริการภายนอก', val:integ?(integKeys.length-integBad)+'/'+integKeys.length:'—', ok:integ&&!integBad, warn:!integ, note:!integ?'อ่านสถานะไม่ได้':integBad?'ยังไม่ตั้งค่า '+integBad+' อย่าง':'ตั้งค่าครบ', go:"_devJump('dev-integ-card')"},
+    {label:'เอกสารสถานะผิดปกติ', val:issues.length, ok:!issues.length, note:issues.length?'กดเพื่อดูและซ่อม':'ไม่พบ', go:"_devJump('dev-issue-card')"},
+    {label:'Error ใน 24 ชม.', val:sqlReady?err24:'—', ok:sqlReady&&!err24, warn:!sqlReady, note:!sqlReady?'ยังไม่มีตาราง system_logs':err24?'ดูรายละเอียดด้านล่าง':'ไม่มี', go:"_devJump('dev-err-card')"}
+  ];
+  var overview='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:20px">'+
+    tiles.map(function(t){
+      var cl=t.ok?'#16A34A':t.warn?'#D97706':'#DC2626', bg=t.ok?'#F0FDF4':t.warn?'#FFFBEB':'#FEF2F2';
+      return '<button onclick="'+t.go+'" style="text-align:left;background:#fff;border:1px solid #EBEBEB;border-radius:14px;padding:14px 16px;cursor:pointer;display:flex;gap:12px;align-items:center">'+
+        '<div style="width:34px;height:34px;border-radius:10px;background:'+bg+';color:'+cl+';display:flex;align-items:center;justify-content:center;flex-shrink:0">'+svg(t.ok?'ok':'warn',16)+'</div>'+
+        '<div style="min-width:0"><div style="font-size:12px;color:#6b6560;font-weight:600">'+t.label+'</div>'+
+        '<div style="font-size:20px;font-weight:900;color:#18120E;line-height:1.3">'+t.val+'</div>'+
+        '<div style="font-size:11.5px;color:'+cl+';font-weight:600">'+t.note+'</div></div>'+
+      '</button>';
+    }).join('')+'</div>';
+
+  return overview+
+    _devSecHead('โควตาและพื้นที่จัดเก็บ','ยอดส่ง LINE / อีเมล และพื้นที่ Supabase / Google Drive / OneDrive')+
+    (typeof rMsgQuotaCard==='function'?rMsgQuotaCard()+rStorageCard():'')+
+    _devSecHead('ต้องตรวจ','ปัญหาที่พบจากข้อมูลจริง — ว่างเปล่าคือดี')+
+    issueCard+errCard+
+    _devSecHead('การตั้งค่า','สถานะ secret และฐานข้อมูล')+
+    integCard+migCard+countCard+
+    _devSecHead('เครื่องมือบำรุงรักษา','กดใช้เมื่อจำเป็น — ไม่มีอะไรรันเองจากการเปิดหน้านี้')+
     '<div class="card"><div class="card-head">'+
       '<div style="width:26px;height:26px;border-radius:7px;background:#F0FDF4;display:flex;align-items:center;justify-content:center;color:#16A34A">'+svg('bell',13)+'</div>'+
       '<div><div class="card-head-title">ตรวจเอกสารเกินกำหนด (overdue)</div>'+
@@ -418,7 +444,21 @@ async function _devHealthPanel(sqlReady,migResults){
     '</div>'+
     '<div class="card-body">'+
       '<div id="dev-orphan-storage-result" style="font-size:12px;color:#a89e99">กด "สแกน" เพื่อดูว่าพื้นที่ถูกใช้ไปกับอะไรบ้าง</div>'+
-    '</div></div>'+errCard;
+    '</div></div>';
+}
+
+/* หัวข้อกลุ่มการ์ดในแท็บสุขภาพระบบ */
+function _devSecHead(title,sub){
+  return '<div style="display:flex;align-items:baseline;gap:10px;margin:26px 0 10px;flex-wrap:wrap">'+
+    '<div style="font-size:15px;font-weight:800;color:#18120E">'+title+'</div>'+
+    '<div style="font-size:12px;color:#a89e99">'+sub+'</div></div>';
+}
+
+/* กดช่องสรุป → เลื่อนไปการ์ดนั้น (เช็กลิสต์ SQL ที่พับไว้ให้กางออกด้วย) */
+function _devJump(id){
+  var el=$e(id); if(!el) return;
+  if(id==='dev-mig-card'){var d=$e('dev-mig-details'); if(d) d.open=true;}
+  el.scrollIntoView({behavior:'smooth',block:'start'});
 }
 
 /* รัน overdue check ทันทีจาก Dev Panel (ข้าม cron flag + localStorage รายวัน) */

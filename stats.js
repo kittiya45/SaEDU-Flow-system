@@ -317,8 +317,8 @@ html.push('</div>');
 
   html.push('</div>'); /* row 3 */
 
-  /* ══ ROW 4 — สรุปโครงการประจำปี (เฉพาะ ROLE-STF, ROLE-SYS) ══ */
-  if(!CU||!['ROLE-STF','ROLE-SYS'].includes(CU.role_code)) return html.join('');
+  /* ══ ROW 4 — สรุปโครงการประจำปี (ROLE-STF, ROLE-SYS, ROLE-DEV — dev ต้องทดสอบปุ่ม PDF รวมได้) ══ */
+  if(!CU||!['ROLE-STF','ROLE-SYS','ROLE-DEV'].includes(CU.role_code)) return html.join('');
 
   var _nowCE=new Date().getFullYear();
   var _selYear=window._statYear||_nowCE;
@@ -359,7 +359,7 @@ html.push('</div>');
     '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'+
       (_yrDocs.length>0?'<span style="font-size:11px;color:#a89e99">'+_yrDocs.length+' เอกสาร · '+_projects.length+' โครงการ</span>':'')+
       '<select onchange="window._statYear=+this.value;nav(\'stat\')" style="height:28px;padding:0 8px 0 10px;border-radius:8px;border:1.5px solid #EBEBEB;background:#fff;font-size:12px;cursor:pointer;color:#18120E;outline:none">'+_yearOpts+'</select>'+
-      (_yrDocs.length>0?'<button id="stat-proj-dl-btn" onclick="_downloadStatProjZip('+_selYear+')" style="background:#E83A00;color:#fff;border:none;border-radius:9px;padding:5px 12px;font-size:11px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:6px;box-shadow:0 2px 8px rgba(232,58,0,.3)">ดาวน์โหลดทุกไฟล์ (ZIP)</button>':'')+
+      (_yrDocs.length>0?'<button id="stat-proj-dl-btn" onclick="_downloadStatProjPdf('+_selYear+')" title="รวมไฟล์ฉบับลงนามครบของทุกเอกสารที่เสร็จสิ้นในปีนี้ เป็น PDF ไฟล์เดียว" style="background:#E83A00;color:#fff;border:none;border-radius:9px;padding:5px 12px;font-size:11px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:6px;box-shadow:0 2px 8px rgba(232,58,0,.3)">ดาวน์โหลดไฟล์ลงนาม (PDF รวม)</button>':'')+
     '</div>'
   ));
 
@@ -418,79 +418,164 @@ html.push('</div>');
   return html.join('');
 }
 
-async function _downloadStatProjZip(selYear){
-  var btn=$e('stat-proj-dl-btn');
-  if(btn){btn.disabled=true;btn.textContent='กำลังรวมไฟล์...';}
+/* ── ดาวน์โหลด "ไฟล์ที่ลงนามครบแล้ว" ของโครงการทั้งปี รวมเป็น PDF ไฟล์เดียว ──
+   ใช้ทั้งหน้าสถิติและการ์ดสรุปโครงการหน้าแรก (homeViews.js ส่ง btnId='proj-dl-btn')
+   เดิมเป็น ZIP ของทุกไฟล์แนบทุกเวอร์ชัน (ไฟล์ร่าง ไฟล์ก่อนเซ็น ไฟล์ประกอบปนกันหมด)
+   ตอนนี้เอาเฉพาะเอกสาร completed (= ทุกขั้นลงนามครบ) และเฉพาะไฟล์ฉบับลงนามล่าสุดของแต่ละเอกสาร
+   (_isSignedFile + _fileGroups → ฉบับที่ปั๊มเลขหนังสือแล้ว) ต่อกันเรียงตามโครงการ → วันที่สร้าง
+   หน้าแรกเป็นสารบัญ (ต้องใช้ฟอนต์ไทย — โหลดไม่ได้ก็ข้ามสารบัญ ไม่พิมพ์ไทยด้วยฟอนต์ละติน)
+   ไฟล์ที่ย้ายไปคลังแล้ว (archive_url) ดึงจากเบราว์เซอร์ไม่ได้ (CSP + คลังต้องล็อกอิน)
+   → ไม่รวม แต่ระบุรายชื่อไว้ในสารบัญและแจ้งจำนวนตอนจบ ไม่ข้ามเงียบ ๆ */
+async function _downloadStatProjPdf(selYear,btnId){
+  var btn=$e(btnId||'stat-proj-dl-btn');
+  var _lbl=btn?btn.innerHTML:'';
+  function _st(t){if(btn) btn.textContent=t;}
+  if(btn) btn.disabled=true;
+  _st('กำลังค้นหาไฟล์...');
   try{
-    await _loadJSZip();
+    if(!window.PDFLib) await loadSc('https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js');
     var yearStart=selYear+'-01-01T00:00:00';
     var yearEnd=(selYear+1)+'-01-01T00:00:00';
-    var raw=await dg('documents','?status=eq.completed&project_name=not.is.null&select=id,title,doc_number,project_name,created_at&order=created_at.desc');
-    var yearDocs=(Array.isArray(raw)?raw:[]).filter(function(d){
+    var raw=await dg('documents','?status=eq.completed&project_name=not.is.null&select=id,title,doc_number,project_name,created_at&order=created_at.asc');
+    if(!Array.isArray(raw)) throw new Error('โหลดรายการเอกสารไม่สำเร็จ');
+    var yearDocs=raw.filter(function(d){
       return (d.created_at||'')>=yearStart&&(d.created_at||'')<yearEnd;
     });
-    if(!yearDocs.length){showAlert('ไม่พบเอกสารที่เสร็จสิ้นในปีนี้','wa');return;}
+    if(!yearDocs.length){showAlert('ไม่พบเอกสารที่ลงนามครบแล้วในปีนี้','wa');return;}
+    yearDocs.sort(function(a,b){
+      var pa=(a.project_name||'').trim(),pb=(b.project_name||'').trim();
+      return pa.localeCompare(pb,'th')||((a.created_at||'')<(b.created_at||'')?-1:1);
+    });
 
-    var zip=new JSZip();
-    var fileCount=0;
-    // ไฟล์ของเอกสารที่จบแล้วส่วนใหญ่ถูกย้ายไปคลัง Google Drive (supabase/47_archive_to_drive.mjs)
-    // ดึงจาก Storage ไม่ได้และเบราว์เซอร์ดึงจาก Drive ตรง ๆ ก็ไม่ได้ (CSP) — เดิมโค้ดข้ามเงียบ ๆ
-    // จน ZIP ออกมาเกือบเปล่าโดยไม่มีใครรู้ ตอนนี้เก็บรายการไว้ใส่เป็น CSV ใน ZIP + แจ้งจำนวนตอนจบ
-    var archived=[];
+    // ไฟล์ทั้งหมดของเอกสารปีนี้ — ดึงทีละ 40 เอกสาร (URL ไม่ยาวเกิน)
+    var filesByDoc={};
+    for(var c=0;c<yearDocs.length;c+=40){
+      var ids=yearDocs.slice(c,c+40).map(function(d){return safeId(d.id)}).join(',');
+      var fr=await dg('document_files','?document_id=in.('+ids+')&select=id,document_id,file_name,file_path,file_size,uploaded_at,version,archive_url');
+      if(!Array.isArray(fr)) throw new Error('โหลดรายการไฟล์ไม่สำเร็จ');
+      fr.forEach(function(f){(filesByDoc[f.document_id]=filesByDoc[f.document_id]||[]).push(f)});
+    }
 
+    var out=await PDFLib.PDFDocument.create();
+    var merged=[],archived=[],failed=[],unsigned=0,pageCount=0;
     for(var i=0;i<yearDocs.length;i++){
       var doc=yearDocs[i];
-      var proj=(doc.project_name||'ไม่ระบุโครงการ').replace(/[\/\\:*?"<>|]/g,'_').trim()||'ไม่ระบุโครงการ';
-      var num=(doc.doc_number||'doc').replace(/[\/\\:*?"<>|]/g,'-').trim();
-
-      var files=await dg('document_files','?document_id=eq.'+doc.id+'&order=version.desc&limit=20');
-      if(!Array.isArray(files)||!files.length) continue;
-
-      var seen={};
-      for(var j=0;j<files.length;j++){
-        var f=files[j];
-        var rawName=f.file_path.split('/').pop();
-        if(seen[rawName]) continue;
-        seen[rawName]=true;
-        if(f.archive_url){
-          archived.push({proj:proj,num:doc.doc_number||'',name:f.file_name||rawName,url:f.archive_url});
-          continue;
-        }
+      _st('กำลังรวม '+(i+1)+'/'+yearDocs.length+' เอกสาร...');
+      var signed=(filesByDoc[doc.id]||[]).filter(function(f){
+        return _isSignedFile(f)&&/\.pdf$/i.test(f.file_name||f.file_path||'');
+      });
+      if(!signed.length){unsigned++;continue;}
+      var cur=_fileGroups(signed).cur;
+      for(var j=0;j<cur.length;j++){
+        var f=cur[j];
+        var info={proj:(doc.project_name||'').trim()||'(ไม่ระบุโครงการ)',num:doc.doc_number||'',title:doc.title||'',file:_fileBaseName(f)};
+        if(_isArchivedFile(f)){info.url=f.archive_url;archived.push(info);continue;}
         try{
-          var resp=await fetch(await resolveFileUrl(f.file_path));
-          if(!resp.ok) continue;
-          var blob=await resp.blob();
-          zip.file(proj+'/'+num+'_'+rawName,blob);
-          fileCount++;
-        }catch(e){}
+          var resp=await fetch(await resolveFileUrl(f.file_path),{cache:'reload'});
+          if(!resp.ok) throw new Error('HTTP '+resp.status);
+          var src=await PDFLib.PDFDocument.load(new Uint8Array(await resp.arrayBuffer()),{ignoreEncryption:true});
+          var pages=await out.copyPages(src,src.getPageIndices());
+          pages.forEach(function(pg){out.addPage(pg)});
+          info.start=pageCount+1;info.pages=pages.length;
+          pageCount+=pages.length;
+          merged.push(info);
+        }catch(e){info.err=e.message||String(e);failed.push(info);}
       }
-      if(btn) btn.textContent=(i+1)+'/'+yearDocs.length+' เอกสาร...';
     }
 
-    if(archived.length){
-      // BOM นำหน้าให้ Excel อ่านภาษาไทยถูก
-      var csv='\uFEFFโครงการ,เลขหนังสือ,ไฟล์,ลิงก์ Google Drive\n'+archived.map(function(r){
-        return [r.proj,r.num,r.name,r.url].map(function(v){return '"'+String(v).replace(/"/g,'""')+'"'}).join(',');
-      }).join('\n');
-      zip.file('ไฟล์ในคลัง Google Drive ('+archived.length+' ไฟล์).csv',csv);
+    if(!merged.length){
+      showAlert(archived.length
+        ?'ไฟล์ลงนามทั้ง '+archived.length+' เอกสารของปีนี้ถูกย้ายไปคลัง '+_archiveProvider(archived[0].url)+' แล้ว จึงรวมจากระบบไม่ได้ — ดาวน์โหลดได้จากโฟลเดอร์ SaEDU-Archive/'+(selYear+543)+' ในคลัง'
+        :failed.length?'โหลดไฟล์ลงนามไม่สำเร็จ ('+failed.length+' ไฟล์) กรุณาลองใหม่อีกครั้ง'
+        :'ไม่พบไฟล์ที่ลงนามแล้วในเอกสารปีนี้','wa');
+      return;
     }
-    if(!fileCount&&!archived.length){showAlert('ไม่พบไฟล์แนบในเอกสารปีนี้','wa');return;}
-    if(btn) btn.textContent='กำลังสร้าง ZIP...';
 
-    var content=await zip.generateAsync({type:'blob',compression:'DEFLATE',compressionOptions:{level:6}});
+    _st('กำลังสร้างสารบัญ...');
+    var tocOk=await _statProjPdfToc(out,selYear,merged,archived,failed);
+
+    _st('กำลังสร้าง PDF...');
+    var bytes=await out.save();
     var a=document.createElement('a');
-    a.href=URL.createObjectURL(content);
-    a.download='โครงการ_พ.ศ.'+(selYear+543)+'.zip';
+    a.href=URL.createObjectURL(new Blob([bytes],{type:'application/pdf'}));
+    a.download='ไฟล์ลงนาม_โครงการ_พ.ศ.'+(selYear+543)+'.pdf';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     setTimeout(function(){URL.revokeObjectURL(a.href);},3000);
-    showAlert(archived.length
-      ?'ดาวน์โหลดสำเร็จ — รวม '+fileCount+' ไฟล์ · อีก '+archived.length+' ไฟล์อยู่ในคลัง Google Drive (รายการลิงก์อยู่ในไฟล์ CSV ใน ZIP) — ดาวน์โหลดทั้งปีได้จากโฟลเดอร์ SaEDU-Archive/'+(selYear+543)+' ใน Drive ของ saeduflow'
-      :'ดาวน์โหลดสำเร็จ — รวม '+fileCount+' ไฟล์',archived.length?'wa':'ok');
+
+    var msg='ดาวน์โหลดสำเร็จ — รวมไฟล์ลงนาม '+merged.length+' เอกสาร ('+pageCount+' หน้า) เป็น PDF ไฟล์เดียว';
+    if(archived.length) msg+=' · อีก '+archived.length+' เอกสารอยู่ในคลัง '+_archiveProvider(archived[0].url)+' จึงไม่ได้รวม'+(tocOk?' (รายชื่ออยู่ในหน้าสารบัญ)':'');
+    if(failed.length) msg+=' · โหลดไม่สำเร็จ '+failed.length+' ไฟล์: '+failed.map(function(r){return r.num||r.title}).join(', ');
+    if(unsigned) msg+=' · ไม่นับ '+unsigned+' เอกสารที่ไม่มีไฟล์ลงนาม';
+    if(!tocOk) msg+=' · สร้างหน้าสารบัญไม่ได้ (โหลดฟอนต์ไทยไม่สำเร็จ)';
+    showAlert(msg,(archived.length||failed.length||!tocOk)?'wa':'ok');
   }catch(e){
     showAlert('เกิดข้อผิดพลาด: '+(e.message||e),'er');
   }finally{
-    if(btn){btn.disabled=false;btn.textContent='ดาวน์โหลดทุกไฟล์ (ZIP)';}
+    if(btn){btn.disabled=false;btn.innerHTML=_lbl;}
   }
+}
+
+/* สารบัญหน้าแรกของ PDF รวม — คืน false ถ้าโหลดฟอนต์ไทยไม่ได้ (ไม่แทรกหน้าใด ๆ) */
+async function _statProjPdfToc(out,selYear,merged,archived,failed){
+  var font;
+  try{
+    if(!window.fontkit) await loadSc('https://unpkg.com/@pdf-lib/fontkit/dist/fontkit.umd.min.js');
+    out.registerFontkit(window.fontkit);
+    if(!window._thFontCache){
+      window._thFontCache=await fetch('https://cdn.jsdelivr.net/gh/Phonbopit/sarabun-webfont@master/fonts/thsarabunnew-webfont.ttf').then(function(r){
+        if(!r.ok) throw new Error('Font HTTP error'); return r.arrayBuffer();
+      });
+    }
+    font=await out.embedFont(window._thFontCache.slice(0));
+  }catch(e){console.warn('proj pdf: Thai font load failed, skipping TOC:',e.message);return false;}
+
+  var W=595.28,Hh=841.89,M=50,LH=20,SZ=14;
+  var dark=PDFLib.rgb(.09,.07,.05),muted=PDFLib.rgb(.45,.41,.38),brand=PDFLib.rgb(.91,.23,0);
+  function fit(t,maxW,sz){
+    t=String(t||'');
+    if(font.widthOfTextAtSize(t,sz)<=maxW) return t;
+    while(t.length>1&&font.widthOfTextAtSize(t+'…',sz)>maxW) t=t.slice(0,-1);
+    return t+'…';
+  }
+  // แถว: {t:ข้อความ, sz, c:สี, ind:ย่อหน้า, pg:เลขหน้าชิดขวา}
+  var rows=[];
+  rows.push({t:'ไฟล์ที่ลงนามครบแล้ว — สรุปโครงการประจำปี พ.ศ. '+(selYear+543),sz:20,c:dark,gap:6});
+  rows.push({t:'รวม '+merged.length+' เอกสาร · สร้างเมื่อ '+new Date().toLocaleString('th-TH',{dateStyle:'medium',timeStyle:'short'}),sz:SZ,c:muted,gap:10});
+  var lastProj=null;
+  merged.forEach(function(r){
+    if(r.proj!==lastProj){rows.push({t:r.proj,sz:15,c:brand,gapTop:6});lastProj=r.proj;}
+    rows.push({t:(r.num?r.num+'  ':'')+r.title,sz:SZ,c:dark,ind:14,pg:r});
+  });
+  function listSection(head,list){
+    if(!list.length) return;
+    rows.push({t:head,sz:15,c:brand,gapTop:14});
+    list.forEach(function(r){rows.push({t:(r.num?r.num+'  ':'')+r.title+'  ('+r.proj+')',sz:SZ,c:muted,ind:14})});
+  }
+  listSection('ไม่ได้รวมในไฟล์นี้ — อยู่ในคลัง'+(archived.length?' '+_archiveProvider(archived[0].url):'')+' ('+archived.length+' เอกสาร)',archived);
+  listSection('ไม่ได้รวมในไฟล์นี้ — โหลดไฟล์ไม่สำเร็จ ('+failed.length+' เอกสาร)',failed);
+
+  // แบ่งหน้าก่อน เพื่อรู้ว่าสารบัญกินกี่หน้า แล้วค่อยเลื่อนเลขหน้าของเอกสาร
+  var pagesRows=[[]],y=Hh-M;
+  rows.forEach(function(r){
+    var h=(r.gapTop||0)+LH+(r.gap||0);
+    if(y-h<M&&pagesRows[pagesRows.length-1].length){pagesRows.push([]);y=Hh-M;}
+    pagesRows[pagesRows.length-1].push(r);y-=h;
+  });
+  var off=pagesRows.length;
+  pagesRows.forEach(function(list,pi){
+    var page=out.insertPage(pi,[W,Hh]);
+    var yy=Hh-M;
+    list.forEach(function(r){
+      yy-=(r.gapTop||0)+LH;
+      var x=M+(r.ind||0);
+      var pgTxt=r.pg?'หน้า '+(r.pg.start+off):'';
+      var pgW=pgTxt?font.widthOfTextAtSize(pgTxt,r.sz)+16:0;
+      page.drawText(fit(r.t,W-M-x-pgW,r.sz),{x:x,y:yy,size:r.sz,font:font,color:r.c});
+      if(pgTxt) page.drawText(pgTxt,{x:W-M-font.widthOfTextAtSize(pgTxt,r.sz),y:yy,size:r.sz,font:font,color:muted});
+      yy-=(r.gap||0);
+    });
+  });
+  return true;
 }

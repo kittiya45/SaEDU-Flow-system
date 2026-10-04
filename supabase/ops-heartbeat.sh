@@ -62,3 +62,19 @@ _hb_put() {   # $1 key  $2 value  $3 label
 }
 heartbeat_ok()   { _hb_put "ops_${1}_last_ok"   "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "เวลาที่งาน $1 สำเร็จล่าสุด (เขียนอัตโนมัติจากเครื่องผู้ดูแล — ห้ามแก้เอง)"; }
 heartbeat_fail() { _hb_put "ops_${1}_last_fail" "$(date -u +%Y-%m-%dT%H:%M:%SZ)|${2:-ล้มเหลว}" "เวลาที่งาน $1 ล้มเหลวล่าสุด + สาเหตุ (เขียนอัตโนมัติ)"; }
+
+# พื้นที่บนคลาวด์ — หน้าเว็บอ่าน Google Drive/OneDrive เองไม่ได้ (ไม่มี token ของ rclone) จึงให้เครื่องนี้
+# รายงานผล `rclone about --json` ลง app_settings.ops_space_<remote> เป็น JSON สั้น ๆ ทุกรอบที่รัน
+# homeViews.js/sysAdmin.js อ่านจาก SETT ไปแสดงการ์ด "พื้นที่จัดเก็บ" + เตือนเมื่อเหลือไม่ถึง 1 GiB
+heartbeat_space() {   # $1 = ชื่อ remote ใน rclone
+  local remote="$1" js total used free typ
+  js="$(rclone about --json "$remote:" 2>/dev/null)" || return 0
+  total="$(printf '%s' "$js" | awk -F'[:,]' '/"total"/{gsub(/[ \t]/,"",$2);print $2}')"
+  used="$(printf '%s' "$js"  | awk -F'[:,]' '/"used"/{gsub(/[ \t]/,"",$2);print $2}')"
+  free="$(printf '%s' "$js"  | awk -F'[:,]' '/"free"/{gsub(/[ \t]/,"",$2);print $2}')"
+  [ -n "$total" ] || return 0
+  typ="$(rclone listremotes --long 2>/dev/null | awk -v r="$remote:" '$1==r{print $2}')"
+  _hb_put "ops_space_${remote}" \
+    "{\"at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"remote\":\"$remote\",\"type\":\"${typ:-?}\",\"total\":${total},\"used\":${used:-0},\"free\":${free:-0}}" \
+    "พื้นที่บนคลาวด์ $remote (เขียนอัตโนมัติจากเครื่องผู้ดูแล — ห้ามแก้เอง)"
+}

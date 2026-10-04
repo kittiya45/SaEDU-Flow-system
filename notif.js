@@ -202,42 +202,10 @@ async function sendNotifEmail(docId, action, newStatus, note){
     }
   }
 
-  /* ── กลุ่ม LINE เจ้าหน้าที่ — ยิงเมื่อเข้าเงื่อนไขข้อใดข้อหนึ่ง ──
-     1) action อยู่ใน SETT.line_group_events (ค่าเริ่มต้น create,resubmit)
-        = "มีเอกสารใหม่เข้าระบบ" กลุ่มควรรู้ทุกใบ ไม่ต้องรอให้เดินมาถึงคิวเจ้าหน้าที่
-     2) approve ที่ทำให้คิวถัดไปเป็นของ ROLE-STF = "ถึงตาเจ้าหน้าที่แล้ว"
-
-     ⚠️ ห้ามใส่ 'approve' ลงใน line_group_events เฉย ๆ — เอกสารสายงบมี 7 ขั้น
-     จะยิงเข้ากลุ่ม 6 ข้อความต่อใบ และ LINE OA มีโควตา push จำกัดต่อเดือน
-     เงื่อนไขข้อ 2 จึงคุม approve ไว้ให้เหลือครั้งเดียวต่อเอกสาร
-
-     ประวัติ: 26 ก.ค. 69 เคยตัดเหลือเฉพาะข้อ 2 อย่างเดียว ทำให้กลุ่มเงียบสนิท
-     ตั้งแต่ 10 ส.ค. เพราะไม่มีเอกสารใบไหนเดินมาถึงขั้นเจ้าหน้าที่เลย
-
-     30 ก.ย. 69: ทั้งบล็อกนี้ปิดเป็นค่าเริ่มต้น (SETT.line_group_doc_notify) — โควตา LINE หมด
-     เพราะข้อความกลุ่มหักตามจำนวนสมาชิก จนท. ได้รับแจ้งรายคนแทน (ดู config.js) */
-  if(settOn('line_group_doc_notify',false)) try{
-    var _staffActive=false;
-    if(nextStep&&nextStep.assigned_to){
-      var _na=recipients.find(function(r){return r.user&&r.user.id===nextStep.assigned_to});
-      if(_na&&_na.user.role_code==='ROLE-STF') _staffActive=true;
-      else if(!_na){
-        var _nu=await dg('user_directory','?id=eq.'+safeId(nextStep.assigned_to)+'&select=id,role_code');
-        _staffActive=!!(_nu&&_nu[0]&&_nu[0].role_code==='ROLE-STF');
-      }
-    }
-    var _gEv=String(SETT.line_group_events||'create,resubmit').split(',').map(function(s){return s.trim()});
-    if(SETT.line_group_id&&(_gEv.indexOf(action)>=0||(_staffActive&&action==='approve'))){
-      var _gO={
-        action:action, newStatus:newStatus, subj:subj, deadlineStr:deadlineStr,
-        nextStep:nextStep, urgency:doc.urgency, note:note,
-        autoApprove:_autoQ, slaDays:SETT.sla_cascade_days||3, sentAt:sentAt
-      };
-      var _gFlex=null;
-      try{_gFlex=buildLineFlex(Object.assign({steps:lineSteps},_gO))}catch(fe){}
-      await sendLineGroupPush(buildLineText(_gO),_gFlex,docId);
-    }
-  }catch(e){console.warn('LINE group notify error:',e)}
+  /* ไม่มีการส่งเข้ากลุ่ม LINE เจ้าหน้าที่อีกแล้ว (ยกเลิก 2026-10-04 ตามที่ผู้ดูแลระบบสั่ง)
+     ข้อความกลุ่มหักโควตาเท่าจำนวนสมาชิก — โควตาหมดเมื่อ 28 ก.ย. 69
+     จนท. ได้ LINE รายคนเฉพาะเมื่อเอกสารถึงตัว: คิวลงนาม (_shouldSendLineForTurn) และคิวรับเอกสาร
+     หลังออกเลข (_notifyStaffPoolForward ใน docNum.js) · send-line ก็ปฏิเสธ group:true แล้วเช่นกัน */
 
   if(sentEmails.length) showEmailToast(sentEmails,emailSubj);
 }
@@ -634,27 +602,6 @@ async function sendLinePush(recipientId, text, flex, documentId, testSelf){
     if(typeof _noteNotifErr==='function') _noteNotifErr(documentId,recipientId,'LINE network: '+((e&&e.message)||e));
     return 'failed';
   }
-}
-
-/* ส่งเข้ากลุ่ม LINE เจ้าหน้าที่ — send-line resolve groupId จาก app_settings ฝั่ง server
-   ไม่บันทึกลง notifications (ไม่มี recipient_id รายคน และ dedup ของ overdue อาศัยแถวรายคน
-   ที่เขียนใน loop ผู้รับอยู่แล้ว) */
-async function sendLineGroupPush(text, flex, docId){
-  if(!text) return 'skipped';
-  try{
-    var r=await fetch(SU+'/functions/v1/send-line',{
-      method:'POST',
-      headers:{'Content-Type':'application/json','Authorization':H.Authorization,'apikey':SK},
-      // ต้องส่ง documentId ไปด้วย — validateLineSend ใช้ตรวจว่าผู้ยิงเกี่ยวข้องกับเอกสารใบนี้จริง
-      // ผู้ที่ไม่ใช่ staff/dev จะได้ 403 ถ้าไม่มีค่านี้ (ปุ่มทดสอบส่งของแอดมินไม่ต้องมี)
-      body:JSON.stringify({group:true,text:text,flex:flex||undefined,documentId:docId||undefined})
-    });
-    var j=await r.json().catch(function(){return{}});
-    if(r.ok&&j.ok) return 'sent';
-    if(j&&j.skipped) return 'skipped';
-    console.warn('LINE group push failed:',j);
-    return 'failed';
-  }catch(e){console.warn('LINE group push error:',e);return 'failed'}
 }
 
 /* ส่ง LINE + บันทึก audit ลง notifications (เฉพาะเมื่อได้ลองส่งจริง — 'skipped' ไม่บันทึก

@@ -8,6 +8,9 @@ var _calEvtPg=0;
 
 /* ─── PROJECT SUMMARY STATE ─── */
 var _projYear=new Date().getFullYear()+543;
+/* หน้าแรกแสดงแค่ไม่กี่โครงการแรก (เรียงตามจำนวนเอกสาร) — ทั้งปีมีหลายสิบโครงการ ตารางเต็มยาวจนดันการ์ดอื่นตกจอ
+   ที่เหลือซ่อนไว้ในแถว data-proj-extra กด "แสดงทั้งหมด" เพื่อกางในที่เดิม ไม่ต้องโหลดใหม่ */
+var _PROJ_ROWS=5;
 
 async function _loadEvtsDB(){
   try{
@@ -464,6 +467,13 @@ async function vDash(){
 
 /* ─── PROJECT SUMMARY ─── */
 function _projYearNav(delta){_projYear+=delta;_renderProjSummary();}
+function _projToggleRows(n){
+  var rows=document.querySelectorAll('#proj-summary-widget [data-proj-extra]');
+  var open=rows.length&&rows[0].style.display==='none';
+  rows.forEach(function(r){r.style.display=open?'':'none'});
+  var b=$e('proj-more-btn');
+  if(b) b.textContent=open?'ย่อ':'แสดงทั้งหมด ('+n+' โครงการ)';
+}
 async function _renderProjSummary(){
   var el=$e('proj-summary-widget');
   if(el) el.innerHTML=await _buildProjSummary();
@@ -519,8 +529,8 @@ async function _buildProjSummary(){
           '<span style="font-size:12px;font-weight:800;color:#18120E;padding:0 6px;white-space:nowrap">พ.ศ. '+_projYear+'</span>'+
           '<button onclick="_projYearNav(1)" style="width:26px;height:26px;border-radius:7px;background:none;border:none;cursor:pointer;color:#6b6560;font-size:16px;display:flex;align-items:center;justify-content:center;line-height:1">›</button>'+
         '</div>'+
-        (total>0?'<button id="proj-dl-btn" onclick="_downloadProjZip()" class="btn btn-primary sm">'+
-          svg('doc',12)+' ดาวน์โหลดทุกไฟล์ (ZIP)</button>':'')+
+        (total>0?'<button id="proj-dl-btn" onclick="_downloadStatProjPdf('+(_projYear-543)+',\'proj-dl-btn\')" class="btn btn-primary sm" title="รวมไฟล์ฉบับลงนามครบของทุกเอกสารที่เสร็จสิ้นในปีนี้ เป็น PDF ไฟล์เดียว">'+
+          svg('doc',12)+' ดาวน์โหลดไฟล์ลงนาม (PDF รวม)</button>':'')+
       '</div>'+
     '</div>'
   );
@@ -544,12 +554,13 @@ async function _buildProjSummary(){
       '</tr></thead><tbody>'
     );
     groups.forEach(function(g,i){
+      var _extra=i>=_PROJ_ROWS;
       var cntDone=g.docs.filter(function(d){return d.status==='completed';}).length;
       var allDone=cntDone===g.docs.length;
       var gPct=Math.round(cntDone/g.docs.length*100);
       var gCl=allDone?'#16A34A':'#D97706';
       h.push(
-        '<tr>'+
+        '<tr'+(_extra?' data-proj-extra style="display:none"':'')+'>'+
           '<td style="font-size:12px;color:#c0b9b4;font-weight:600">'+(i+1)+'</td>'+
           '<td>'+
             '<div style="font-size:13px;font-weight:700;color:#18120E;margin-bottom:5px">'+esc(g.name)+'</div>'+
@@ -567,6 +578,11 @@ async function _buildProjSummary(){
       );
     });
     h.push('</tbody></table></div>');
+    if(groups.length>_PROJ_ROWS){
+      h.push('<div style="padding:8px 20px;border-top:1px solid #F5F3F0;text-align:center">'+
+        '<button id="proj-more-btn" class="btn btn-ghost sm" onclick="_projToggleRows('+groups.length+')">แสดงทั้งหมด ('+groups.length+' โครงการ)</button>'+
+      '</div>');
+    }
     h.push(
       '<div style="padding:14px 20px;border-top:1px solid #F5F3F0;background:#FAFAF8">'+
         '<div style="height:7px;background:#EBEBEB;border-radius:99px;overflow:hidden;margin-bottom:6px">'+
@@ -581,77 +597,6 @@ async function _buildProjSummary(){
   h.push('</div>');
   return h.join('');
 }
-
-async function _loadJSZip(){
-  if(typeof JSZip!=='undefined') return;
-  return new Promise(function(res,rej){
-    var s=document.createElement('script');
-    s.src='https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
-    s.onload=res;
-    s.onerror=function(){rej(new Error('โหลด JSZip ไม่สำเร็จ กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ต'));};
-    document.head.appendChild(s);
-  });
-}
-
-async function _downloadProjZip(){
-  var btn=$e('proj-dl-btn');
-  if(btn){btn.disabled=true;btn.innerHTML='<span class="sp" style="border-color:rgba(255,255,255,.3);border-top-color:#fff"></span> กำลังรวมไฟล์...';}
-  try{
-    await _loadJSZip();
-    var raw=await dg('documents','?status=eq.completed&project_name=not.is.null&select=id,title,doc_number,project_name,created_at&order=created_at.desc');
-    var _rng=_projYearRange(_projYear);
-    var yearDocs=(Array.isArray(raw)?raw:[]).filter(function(d){
-      return (d.created_at||'')>=_rng.start&&(d.created_at||'')<_rng.end;
-    });
-    if(!yearDocs.length){showAlert('ไม่พบเอกสารที่เสร็จสิ้นในปีนี้','wa');return;}
-
-    var zip=new JSZip();
-    var fileCount=0;
-
-    for(var i=0;i<yearDocs.length;i++){
-      var doc=yearDocs[i];
-      var proj=(doc.project_name||'ไม่ระบุโครงการ').replace(/[\/\\:*?"<>|]/g,'_').trim()||'ไม่ระบุโครงการ';
-      var num=(doc.doc_number||'doc').replace(/[\/\\:*?"<>|]/g,'-').trim();
-
-      var files=await dg('document_files','?document_id=eq.'+doc.id+'&order=version.desc&limit=20');
-      if(!Array.isArray(files)||!files.length) continue;
-
-      var seen={};
-      for(var j=0;j<files.length;j++){
-        var f=files[j];
-        var rawName=f.file_path.split('/').pop();
-        if(seen[rawName]) continue;
-        seen[rawName]=true;
-        try{
-          var resp=await fetch(await resolveFileUrl(f.file_path));
-          if(!resp.ok) continue;
-          var blob=await resp.blob();
-          zip.file(proj+'/'+num+'_'+rawName,blob);
-          fileCount++;
-        }catch(e){}
-      }
-      if(btn) btn.innerHTML='<span class="sp" style="border-color:rgba(255,255,255,.3);border-top-color:#fff"></span> '+(i+1)+'/'+yearDocs.length+' เอกสาร...';
-    }
-
-    if(!fileCount){showAlert('ไม่พบไฟล์แนบในเอกสารปีนี้','wa');return;}
-    if(btn) btn.innerHTML='<span class="sp" style="border-color:rgba(255,255,255,.3);border-top-color:#fff"></span> กำลังสร้าง ZIP...';
-
-    var content=await zip.generateAsync({type:'blob',compression:'DEFLATE',compressionOptions:{level:6}});
-    var a=document.createElement('a');
-    a.href=URL.createObjectURL(content);
-    a.download='โครงการ_พ.ศ.'+_projYear+'.zip';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(function(){URL.revokeObjectURL(a.href);},3000);
-    showAlert('ดาวน์โหลดสำเร็จ — รวม '+fileCount+' ไฟล์','ok');
-  }catch(e){
-    showAlert('เกิดข้อผิดพลาด: '+(e.message||e),'er');
-  }finally{
-    if(btn){btn.disabled=false;btn.innerHTML=svg('doc',12)+' ดาวน์โหลดทุกไฟล์ (ZIP)';}
-  }
-}
-
 
 /* ─── MY TASKS ─── */
 async function vTodo(){
@@ -878,6 +823,14 @@ async function _opsWatchData(){
       if(em.length) d.notifFail={count:em.length, last:Date.parse(em[0].sent_at)||0};
     }
   }catch(e){}
+  // โควตา LINE/อีเมล — Edge Function message-quota (แคช 30 นาทีใน sysAdmin.js) · รอไม่เกิน 4 วิ ไม่ให้หน้า Home ค้าง
+  // ยังไม่ deploy / อ่านไม่ได้ = เงียบ เหมือนงานที่ยังไม่เคยมี heartbeat
+  try{
+    if(typeof _fetchMsgQuota==='function'){
+      var q=await Promise.race([_fetchMsgQuota(false), new Promise(function(_,rj){setTimeout(function(){rj(new Error('timeout'))},4000)})]);
+      d.quota=_msgQuotaSummary(q);
+    }
+  }catch(e){}
   return d;
 }
 function _rOpsWatch(d){
@@ -905,16 +858,27 @@ function _rOpsWatch(d){
   if(d.notifFail){
     lines.push('<b>อีเมลแจ้งเตือนส่งไม่สำเร็จ '+d.notifFail.count+' ฉบับใน '+_OPS_NOTIF_FAIL_DAYS+' วัน</b> (ล่าสุด '+fdTime(new Date(d.notifFail.last).toISOString())+') — ผู้รับไม่ได้รับอีเมลนั้นและระบบไม่ส่งซ้ำ ตรวจใน Brevo: Security → Authorised IPs ต้องปิด (Edge Function ออกจาก IP ไม่คงที่), โควตารายวัน, และ sender ยืนยันแล้ว · รายละเอียดใน Dev Panel → บันทึกการแจ้งเตือน');
   }
-  if(!lines.length) return '';
-  // LINE เข้ากลุ่ม จนท. วันละครั้งต่อเบราว์เซอร์ — ยิงเบื้องหลัง ไม่รอผล ไม่บล็อกหน้า
-  try{
-    var dayKey='saedu_ops_alert_'+new Date().toISOString().slice(0,10);
-    if(!localStorage.getItem(dayKey)&&typeof sendLineGroupPush==='function'){
-      localStorage.setItem(dayKey,'1');
-      var plain=lines.map(function(l){return '• '+l.replace(/<[^>]+>/g,'')}).join('\n');
-      sendLineGroupPush('⚠️ SaEDU Flow — งานเบื้องหลังของระบบมีปัญหา\n'+plain+(macIssue?'\n→ เปิดเครื่อง Mac ของผู้ดูแลระบบให้งานทำต่อ หรือดู ~/Library/Logs/saedu':''));
+  if(d.quota&&d.quota.line&&d.quota.line.limit){
+    var L=d.quota.line;
+    if(L.pct>=100){
+      level='er';
+      lines.push('<b>โควตา LINE เดือนนี้หมดแล้ว</b> ('+L.used.toLocaleString()+' / '+L.limit.toLocaleString()+') — ไม่มีใครได้รับแจ้งเตือนทาง LINE จนถึงต้นเดือนหน้า อีเมลยังส่งตามปกติ · ดูรายละเอียดที่ จัดการระบบ → โควตาการส่ง');
+    }else if(L.pct>=80||(L.forecast!==null&&L.forecast>L.limit)){
+      lines.push('<b>โควตา LINE ใช้ไป '+L.pct+'%</b> ('+L.used.toLocaleString()+' / '+L.limit.toLocaleString()+' ข้อความ)'+(L.forecast!==null?' — ด้วยอัตรานี้ทั้งเดือนจะได้ประมาณ '+L.forecast.toLocaleString():'')+' · ข้อความเข้ากลุ่มคิดตามจำนวนสมาชิก ปิดได้ที่ ตั้งค่าระบบ → กลุ่ม LINE เจ้าหน้าที่');
     }
-  }catch(e){}
+  }
+  // พื้นที่ Google Drive / OneDrive — Mac ของผู้ดูแลรายงานผ่าน app_settings.ops_space_<remote> (heartbeat_space)
+  if(typeof _cloudSpaces==='function') _cloudSpaces().forEach(function(c){
+    if((+c.free||0)>=1073741824) return;
+    level='er';
+    lines.push('<b>พื้นที่ '+(c.type==='drive'?'Google Drive':c.type==='onedrive'?'OneDrive':esc(c.remote))+' เหลือ '+_gbFmt(c.free)+'</b> — งานย้ายไฟล์/สำรองข้อมูลจะเริ่มล้มเหลว ลบไฟล์อื่นในบัญชีนั้นหรือเพิ่มพื้นที่ · ดูที่ จัดการระบบ → โควตา & พื้นที่');
+  });
+  if(d.quota&&d.quota.email&&d.quota.email.daily&&d.quota.email.remaining<=30){
+    if(d.quota.email.remaining<=0) level='er';
+    lines.push('<b>โควตาอีเมลวันนี้เหลือ '+d.quota.email.remaining+' ฉบับ</b> (Brevo แผนฟรี '+d.quota.email.limit+' ฉบับ/วัน) — ฉบับที่เกินจะส่งไม่สำเร็จและระบบไม่ส่งซ้ำ');
+  }
+  if(!lines.length) return '';
+  // เคยยิงข้อความนี้เข้ากลุ่ม LINE จนท. วันละครั้ง — ยกเลิกการส่งเข้ากลุ่มทั้งหมด 2026-10-04 เหลือแบนเนอร์นี้อย่างเดียว
   return '<div class="al al-'+level+' mb-4" style="align-items:flex-start;line-height:1.7">'+
     '<span class="al-icon" style="margin-top:2px">'+svg('warn',14)+'</span>'+
     '<div><div style="font-weight:700;margin-bottom:4px">งานเบื้องหลังของระบบต้องการความสนใจ</div>'+
