@@ -298,7 +298,7 @@ async function scanStalledSteps(
       }
       /* ผู้จัดทำไม่ได้รับ LINE "เอกสารของท่านค้างเกินกำหนด" อีกต่อไป (2026-10-04)
          LINE ส่งเฉพาะคนที่เอกสารถึงคิวตัวเอง — ผู้จัดทำทำอะไรกับขั้นที่ค้างไม่ได้ และ ก.ย. 69
-         ข้อความกลุ่มนี้ (27 ฉบับ) คือส่วนใหญ่ของโควตา LINE รายคน ดู _lineOnlyTurn ใน notif.js */
+         ข้อความกลุ่มนี้ (27 ฉบับ) คือส่วนใหญ่ของโควตา LINE รายคน ดู _shouldSendLineForTurn ใน notif.js */
 
       for (const t of targets) {
         const status = await pushLine(admin, t.id, t.text, t.flex);
