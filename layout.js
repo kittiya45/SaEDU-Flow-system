@@ -129,21 +129,19 @@ function _navItem(n, active) {
 function _userFooter() {
   var grad = _ROLE_GRAD[CU.role_code] || 'linear-gradient(135deg,#5C534A,#6B6157)';
   var dot  = _ROLE_DOT[CU.role_code]  || '#a89e99';
-  var personSVG = '<svg width="18" height="18" viewBox="0 0 16 16" fill="none">' +
-    '<circle cx="8" cy="5.5" r="2.8" fill="rgba(255,255,255,0.95)"/>' +
-    '<path d="M2.5 15c0-3.04 2.46-5.5 5.5-5.5s5.5 2.46 5.5 5.5" fill="rgba(255,255,255,0.85)" stroke="none"/>' +
-    '</svg>';
-  return '<div class="app-foot">' +
+  /* ทั้งการ์ดเป็นปุ่มเปิดเมนูบัญชี (โปรไฟล์ / ตั้งค่า / ออกจากระบบ — account.js)
+     รูปโปรไฟล์เติมทีหลังโดย _hydrateAvatars() เพราะต้องขอ signed URL แบบ async */
+  return '<button type="button" class="app-foot" data-action="toggleUserMenu" aria-haspopup="menu" aria-expanded="false" title="บัญชีของฉัน">' +
     '<div class="app-foot-av" style="background:'+grad+'">' +
-      personSVG +
+      '<span class="app-foot-av-in" data-avatar-slot="side">'+_PERSON_SVG+'</span>' +
       '<span style="position:absolute;bottom:0;right:0;width:10px;height:10px;border-radius:50%;background:'+dot+';border:2px solid #100800;box-shadow:0 1px 3px rgba(0,0,0,.35)"></span>' +
     '</div>' +
     '<div class="app-foot-info">' +
       '<div class="app-foot-name">'+esc(CU.full_name)+'</div>' +
       '<div class="app-foot-role">'+(RTH[CU.role_code]||'')+'</div>' +
     '</div>' +
-    '<button style="width:30px;height:30px;border-radius:9px;border:none;background:rgba(255,255,255,.08);color:rgba(244,242,239,.6);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;transition:all .15s" data-action="logout" title="ออกจากระบบ" onmouseover="this.style.background=\'rgba(232,58,0,.22)\';this.style.color=\'#FF8A4C\'" onmouseout="this.style.background=\'rgba(255,255,255,.08)\';this.style.color=\'rgba(244,242,239,.6)\'">'+svg('out',15)+'</button>' +
-  '</div>';
+    '<span class="app-foot-chev">'+svg('chup',14)+'</span>' +
+  '</button>';
 }
 
 async function nav(view, id) {
@@ -240,6 +238,8 @@ async function nav(view, id) {
     else if (view==='stat')               content = await vStat();
     else if (view==='dev')                content = await vDev();
     else if (view==='prof')               content = await vProf();
+    else if (view==='acct')               content = await vAcct();
+    else if (view==='set')                content = await vSet();
   } catch(e) {
     content = '<div style="padding:32px;color:#DC2626;font-size:14px">เกิดข้อผิดพลาด: '+esc(String(e.message||e))+'</div>';
   }
@@ -250,7 +250,8 @@ async function nav(view, id) {
     new:'สร้างเอกสารใหม่', edit:'แก้ไขเอกสาร', det:'รายละเอียดเอกสาร',
     tmpl:'แบบฟอร์มดาวน์โหลด',
     adm:'จัดการผู้ใช้งาน', sys:'จัดการระบบ', stat:'สถิติ & รายงาน',
-    dev:'เครื่องมือนักพัฒนา', prof:'ลายเซ็นของฉัน'
+    dev:'เครื่องมือนักพัฒนา', prof:'ลายเซ็นของฉัน',
+    acct:'โปรไฟล์', set:'ตั้งค่าบัญชี'
   };
 
   var ni = [
@@ -315,4 +316,7 @@ async function nav(view, id) {
     '</div>'
   );
   if(view==='prof') setTimeout(function(){if(typeof initProfSig==='function')initProfSig()},60);
+  if(view==='set') setTimeout(function(){if(typeof _setInitMfa==='function')_setInitMfa()},30);
+  if(typeof _closeUserMenu==='function') _closeUserMenu();
+  if(typeof _hydrateAvatars==='function') _hydrateAvatars();
 } 

@@ -327,6 +327,12 @@ async function _enterAppAsUser(row,opts){
       return false
     }
   }
+  // เปิด 2FA ไว้ → ต้องกรอกรหัสจากแอป Authenticator ก่อนเข้า (ทั้ง login ใหม่และ restore session — account.js)
+  if(typeof _mfaGate==='function'&&!await _mfaGate()){
+    await sb.auth.signOut();
+    if(opts.onError)opts.onError('ยกเลิกการเข้าสู่ระบบ — บัญชีนี้ต้องยืนยันรหัสจากแอป Authenticator');
+    return false
+  }
   CU=row;
   if(opts.logLogin){try{await dp('document_history',{action:'login',performed_by:CU.id,note:'เข้าสู่ระบบ'});}catch(e){}}
   _startSessionTimer();
@@ -527,6 +533,11 @@ async function doChangePwLogin(){
     var _si=await sb.auth.signInWithPassword({email:email,password:old});
     if(_si.error||!_si.data||!_si.data.session){al.innerHTML=_authAlrtH('er','รหัสผ่านปัจจุบันไม่ถูกต้อง หรือไม่พบบัญชีผู้ใช้นี้');return}
     H.Authorization='Bearer '+_si.data.session.access_token;
+    // บัญชีที่เปิด 2FA: Supabase ไม่ยอมเปลี่ยนรหัสด้วย session aal1 — ยืนยันรหัสจากแอปก่อน
+    if(typeof _mfaGate==='function'&&!await _mfaGate({title:'ยืนยันก่อนเปลี่ยนรหัสผ่าน'})){
+      await sb.auth.signOut();
+      al.innerHTML=_authAlrtH('wa','ยกเลิกแล้ว — บัญชีนี้ต้องยืนยันรหัสจากแอป Authenticator ก่อนเปลี่ยนรหัสผ่าน');return
+    }
     var {error}=await sb.auth.updateUser({password:nw});
     await sb.auth.signOut(); // หน้านี้แค่เปลี่ยนรหัส ไม่ใช่ login เข้าระบบ
     if(error){al.innerHTML=_authAlrtH('er',error.message);return}
@@ -569,6 +580,7 @@ async function doChangePw(){
   try{
     var _si=await sb.auth.signInWithPassword({email:CU.email,password:old});
     if(_si.error){al.innerHTML=_authAlrtH('er','รหัสผ่านปัจจุบันไม่ถูกต้อง');return}
+    if(typeof _mfaGate==='function'&&!await _mfaGate({title:'ยืนยันก่อนเปลี่ยนรหัสผ่าน'})){al.innerHTML=_authAlrtH('wa','ต้องยืนยันรหัสจากแอป Authenticator ก่อนเปลี่ยนรหัสผ่าน');return}
     al.innerHTML=_authAlrtH('in','กำลังบันทึก...');
     var {error}=await sb.auth.updateUser({password:nw});
     if(error){al.innerHTML=_authAlrtH('er',error.message);return}

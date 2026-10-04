@@ -27,6 +27,17 @@ document.addEventListener('click', function(e){
   else if(a==='regG') doRegG();
   else if(a==='regS') doRegS();
   else if(a==='logout') doLogout();
+  else if(a==='toggleUserMenu') toggleUserMenu();
+  else if(a==='acctEdit') acctEdit(action);
+  else if(a==='acctSave') acctSave();
+  else if(a==='acctAvatarDel') acctAvatarDel();
+  else if(a==='setChangePw') setChangePw();
+  else if(a==='setSignOutAll') setSignOutAll();
+  else if(a==='mfaEnroll') mfaEnroll();
+  else if(a==='mfaEnrollConfirm') mfaEnrollConfirm(id);
+  else if(a==='mfaEnrollCancel') mfaEnrollCancel(id);
+  else if(a==='mfaDisable') mfaDisable(id);
+  else if(a==='mfaDisableConfirm') mfaDisableConfirm(id);
   else if(a==='setDT') setDT(tab);
   else if(a==='docPagePrev') docPageNav(-1);
   else if(a==='docPageNext') docPageNav(1);
