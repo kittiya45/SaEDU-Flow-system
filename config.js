@@ -69,7 +69,9 @@ function logSysErr(source,message,detail){
     var m=String(message||'').slice(0,500);
     if(m===_selLast) return;
     _selLast=m; _selCount++;
-    fetch(SU+'/rest/v1/system_logs',{method:'POST',headers:H,body:JSON.stringify({
+    /* return=minimal — H ขอ return=representation ซึ่งต้อง SELECT แถวคืน แต่ system_logs_select ให้เฉพาะ admin/dev
+       จึงถูก RLS ปฏิเสธ (403) ทุกครั้งที่ผู้ใช้ทั่วไปเกิด error — ตารางว่างมาตลอดเพราะเหตุนี้ */
+    fetch(SU+'/rest/v1/system_logs',{method:'POST',headers:{apikey:SK,Authorization:H.Authorization,'Content-Type':'application/json','Prefer':'return=minimal'},body:JSON.stringify({
       level:'error',source:String(source||'').slice(0,80),message:m,
       detail:detail?String(detail).slice(0,2000):null,user_id:CU.id
     })}).catch(function(){});
@@ -452,7 +454,14 @@ var SETT={
   /* แจ้งเพื่อทราบทั้งหมด (อีเมล) — ค่าเริ่มต้นปิด 2026-10-04: แจ้งเฉพาะคนที่เอกสารถึงคิว
      ครอบคลุม: เสร็จสิ้น→ผู้จัดทำ, จนท.รับเอกสารแล้ว, ยกเลิก, ดึงกลับ, ตีกลับ→ผู้เซ็นก่อนหน้า,
      รับทราบแล้ว→ผู้เสนอ, หนังสือขาเข้าซ้ำตอนออกเลข, เตือนค้าง→ผู้จัดทำ (รวม check-overdue ที่อ่าน key นี้เอง) */
-  notify_fyi:false
+  notify_fyi:false,
+  /* วันที่ออกเลขหนังสือขาออก — ดู numIssueInfo() ใน utils.js และ supabase/60_num_issue_date.sql
+     (ค่าเริ่มต้นสองฝั่งต้องตรงกัน) */
+  num_window_enabled:true,      // บังคับกติกาวันที่ออกเลข
+  num_weekdays_only:true,       // ออกเลขได้เฉพาะ จ.–ศ.
+  num_cutoff_time:'22:00',      // ออกหลังเวลานี้ → เลข/วันที่เป็นของวันทำการถัดไป
+  num_holiday_mode:'block',     // วันหยุด/เสาร์–อาทิตย์: 'block' ออกไม่ได้ · 'shift' ลงวันทำการถัดไป
+  num_holidays:''               // วันหยุดตามปฏิทินนิสิต บรรทัดละวัน YYYY-MM-DD ตามด้วยชื่อวันหยุดได้
 };
 
 /* อ่านค่า SETT แบบ boolean ให้ปลอดภัย — ห้ามเทียบ SETT.x ตรง ๆ:

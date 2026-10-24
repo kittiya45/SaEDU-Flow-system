@@ -1,6 +1,8 @@
 /* ─── DOCS LIST ─── */
-var _PROJ_FILTER='';  // โครงการที่เลือก filter
+var _PROJ_FILTER='';  // โครงการที่เลือก filter — เก็บเป็น projKey() ไม่ใช่ชื่อดิบ เพื่อรวมตัวสะกดต่างกันของโครงการเดียวกัน
 var _DTYPE_FILTER=''; // ประเภทเอกสารที่เลือก filter
+var _OWNER_FILTER=''; // '' ทุกเอกสาร | 'mine' ที่ฉันสร้าง | 'tome' ที่ส่งมาถึงฉัน (คนอื่นสร้าง แต่ถึงคิวฉัน/ส่งต่อให้ฉัน/เสนอให้ฉันรับทราบ)
+var _MY_REACHED=[];   // document_id ที่ขั้นตอนของฉันถึงคิวแล้ว + ที่เสนอให้ฉันรับทราบ — ตั้งใน vDocs
 var _FWD_ACT={};      // {docId: 'accepted'|'declined'} — populated in vDocs
 var _ACTIVE_STEPS={}; // {docId: full_name} — ผู้รับผิดชอบขั้นตอน active ปัจจุบัน
 var _ACTIVE_DDL={};   // {docId: deadline_datetime} — เส้นตายของขั้นตอนนั้น ใช้ชี้เอกสารที่ค้างเกินกำหนด
@@ -23,8 +25,16 @@ function docPageNav(dir){
 
 async function vDocs(){
   // ดึง workflow steps ของ user ก่อน เพื่อใช้ filter documents ฝั่ง server
-  var _mySteps=await dg('workflow_steps','?assigned_to=eq.'+safeId(CU.id)+'&select=document_id,status');
-  var _myStepDocIds=_mySteps.map(function(s){return s.document_id});
+  var _mySteps=await dg('workflow_steps','?assigned_to=eq.'+safeId(CU.id)+'&select='+STEP_REACH_SEL);
+  if(!Array.isArray(_mySteps)) _mySteps=[];
+  // เฉพาะขั้นที่ถึงคิวฉันแล้ว — ขั้นที่ยัง pending ไม่ทำให้เอกสารโผล่ในรายการ (stepReached ใน utils.js)
+  var _myStepDocIds=reachedStepDocIds(_mySteps);
+  // เอกสารที่ถูกเสนอให้ฉันรับทราบ ก็นับว่า "ถึงฉัน" แล้ว — ตาราง document_acks อาจยังไม่มี (43_...sql) จึงกลืน error
+  try{
+    var _myAcks=await dg('document_acks','?user_id=eq.'+safeId(CU.id)+'&select=document_id');
+    if(Array.isArray(_myAcks)) _myAcks.forEach(function(a){if(_myStepDocIds.indexOf(a.document_id)===-1)_myStepDocIds.push(a.document_id)});
+  }catch(e){}
+  _MY_REACHED=_myStepDocIds;
   MSTEPS=_mySteps.filter(function(s){return s.status==='active'}).map(function(s){return s.document_id});
   var _allDocs;
   var _paginated=false;
@@ -88,7 +98,8 @@ async function vDocs(){
     });
   }
 
-  _PROJ_FILTER='';
+  // ล้างตัวกรองทั้งคู่ — dropdown ถูก render ใหม่เป็น "ทั้งหมด" เสมอ ถ้าค่าเก่าค้างอยู่ตารางจะถูกกรองแบบมองไม่เห็น
+  _PROJ_FILTER=''; _DTYPE_FILTER=''; _OWNER_FILTER='';
 
   // ── คำนวณจำนวน tab ──
   // เอกสาร "ของฉัน" = ไม่ใช่ forwarded-to-me ที่ declined, และ forwarded ที่ accepted ก็นับเป็นของฉัน
@@ -104,7 +115,8 @@ async function vDocs(){
   var _myRejectedIds=_docsForMain.filter(function(d){return d.status==='rejected'&&d.created_by===CU.id}).map(function(d){return d.id});
   /* [UX] "ต้องดำเนินการ" = งาน workflow + ออกเลข — เอกสารส่งมาถึงแยกแท็บ fwd */
   var tc={all:_docsForMain.length,pending:0,signed:0,draft:0,rejected:0,numbering:0,awaiting_submit:0,completed:0,
-          mine:MSTEPS.length+_myRejectedIds.length,fwd:_fwdTabCount};
+          mine:MSTEPS.length+_myRejectedIds.length,fwd:_fwdTabCount,
+          my:_docsForMain.filter(function(d){return d.created_by===CU.id}).length};
   _docsForMain.forEach(function(d){if(tc[d.status]!==undefined)tc[d.status]++});
   // คิวรออัพเข้าระบบนับจาก ADOCS ทั้งหมด — เอกสารที่รอ จนท.รับยังไม่อยู่ใน _docsForMain
   tc.awaiting_submit=ADOCS.filter(_isAwaitQueueDoc).length;
@@ -118,23 +130,27 @@ async function vDocs(){
   var _initialDocs=DTAB==='action'?_actionFilterDocs():_docsForMain;
   _curFilteredDocs=_initialDocs;
 
-  // รวบรวมชื่อโครงการจาก project_name — รวมทั้งขาเข้า+ขาออก
-  var _projSet=[...new Set(ADOCS.filter(function(d){return d.project_name}).map(function(d){return d.project_name}))].sort();
-  var _projOpts='<option value="">ทุกโครงการ</option>'+_projSet.map(function(p){return '<option value="'+esc(p)+'">'+esc(p)+'</option>'}).join('');
+  // รวบรวมโครงการ — รวมทั้งขาเข้า+ขาออก (ขาเข้ารุ่นแรกเก็บชื่อโครงการไว้ใน description) และรวมตัวสะกดต่างกันเป็นตัวเลือกเดียว
+  var _projLbl=projLabels(ADOCS);
+  var _projSet=Object.keys(_projLbl).sort(function(a,b){return _projLbl[a].localeCompare(_projLbl[b],'th')});
+  var _projOpts='<option value="">ทุกโครงการ</option>'+_projSet.map(function(k){return '<option value="'+esc(k)+'">'+esc(_projLbl[k])+'</option>'}).join('');
 
   var _dtypeOpts='<option value="">ทุกประเภท</option>'+Object.entries(DTYPES).map(function(e){return '<option value="'+e[0]+'">'+e[1]+'</option>'}).join('');
 
   var html=['<div class="page-toolbar">'];
-  html.push('<div class="search-wrap"><span class="search-icon">'+svg('srch',14)+'</span><input class="fi min-w-[220px]" id="dsrch" placeholder="ค้นหาชื่อเรื่อง เลขที่ หรือ จาก/เรียน..." oninput="fDocsDebounced()"></div>');
+  html.push('<div class="search-wrap"><span class="search-icon">'+svg('srch',14)+'</span><input class="fi min-w-[220px]" id="dsrch" placeholder="ค้นหาชื่อเรื่อง เลขที่ โครงการ ผู้ส่ง หรือชมรม..." oninput="fDocsDebounced()"></div>');
+  html.push('<select class="fi text-[13px]" id="downer" style="max-width:160px" onchange="_OWNER_FILTER=this.value;fDocs()" aria-label="กรองตามความเกี่ยวข้อง">'+
+    '<option value="">ทุกเอกสาร</option><option value="mine">ที่ฉันสร้าง</option><option value="tome">ที่ส่งมาถึงฉัน</option></select>');
   html.push('<select class="fi text-[13px]" id="ddtype" style="max-width:160px" onchange="_DTYPE_FILTER=this.value;fDocs()">'+_dtypeOpts+'</select>');
   html.push('<select class="fi text-[13px]" id="dproj" style="max-width:180px'+(_projSet.length?'':';display:none')+'" onchange="_PROJ_FILTER=this.value;fDocs()">'+_projOpts+'</select>');
   if(CAN.cr(CU.role_code)) html.push('<button class="btn btn-primary sm ml-auto" data-action="nav" data-view="new">'+svg('plus',13)+' สร้างเอกสาร</button>');
   html.push('<button class="btn btn-soft sm" data-action="exportCSV" title="ส่งออกรายงาน CSV">'+svg('chart',13)+' ส่งออก CSV</button>');
   html.push('</div>');
 
-  /* tabs: ทั้งหมด | ร่าง | ต้องดำเนินการ | ส่งมาถึงฉัน | อยู่ระหว่างดำเนินการ | รออัพเข้าระบบ | เสร็จสิ้น */
+  /* tabs: ทั้งหมด | งานของฉัน | ร่าง | ต้องดำเนินการ | ส่งมาถึงฉัน | อยู่ระหว่างดำเนินการ | รออัพเข้าระบบ | เสร็จสิ้น
+     "งานของฉัน" = เอกสารที่ฉันสร้าง ทุกสถานะ (key 'my' — 'mine' ใน tc คือจำนวนงานใน "ต้องดำเนินการ") */
   html.push('<div class="page-tabs" id="dtabs">');
-  var _tabDefs=[['all','ทั้งหมด'],['draft','ร่าง'],['action','ต้องดำเนินการ']];
+  var _tabDefs=[['all','ทั้งหมด'],['my','งานของฉัน'],['draft','ร่าง'],['action','ต้องดำเนินการ']];
   if(_showFwdTab) _tabDefs.push(['fwd','ส่งมาถึงฉัน']);
   _tabDefs.push(['pending','อยู่ระหว่างดำเนินการ'],['awaiting_submit','รออัพเข้าระบบ'],['completed','เสร็จสิ้น']);
   _tabDefs.forEach(function(x){
@@ -188,16 +204,13 @@ function _actionFilterDocs(q){
     var _isMyNum=d.status==='numbering'&&(d.created_by===CU.id||CU.role_code==='ROLE-SYS'||CU.role_code==='ROLE-STF');
     var _isAwait=_isAwaitQueueDoc(d)&&['ROLE-STF','ROLE-SYS','ROLE-DEV'].includes(CU.role_code);
     if(!(_isMyTask||_isMyRej||_isMyNum||_isAwait)) return false;
-    if(_DTYPE_FILTER&&d.doc_type!==_DTYPE_FILTER) return false;
-    return _matchQ(d,q);
+    return _passDocFilters(d,q);
   });
 }
 
 function setDT(t){
   DTAB=t;
-  _PROJ_FILTER=''; _DTYPE_FILTER='';
-  var dp=$e('dproj'); if(dp) dp.value='';
-  var dd=$e('ddtype'); if(dd) dd.value='';
+  // ตัวกรองคงค่าไว้เมื่อสลับแท็บ — เลือก "ที่ฉันสร้าง" แล้วกดดูแท็บ "เสร็จสิ้น" ต้องยังเป็นเอกสารของฉัน
   document.querySelectorAll('#dtabs .ptab').forEach(function(el){
     el.className='ptab'+(el.dataset.tab===t?' on':'')
   });
@@ -205,17 +218,22 @@ function setDT(t){
 }
 
 var fDocsDebounced=debounce(fDocs,200);
-function _matchQ(d,q){
-  if(!q) return true;
-  return d.title.toLowerCase().includes(q)||
-    (d.doc_number||'').toLowerCase().includes(q)||
-    (d.description||'').toLowerCase().includes(q)||
-    (d.from_department||'').toLowerCase().includes(q)||
-    (d.addressed_to||'').toLowerCase().includes(q)||
-    (d.subject_line||'').toLowerCase().includes(q);
+/* ตัวกรองร่วมของทุกแท็บ: ประเภท + โครงการ + คำค้น — เดิมแท็บ "ต้องดำเนินการ"/"ส่งมาถึงฉัน" ไม่สนตัวกรองโครงการ
+   คำค้นไปผ่าน docMatchQ() (utils.js) ซึ่งแปลงรหัสชมรม/ประเภทจดหมาย/ตำแหน่งของหนังสือขาเข้าเป็นข้อความก่อนค้น */
+function _isDocToMe(d){
+  if(d.created_by===CU.id) return false;
+  return _MY_REACHED.indexOf(d.id)!==-1||d.forwarded_to_id===CU.id||d.accepted_by===CU.id
+    ||(_isStaffPoolFwd(d)&&CU.role_code==='ROLE-STF');
+}
+function _passDocFilters(d,q){
+  if(_OWNER_FILTER==='mine'&&d.created_by!==CU.id) return false;
+  if(_OWNER_FILTER==='tome'&&!_isDocToMe(d)) return false;
+  if(_DTYPE_FILTER&&d.doc_type!==_DTYPE_FILTER) return false;
+  if(_PROJ_FILTER&&projKey(docFacets(d).project)!==_PROJ_FILTER) return false;
+  return docMatchQ(d,q);
 }
 function fDocs(){
-  var q=(($e('dsrch')||{value:''}).value||'').toLowerCase();
+  var q=($e('dsrch')||{value:''}).value||'';
 
   /* tab 'action' — งาน workflow + ออกเลข (ไม่รวมเอกสารส่งมาถึง — ดูแท็บ fwd) */
   if(DTAB==='action'){
@@ -230,8 +248,7 @@ function fDocs(){
   if(DTAB==='fwd'){
     var _fwdDocs=ADOCS.filter(function(d){
       if(!_isFwdInboxForMe(d)) return false;
-      if(_DTYPE_FILTER&&d.doc_type!==_DTYPE_FILTER) return false;
-      return _matchQ(d,q);
+      return _passDocFilters(d,q);
     });
     var _fwdPending=_fwdDocs.filter(function(d){return !_FWD_ACT[d.id]});
     var _fwdDone=_fwdDocs.filter(function(d){return _FWD_ACT[d.id]==='accepted'});
@@ -253,12 +270,11 @@ function fDocs(){
     // แท็บรออัพเข้าระบบต้องเห็นงานที่ยังรอ จนท.รับด้วย จึงข้าม guard ของแท็บอื่น
     if(!_awaitTab&&d.forwarded_to_id===CU.id&&d.created_by!==CU.id&&_FWD_ACT[d.id]!=='accepted') return false;
     var matchTab=DTAB==='all'
-      ||(_awaitTab?_isAwaitQueueDoc(d)
+      ||(DTAB==='my'?d.created_by===CU.id
+        :_awaitTab?_isAwaitQueueDoc(d)
         :DTAB==='completed'?(d.status==='completed'&&!_isAwaitQueueDoc(d))
         :d.status===DTAB);
-    var matchProj=!_PROJ_FILTER||d.project_name===_PROJ_FILTER;
-    var matchType=!_DTYPE_FILTER||d.doc_type===_DTYPE_FILTER;
-    return matchTab&&matchProj&&matchType&&_matchQ(d,q);
+    return matchTab&&_passDocFilters(d,q);
   });
   _curFilteredDocs=f;
   var w=$e('dtbl'); if(w)w.innerHTML=rDocTbl(f)
@@ -302,18 +318,18 @@ function rDocTbl(docs){
       who='<div class="doc-ledger-who is-held">เจ้าหน้าที่รับเอกสารแล้ว<br>'+esc(_ACCEPTED_BY[d.id])+'</div>';
     else if(d.status==='completed'&&(d.forwarded_to_staff||d.forwarded_to_id))
       who='<div class="doc-ledger-who is-wait">รอเจ้าหน้าที่กิจการนิสิต<br>กดรับเอกสาร</div>';
-    var proj=d.project_name
-      ?'<div class="doc-ledger-sub">'+esc(d.project_name)+'</div>':'';
+    var _projTxt=docFacets(d).project;
+    var proj=_projTxt?'<div class="doc-ledger-sub">'+esc(_projTxt)+'</div>':'';
     var canEdit=CAN.ed(CU.role_code)&&(d.status==='draft'||(d.status==='rejected'&&d.created_by===CU.id));
 
     return '<div class="'+rowCls+'" data-pg="'+pg+'" style="'+(pg>0?'display:none':'')+'" '+
       'data-action="nav" data-view="det" data-id="'+d.id+'">'+
       '<div class="doc-ledger-idx">'+(idx+1)+'</div>'+
+      '<div class="doc-ledger-num">'+
+        '<span class="doc-ledger-no tip" data-tip="'+esc(d.doc_number||'—')+'">'+esc(d.doc_number||'—')+'</span>'+
+        tBadge(d.doc_type)+
+      '</div>'+
       '<div class="doc-ledger-main">'+
-        '<div class="doc-ledger-tags">'+
-          '<span class="mono">'+esc(d.doc_number||'—')+'</span>'+
-          tBadge(d.doc_type)+
-        '</div>'+
         '<div class="doc-ledger-title tip" data-tip="'+esc(d.title)+'">'+esc(d.title)+'</div>'+
         proj+
       '</div>'+
@@ -321,8 +337,8 @@ function rDocTbl(docs){
         '<div class="doc-ledger-status">'+((d.status==='completed'&&(d.forwarded_to_staff||d.forwarded_to_id))?sBadgeFwd(true):sBadge(d.status))+who+'</div>'+
         '<div class="'+dueCls+'">'+dueTxt+'</div>'+
         '<div class="doc-ledger-acts doc-row-acts">'+
-          (canEdit?'<button type="button" class="doc-row-act is-edit" data-action="nav" data-view="edit" data-id="'+d.id+'" title="แก้ไข" aria-label="แก้ไข">'+svg('edit',15)+'</button>':'')+
-          '<button type="button" class="doc-row-act is-view" data-action="nav" data-view="det" data-id="'+d.id+'" title="ดูรายละเอียด" aria-label="ดูรายละเอียด">'+svg('eye',15)+'</button>'+
+          (canEdit?'<button type="button" class="btn-line is-icon" data-action="nav" data-view="edit" data-id="'+d.id+'" title="แก้ไข" aria-label="แก้ไข">'+svg('edit',14)+'</button>':'')+
+          '<button type="button" class="btn-line is-view" data-action="nav" data-view="det" data-id="'+d.id+'">ดูรายละเอียด</button>'+
         '</div>'+
       '</div>'+
     '</div>';
@@ -341,8 +357,9 @@ function rDocTbl(docs){
   return '<div class="doc-ledger" id="'+uid+'" data-pg="0">'+
     '<div class="doc-ledger-head">'+
       '<span class="doc-ledger-idx">#</span>'+
-      '<span>เลขที่ / ชื่อเรื่อง</span>'+
-      '<div class="doc-ledger-head-side"><span>สถานะ</span><span>กำหนด</span><span></span></div>'+
+      '<span>เลขที่หนังสือ</span>'+
+      '<span>ชื่อเรื่อง</span>'+
+      '<div class="doc-ledger-head-side"><span>สถานะ</span><span>กำหนด</span><span>การจัดการ</span></div>'+
     '</div>'+
     rows+foot+
   '</div>';
@@ -378,18 +395,18 @@ function rFwdTbl(docs){
     var _mayAct=canAcceptFwdDoc(d,false);
     return '<div class="doc-ledger-row is-fwd" data-action="nav" data-view="det" data-id="'+d.id+'">'+
       '<div class="doc-ledger-idx">'+(idx+1)+'</div>'+
+      '<div class="doc-ledger-num">'+
+        '<span class="doc-ledger-no tip" data-tip="'+esc(d.doc_number||'—')+'">'+esc(d.doc_number||'—')+'</span>'+
+        tBadge(d.doc_type)+
+      '</div>'+
       '<div class="doc-ledger-main">'+
-        '<div class="doc-ledger-tags">'+
-          '<span class="mono" style="background:rgba(255,255,255,.9);color:#1D4ED8;border:1px solid rgba(29,78,216,.12)">'+esc(d.doc_number||'—')+'</span>'+
-          tBadge(d.doc_type)+
-        '</div>'+
         '<div class="doc-ledger-title tip" data-tip="'+esc(d.title)+'">'+esc(d.title)+'</div>'+
         '<div class="doc-ledger-sub is-fwd">'+(_isStaffPoolFwd(d)?'ส่งเข้ากิจการทั้งหมด':d.forwarded_to_id===CU.id?'ส่งมาให้คุณ':'รอเจ้าหน้าที่รับเรื่อง')+' · '+fd(d.forwarded_at)+'</div>'+
       '</div>'+
-      '<div class="doc-ledger-side" style="grid-template-columns:150px auto">'+
+      '<div class="doc-ledger-side" style="grid-template-columns:minmax(0,1fr) 300px">'+
         '<div class="doc-ledger-status">'+sBadgeFwd(true)+'</div>'+
-        '<div class="doc-row-acts" style="gap:6px">'+
-          '<button type="button" class="doc-row-act is-view" data-action="nav" data-view="det" data-id="'+d.id+'" title="ดูเอกสาร" aria-label="ดูเอกสาร">'+svg('eye',15)+'</button>'+
+        '<div class="doc-row-acts" style="gap:6px;justify-content:center">'+
+          '<button type="button" class="btn-line" data-action="nav" data-view="det" data-id="'+d.id+'">ดูรายละเอียด</button>'+
           (_mayAct
             ?'<button class="btn btn-primary xs" data-action="acceptFwd" data-id="'+d.id+'">'+svg('ok',12)+' รับเรื่อง</button>'+
              '<button class="btn btn-soft xs" style="color:#DC2626;border-color:#FECACA" data-action="showDeclineFwdModal" data-id="'+d.id+'">'+svg('x',12)+' ไม่รับ</button>'
@@ -404,8 +421,9 @@ function rFwdTbl(docs){
   var html='<div class="doc-ledger">'+
     '<div class="doc-ledger-head">'+
       '<span class="doc-ledger-idx">#</span>'+
-      '<span>เลขที่ / ชื่อเรื่อง</span>'+
-      '<div class="doc-ledger-head-side" style="grid-template-columns:150px auto"><span>สถานะ</span><span style="text-align:right">การดำเนินการ</span></div>'+
+      '<span>เลขที่หนังสือ</span>'+
+      '<span>ชื่อเรื่อง</span>'+
+      '<div class="doc-ledger-head-side" style="grid-template-columns:minmax(0,1fr) 300px"><span>สถานะ</span><span style="text-align:center">การดำเนินการ</span></div>'+
     '</div>'+
     recent.map(mkFwdRow).join('')+
   '</div>';

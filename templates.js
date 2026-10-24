@@ -93,12 +93,9 @@ async function vTmpl(){
     html.push('<div class="card-body" style="padding:0 16px 4px;">');
     items.forEach(function(t,i){
       var ext=(t.file_name||'').split('.').pop().toLowerCase();
-      var isPdf=ext==='pdf'; var isWord=ext==='doc'||ext==='docx';
-      var icoName=isPdf?'pdf_ico':(isWord?'word_ico':'doc');
-      var icoClr=isPdf?{bg:'#FEF2F2',ic:'#DC2626'}:(isWord?{bg:'#EFF6FF',ic:'#2563EB'}:{bg:'#F5F3F0',ic:'#6b6560'});
       var divider=i<items.length-1?'border-bottom:1px solid var(--border);':'';
       html.push('<div class="tmpl-card" data-name="'+esc((t.name||'').toLowerCase())+'" style="display:flex;align-items:center;gap:12px;padding:10px 2px;'+divider+'">');
-      html.push('<div style="width:36px;height:36px;border-radius:9px;background:'+icoClr.bg+';display:flex;align-items:center;justify-content:center;color:'+icoClr.ic+';flex-shrink:0">'+svg(icoName,18)+'</div>');
+      html.push(fCard(t,40));
       html.push('<div style="flex:1;min-width:0">');
       // ชื่อ + badge ล่าสุด
       html.push('<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">');
@@ -240,24 +237,8 @@ async function showTmplUpload(){
               'ไฟล์แบบฟอร์ม <span class="req" style="color:#E83A00">*</span>',
             '</label>',
 
-            '<label class="upload-zone" for="tmpl-file" id="tmpl-dropzone" style="display:block; cursor:pointer; border:2px dashed rgba(232,58,0,.2); background:rgba(232,58,0,.01); border-radius:20px; padding:32px 20px; text-align:center;">',
-
-              '<div class="upload-zone-inner">',
-
-                '<div class="upload-zone-icon" style="width:56px; height:56px; background:#FFF5F2; border-radius:50%; display:flex; align-items:center; justify-content:center; margin:0 auto 12px; color:#E83A00; box-shadow:0 10px 20px -5px rgba(232,58,0,.1);">',
-                  svg('up',24),
-                '</div>',
-
-                '<div class="upload-zone-text" style="font-size:13px; font-weight:700; color:#18120E; margin-bottom:4px;">',
-                  'คลิก หรือ ลากไฟล์มาวางเพื่ออัปโหลด',
-                '</div>',
-
-                '<div class="upload-zone-hint" style="font-size:10.5px; color:#9A3412; opacity:.7;">',
-                  'รองรับ PDF, DOC, DOCX (สูงสุด 20 MB)',
-                '</div>',
-
-              '</div>',
-
+            '<label class="upload-zone" for="tmpl-file" id="tmpl-dropzone">',
+              uploadZoneInner('อัปโหลดไฟล์แบบฟอร์ม','รองรับ PDF, DOC, DOCX สูงสุด 20 MB'),
             '</label>',
 
             '<input type="file" id="tmpl-file" accept=".pdf,.doc,.docx" style="display:none" onchange="tmplFileChg(this)">',
@@ -297,6 +278,7 @@ async function showTmplUpload(){
   var closeBtn  = document.getElementById('btn-close-tmpl');
   var cancelBtn = document.getElementById('btn-cancel-tmpl');
   var uploadBtn = document.getElementById('btn-upload-tmpl');
+  _wireDropzone($e('tmpl-dropzone'),$e('tmpl-file'),tmplFileChg);
 
   // -----------------------------
   // CLOSE MODAL
@@ -354,11 +336,10 @@ function tmplFileChg(input){
   if(!f){preview.style.display='none';if(zone)zone.style.display='flex';return}
   var ext=f.name.split('.').pop().toLowerCase();
   var isPdf=ext==='pdf'; var isWord=ext==='doc'||ext==='docx';
-  var icoName=isPdf?'pdf_ico':(isWord?'word_ico':'doc');
   var icoClr=isPdf?{bg:'#FEF2F2',ic:'#DC2626'}:(isWord?{bg:'#EFF6FF',ic:'#2563EB'}:{bg:'#F5F3F0',ic:'#6b6560'});
   preview.style.display='block';
   preview.innerHTML='<div class="file-item" style="margin-bottom:0;border-color:'+icoClr.ic+'33;background:'+icoClr.bg+'">'+
-    '<div style="width:36px;height:36px;border-radius:9px;background:#fff;display:flex;align-items:center;justify-content:center;color:'+icoClr.ic+';flex-shrink:0;box-shadow:0 1px 4px rgba(0,0,0,.08)">'+svg(icoName,18)+'</div>'+
+    fCard(f,36)+
     '<div class="file-info"><div class="file-name">'+esc(f.name)+'</div>'+
     '<div class="file-meta"><span class="mono">'+ext.toUpperCase()+'</span> · '+fsz(f.size)+'</div></div>'+
     '<button type="button" onclick="tmplFileClear()" class="btn btn-soft sm btn-icon">'+svg('x',12)+'</button>'+

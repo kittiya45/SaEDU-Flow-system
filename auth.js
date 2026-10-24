@@ -40,29 +40,13 @@ async function doLogout(){
 }
 
 /* ─── AUTH ─── */
-function _authSvgEye(sz){
-  sz=sz||16;
-  return '<svg width="'+sz+'" height="'+sz+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>';
-}
-function _authSvgEyeOff(sz){
-  sz=sz||16;
-  return '<svg width="'+sz+'" height="'+sz+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/></svg>';
-}
-function _authSvgInfo(sz){
-  sz=sz||26;
-  return '<svg width="'+sz+'" height="'+sz+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>';
-}
-function _authSvgWarn(sz){
-  sz=sz||26;
-  return '<svg width="'+sz+'" height="'+sz+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>';
-}
+/* ไอคอนหน้าเข้าสู่ระบบ — ใช้ Lucide ผ่าน svg() เหมือนส่วนอื่นของระบบ */
+function _authSvgEye(sz){return svg('eye',sz||16)}
+function _authSvgEyeOff(sz){return svg('eye-off',sz||16)}
+function _authSvgInfo(sz){return svg('info',sz||26)}
+function _authSvgWarn(sz){return svg('triangle-alert',sz||26)}
 function _authAlrtH(t,m){
-  var ic={
-    ok:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>',
-    er:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>',
-    in:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>',
-    wa:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>'
-  };
+  var ic={ok:svg('check',14),er:svg('circle-x',14),in:svg('info',14),wa:svg('triangle-alert',14)};
   return '<div class="al al-'+t+' auth-al"><span class="al-icon">'+(ic[t]||ic.in)+'</span><span class="al-msg">'+esc(m)+'</span></div>';
 }
 
@@ -111,7 +95,7 @@ function showAuth(){
     '</div></div>',
     '<p class="auth-copy">SAEDUFLOW © 2569</p>',
     '<a href="manual.html?v=3&from=login" class="auth-manual">',
-    '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>',
+    svg('book-open',13),
     'คู่มือการใช้งาน</a>',
     '</div>'
   ].join(''));
@@ -321,7 +305,8 @@ async function _enterAppAsUser(row,opts){
       return false
     }
     if(row.expires_at&&new Date(row.expires_at)<new Date()){
-      if(row.is_active) try{await dpa('users',row.id,{is_active:false});}catch(e){}
+      // ไม่ PATCH is_active ของตัวเองแล้ว — trigger users_security_fields (61_…sql) ปฏิเสธเสมอ
+      // และ current_profile() ไม่นับบัญชีที่ expires_at ผ่านไปแล้วอยู่แล้ว
       await sb.auth.signOut();
       if(opts.onError)opts.onError('บัญชีนี้หมดอายุแล้ว กรุณาติดต่อเจ้าหน้าที่เพื่อต่ออายุการใช้งาน');
       return false

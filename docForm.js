@@ -80,28 +80,23 @@ async function vForm(editId){
   html.push('<div id="dtype-fields">'+(editId?renderTypeFields(doc.doc_type||'outgoing',doc):'')+'</div>');
   html.push('</div></div>');
 
-// Files card — แสดงจำนวนแนบชัดเจน เพื่อให้รู้ว่าโหลดครบหรือยัง
-html.push('<div class="card"><div class="card-head files-card-head">'+_ico('folder','#FFF3EE','#E83A00')+'<span class="card-head-title">ไฟล์เอกสาร</span>');
-html.push('<span class="files-count-chip ml-auto" id="ffcount">'+_rFormFileCountHtml(FF)+'</span></div><div class="card-body">');
-
-html.push('<div class="files-stack">');
-html.push('<div id="fflist">'+buildFileList(FF, editId||'')+'</div>');
-
+// Files card — หัวการ์ด / กล่องลากวาง / รายการไฟล์ที่อัปโหลดแล้วอยู่ล่างสุด (แบบการ์ดอัปโหลดไฟล์)
+html.push('<div class="card upl-card">');
+html.push('<div class="upl-head"><div class="upl-head-ico">'+svg('cloud-upload',22)+'</div>'+
+  '<div class="upl-head-txt"><div class="upl-head-title">อัปโหลดไฟล์เอกสาร</div>'+
+  '<div class="upl-head-sub">เลือกและอัปโหลดไฟล์ที่ต้องการแนบกับเอกสารนี้</div></div>'+
+  '<span class="files-count-chip" id="ffcount">'+_rFormFileCountHtml(FF)+'</span></div>');
+html.push('<div class="upl-body">');
 html.push(`
   <div class="upload-zone" id="fzone">
-    <div class="upload-zone-inner">
-      <div class="upload-zone-icon">
-        ${svg('folder',48)}
-      </div>
-      <div class="upload-zone-text">คลิกหรือลากไฟล์มาวางที่นี่</div>
-      <div class="upload-zone-hint" id="fzone-hint">PDF, DOCX, PNG, JPG สูงสุด ${SETT.max_file_size_mb||10} MB · ชื่อไฟล์ซ้ำจะถูกข้าม · อัปโหลดให้ครบก่อนบันทึก</div>
-    </div>
+    ${uploadZoneInner('อัปโหลดไฟล์เอกสาร','รองรับ PDF, DOCX, PNG, JPG สูงสุด '+(SETT.max_file_size_mb||10)+' MB · ชื่อไฟล์ซ้ำจะถูกข้าม · อัปโหลดให้ครบก่อนบันทึก','fzone-hint')}
   </div>
 `);
-
 html.push('<input type="file" id="finp" class="hidden" multiple accept=".pdf,.doc,.docx,.png,.jpg">');
 html.push('<div id="fprog"></div>');
-html.push('</div></div></div>');
+html.push('</div>');
+html.push('<div id="fflist" class="upl-list">'+buildFileList(FF, editId||'')+'</div>');
+html.push('</div>');
   // Action buttons
   html.push('<div class="flex gap-2.5 justify-end mt-1">');
   html.push('<button class="btn btn-soft" data-action="saveDraft">'+svg('save',14)+' บันทึกร่าง</button>');
@@ -157,6 +152,7 @@ html.push('</div></div></div>');
   setTimeout(function(){
     attachFormEvents();
     calcDeadline();
+    if(editId) _populateProjectList(doc.doc_type==='incoming'?(doc.from_department||''):undefined); // ฟอร์มแก้ไข render ฟิลด์ตรง ไม่ผ่านการเลือกประเภท
     _formDirty=false;
     // ติด listener ทุก input/select/textarea ในฟอร์ม
     document.querySelectorAll('#form-rest input,#form-rest select,#form-rest textarea').forEach(function(el){
@@ -200,7 +196,7 @@ function renderTypeFields(type, doc){
     // layout: ชมรม → โครงการ → ประเภท → ผู้รับ → วันที่
     html.push(
       '<div class="al al-in" style="margin-bottom:14px"><span class="al-icon">'+svg('up',13)+'</span>'+
-      '<span class="text-[12px]">เอกสารขาเข้าไม่ต้องผ่านขั้นตอนอนุมัติ — หลังบันทึกแล้วผู้จัดทำต้องกด "ออกเลขหนังสือ" เพื่อกำหนดเลขที่ก่อนเผยแพร่ให้ดาวน์โหลด</span></div>'
+      '<span class="text-[12px]">หนังสือขาเข้าไม่ต้องผ่านขั้นตอนอนุมัติ — หลังบันทึกแล้วกด “ลงทะเบียนรับ” เพื่อออกเลขรับ (เรียงต่อเนื่องทั้งปี) และประทับตรารับ ระบบจะเสนอให้ตำแหน่งที่ส่งถึงรับทราบอัตโนมัติ</span></div>'
     );
     html.push('<div class="fg"><label class="fl">สังกัด / ชมรม</label>'+
       '<select class="fi" id="fclub" onchange="_populateProjectList(this.value);_PROJ_FILTER_CLUB=this.value">'+_clubOpts+'</select></div>');
@@ -213,15 +209,15 @@ function renderTypeFields(type, doc){
     _projOpts+='<option value="__other__"'+(!_projInList&&_curDesc2?' selected':'')+'>อื่น ๆ (ระบุเอง)</option>';
     html.push('<select class="fi" id="fdsc-sel" onchange="_onProjSelChange(this.value)">'+_projOpts+'</select>');
     var _showOther=!_projInList&&_curDesc2;
-    html.push('<input class="fi" id="fdsc" style="margin-top:8px;display:'+(_showOther?'block':'none')+'" value="'+esc(_curDesc2)+'" placeholder="ระบุชื่อโครงการ / กิจกรรม">');
+    html.push('<input class="fi" id="fdsc" list="project-list" autocomplete="off" style="margin-top:8px;display:'+(_showOther?'block':'none')+'" value="'+esc(_curDesc2)+'" placeholder="พิมพ์เพื่อเลือกโครงการที่มีอยู่ หรือระบุชื่อใหม่"><datalist id="project-list"></datalist>');
     html.push('</div>');
     html.push('<div class="fg"><label class="fl">ประเภทจดหมาย <span class="req">*</span></label><select class="fi" id="foutltype">'+_lt2Opts+'</select></div>');
     html.push('<div class="fg"><label class="fl">ส่งถึงตำแหน่ง <span class="req">*</span></label><select class="fi" id="fto">'+_posOpts+'</select></div>');
-    /* เลขรับที่ประทับมาจากหน่วยงานต้นทาง — เก็บไว้อ้างอิงกลับไปยังหนังสือต้นเรื่อง
-       ไม่บังคับ และแก้ทีหลังได้อีกครั้งในโมดัลออกเลขหนังสือ */
-    html.push('<div class="two-col-sm"><div class="fg"><label class="fl">เลขรับที่ (จากหน่วยงานต้นทาง)</label>'+
-      '<input class="fi" id="frecvno" value="'+esc((doc&&doc.received_number)||'')+'" placeholder="เช่น 3544 หรือ (2791.03)/1212"></div>');
-    html.push('<div class="fg"><label class="fl">ลงวันที่รับ (ต้นทาง)</label>'+
+    /* "ที่" ของหนังสือต้นทาง (received_number) — เก็บไว้อ้างอิงกลับไปยังหนังสือต้นเรื่อง
+       คนละเลขกับ "เลขรับที่" ที่ระบบออกตอนลงทะเบียนรับ ไม่บังคับ และแก้ได้อีกครั้งในโมดัลลงทะเบียนรับ */
+    html.push('<div class="two-col-sm"><div class="fg"><label class="fl">ที่ (เลขที่หนังสือต้นทาง)</label>'+
+      '<input class="fi" id="frecvno" value="'+esc((doc&&doc.received_number)||'')+'" placeholder="เช่น อว 64.6(2790.04)/0422"></div>');
+    html.push('<div class="fg"><label class="fl">ลงวันที่ (หนังสือต้นทาง)</label>'+
       '<input type="date" class="fi" id="frecvdate" value="'+esc((doc&&doc.received_date)||'')+'"></div></div>');
     html.push('<div class="two-col-sm"><div class="fg"><label class="fl">วันที่หนังสือ</label><input type="date" class="fi" id="fdate" value="'+esc(_curDate2)+'"></div>');
     html.push('<div class="fg"><label class="fl">วันที่กิจกรรม / ต้องใช้เอกสาร</label><input type="date" class="fi" id="feventdate" value="'+esc(_curEv2)+'" oninput="calcDeadline()"></div></div>');
@@ -267,7 +263,7 @@ function renderTypeFields(type, doc){
     html.push('<div class="fg" id="fsubject-wrap" style="display:'+(_curDesc==='เรื่องอื่น ๆ'?'block':'none')+'"><label class="fl">ระบุว่าเป็นเรื่องอะไร <span class="req">*</span></label><input class="fi" id="fsubject" value="'+esc(_curSubj)+'" placeholder="ระบุเรื่อง"></div>');
     html.push('<div class="fg"><label class="fl">โครงการ / กิจกรรม</label>');
     html.push('<select class="fi" id="fproj-sel" onchange="_onProj2SelChange(this.value)">'+_projOpts2+'</select>');
-    html.push('<input class="fi" id="fproj" style="margin-top:8px;display:'+(_showOther2?'block':'none')+'" value="'+esc(_curProj)+'" placeholder="ระบุชื่อโครงการ / กิจกรรม">');
+    html.push('<input class="fi" id="fproj" list="project-list" autocomplete="off" style="margin-top:8px;display:'+(_showOther2?'block':'none')+'" value="'+esc(_curProj)+'" placeholder="พิมพ์เพื่อเลือกโครงการที่มีอยู่ หรือระบุชื่อใหม่"><datalist id="project-list"></datalist>');
     html.push('</div>');
     html.push('<div class="fg"><label class="fl">ชื่อผู้ส่งเอกสาร <span class="req">*</span></label><input class="fi" id="ffromdept" value="'+esc(_curFrom)+'" placeholder="ระบุชื่อผู้ส่งหรือหน่วยงาน"></div>');
     html.push('<div class="fg"><label class="fl">ตำแหน่ง / สังกัด</label><select class="fi" id="fto">'+_spOpts+'</select></div>');
@@ -394,8 +390,8 @@ function selectDocType(type){
       if(fsub) fsub.innerHTML=svg('sign',14)+' ส่งเข้าขั้นตอนอนุมัติ';
     }
     var ww=$e('wfwrap'); if(ww) ww.innerHTML=rWfPeople();
-    if(type==='incoming'){_PROJ_FILTER_CLUB='';_populateProjectList();}
-    else if(!_fixedFlow) _applyWfTemplate(type); // ขาเข้าแบบล็อกใช้ fixed flow — ไม่โหลด template ทับ
+    _populateProjectList(type==='incoming'?'':undefined);
+    if(type!=='incoming'&&!_fixedFlow) _applyWfTemplate(type); // ขาเข้าแบบล็อกใช้ fixed flow — ไม่โหลด template ทับ
     calcDeadline();
     attachFormEvents();
   }
@@ -503,17 +499,29 @@ function _getProjValue2(){
   return sel.value;
 }
 
-var _PROJ_FILTER_CLUB=''; // club code ที่เลือกอยู่ใน outgoing form
+var _PROJ_FILTER_CLUB=''; // รหัสชมรมที่เลือกอยู่ในฟอร์มขาเข้า — โครงการของชมรมนั้นขึ้นก่อนในรายการแนะนำ
+var _KNOWN_PROJ={};       // {projKey: ตัวสะกดหลัก} ของโครงการที่มีในระบบแล้ว — ใช้ตอนบันทึกให้ชื่อตรงกับของเดิม
+/* รายการแนะนำชื่อโครงการ (datalist #project-list) จากโครงการที่มีในเอกสารจริงทั้งสองประเภท
+   ชื่อโครงการเป็นข้อความพิมพ์เอง จึงเกิดตัวสะกดหลายแบบของโครงการเดียวกัน ("Born to Speak" / "โครงการBorn to speak")
+   ซึ่งทำให้ตัวกรองและรายงานโครงการแตกเป็นหลายกลุ่ม — การแนะนำชื่อเดิมคือด่านแรก _canonProjName() ตอนบันทึกคือด่านที่สอง */
 async function _populateProjectList(clubCode){
   if(clubCode!==undefined) _PROJ_FILTER_CLUB=clubCode||'';
   try{
-    var q='?doc_type=eq.incoming&select=description,from_department&not.description=is.null&order=created_at.desc&limit=400';
-    if(_PROJ_FILTER_CLUB) q='?doc_type=eq.incoming&from_department=eq.'+encodeURIComponent(_PROJ_FILTER_CLUB)+'&select=description&not.description=is.null&order=created_at.desc&limit=200';
-    var rows=await dg('documents',q);
-    var projs=[...new Set(rows.map(function(r){return r.description}).filter(Boolean))];
+    var rows=await dg('documents','?or=(project_name.not.is.null,and(doc_type.eq.incoming,description.not.is.null))&select=doc_type,project_name,description,from_department&order=created_at.desc&limit=1000');
+    if(!Array.isArray(rows)) return;
+    _KNOWN_PROJ=projLabels(rows);
+    var mine={};
+    if(_PROJ_FILTER_CLUB) rows.forEach(function(r){if(r.doc_type==='incoming'&&r.from_department===_PROJ_FILTER_CLUB) mine[projKey(docFacets(r).project)]=1});
+    var keys=Object.keys(_KNOWN_PROJ).sort(function(a,b){return (mine[b]||0)-(mine[a]||0)||_KNOWN_PROJ[a].localeCompare(_KNOWN_PROJ[b],'th')});
     var dl=$e('project-list');
-    if(dl) dl.innerHTML=projs.map(function(p){return '<option value="'+esc(p)+'"></option>'}).join('');
+    if(dl) dl.innerHTML=keys.map(function(k){return '<option value="'+esc(_KNOWN_PROJ[k])+'"></option>'}).join('');
   }catch(e){}
+}
+/* ตัดเว้นวรรคเกิน และถ้าเป็นโครงการที่มีอยู่แล้ว (สะกดต่างแค่เว้นวรรค/ตัวพิมพ์/คำนำหน้า "โครงการ") ใช้ตัวสะกดเดิม */
+function _canonProjName(name){
+  var n=normText(name);
+  if(!n) return '';
+  return _KNOWN_PROJ[projKey(n)]||n;
 }
 
 function onTypeChange(){
@@ -598,14 +606,16 @@ function buildFileList(files, docId){
     var k=_fileNameKey(f.file_name);
     var isDup=!!seen[k];
     if(k) seen[k]=true;
-    return '<div class="file-item'+(isDup?' file-item-dup':'')+'">' +
-      fChip(f,18) +
-      '<div class="file-info"><div class="file-name">'+esc(f.file_name)+(isDup?' <span class="badge badge-muted">ชื่อซ้ำ</span>':'')+'</div><div class="file-meta"><strong style="color:'+ft.cl+'">'+ft.label+'</strong> · '+fsz(f.file_size)+' · v'+(f.version||1)+'</div></div>' +
-      '<div class="file-actions">' +
-      '<button class="btn btn-soft xs" data-action="openViewer" data-path="'+esc(f.file_path)+'" data-name="'+esc(f.file_name)+'" data-ext="'+esc(_ext)+'">'+svg('eye',12)+' ดู</button>' +
-      (docId?'<button class="btn btn-soft xs" data-action="openEditor" data-path="'+esc(f.file_path)+'" data-name="'+esc(f.file_name)+'" data-fid="'+f.id+'" data-did="'+docId+'">'+svg('edit',12)+' แก้ไข</button>':'')+
-      '<button class="btn btn-danger xs btn-icon" data-action="delFF" data-id="'+(f.id||'')+'" data-idx="'+i+'" data-path="'+esc(f.file_path||'')+'" title="ลบไฟล์">'+svg('trash',12)+'</button>' +
-      '</div></div>';
+    // class file-item คงไว้ — delFF (workflow.js) ใช้ closest('.file-item') ลบแถวออก
+    return '<div class="upl-item file-item'+(isDup?' file-item-dup':'')+'">' +
+      '<div class="upl-item-ext" style="color:'+ft.cl+'">'+esc(ft.label)+'</div>' +
+      '<div class="file-info"><div class="file-name">'+esc(f.file_name)+(isDup?' <span class="badge badge-muted">ชื่อซ้ำ</span>':'')+'</div>' +
+      '<div class="upl-item-meta">'+fsz(f.file_size)+'<span class="upl-dot">•</span><span class="upl-done">อัปโหลดแล้ว</span></div></div>' +
+      '<span class="upl-item-ok" title="อัปโหลดแล้ว">'+svg('circle-check',18)+'</span>' +
+      '<button class="upl-act" data-action="openViewer" data-path="'+esc(f.file_path)+'" data-name="'+esc(f.file_name)+'" data-ext="'+esc(_ext)+'" title="ดูไฟล์">'+svg('eye',16)+'</button>' +
+      (docId?'<button class="upl-act" data-action="openEditor" data-path="'+esc(f.file_path)+'" data-name="'+esc(f.file_name)+'" data-fid="'+f.id+'" data-did="'+docId+'" title="แก้ไขไฟล์">'+svg('edit',16)+'</button>':'')+
+      '<button class="upl-act upl-act-del" data-action="delFF" data-id="'+(f.id||'')+'" data-idx="'+i+'" data-path="'+esc(f.file_path||'')+'" title="ลบไฟล์">'+svg('trash',16)+'</button>' +
+      '</div>';
   }).join('');
 }
 
@@ -613,9 +623,9 @@ function attachFormEvents(){
   var fz=$e('fzone');
   if(fz){
     fz.onclick=function(){$e('finp')&&$e('finp').click()};
-    fz.ondragover=function(e){e.preventDefault();fz.classList.add('drag')};
-    fz.ondragleave=function(){fz.classList.remove('drag')};
-    fz.ondrop=function(e){e.preventDefault();fz.classList.remove('drag');_formDirty=true;doUp(Array.from(e.dataTransfer.files))}
+    fz.ondragover=function(e){e.preventDefault();fz.classList.add('dragover')};
+    fz.ondragleave=function(){fz.classList.remove('dragover')};
+    fz.ondrop=function(e){e.preventDefault();fz.classList.remove('dragover');_formDirty=true;doUp(Array.from(e.dataTransfer.files))}
   }
   var fi=$e('finp');
   if(fi) fi.onchange=function(){_formDirty=true;doUp(Array.from(fi.files))}
@@ -748,7 +758,8 @@ async function saveDoc(status){
   var btn=$e('fsub');
   if(btn){btn.disabled=true;btn.innerHTML='<span class="sp"></span> กำลังบันทึก...'}
   try{
-    var fromdept=gv('ffromdept').trim()||CU.department||'';
+    title=normText(title); // เว้นวรรคซ้อน/ท้ายข้อความทำให้ค้นหาและเทียบชื่อเรื่องไม่ตรง
+    var fromdept=normText(gv('ffromdept'))||CU.department||'';
     var subj=gv('fsubject').trim();
     var addrto=gv('fto').trim();
     var finalRec=gv('ffinalrec')||null;
@@ -758,7 +769,7 @@ async function saveDoc(status){
     var _outLt=(_dtype==='incoming')?(gv('foutltype')||''):'';
     var _outClub=(_dtype==='incoming')?(gv('fclub')||''):'';
     // โครงการ/กิจกรรม — เก็บใน project_name เสมอ ไม่ว่าจะเป็นฟอร์มไหน เพื่อรวมในรายงานประจำปีได้
-    var _projName=(_dtype==='incoming')?_getProjValue():_getProjValue2();
+    var _projName=_canonProjName((_dtype==='incoming')?_getProjValue():_getProjValue2());
     /* เลขรับต้นทาง — เขียนแยกและกลืน error โดยตั้งใจ คอลัมน์มาจาก
        supabase/43_incoming_receive_no_and_ack.sql ที่อาจยังไม่ถูกรันบนโปรดักชัน
        ถ้ารวมลงใน body การสร้าง/แก้เอกสารทั้งใบจะล้มเพราะคอลัมน์ไม่มี */
@@ -768,7 +779,7 @@ async function saveDoc(status){
       try{ await dpa('documents',id,{received_number:no||null,received_date:dt||null}); }
       catch(e){console.warn('บันทึกเลขรับไม่สำเร็จ (ยังไม่ได้รัน 43_incoming_receive_no_and_ack.sql?):',e)}
     };
-    var body={title:title,doc_type:gv('ftype'),urgency:gv('furg'),description:(_dtype==='incoming'?_getProjValue():gv('fdsc')),doc_date:gv('fdate')||new Date().toISOString().slice(0,10),due_date:eventDate,from_department:_dtype==='incoming'?_outClub:fromdept,addressed_to:addrto,subject_line:_dtype==='incoming'?_outLt:(subj||title),final_recipient_id:finalRec,final_recipient_note:finalNote,project_name:_projName||null,status:status,notify_step:_ns?_ns.checked:true,notify_overdue:_no?_no.checked:true};
+    var body={title:title,doc_type:gv('ftype'),urgency:gv('furg'),description:(_dtype==='incoming'?_projName:gv('fdsc')),doc_date:gv('fdate')||new Date().toISOString().slice(0,10),due_date:eventDate,from_department:_dtype==='incoming'?_outClub:fromdept,addressed_to:addrto,subject_line:_dtype==='incoming'?_outLt:(subj||title),final_recipient_id:finalRec,final_recipient_note:finalNote,project_name:_projName||null,status:status,notify_step:_ns?_ns.checked:true,notify_overdue:_no?_no.checked:true};
     if(FDI){
   await dpa('documents',FDI,Object.assign({},body,{total_steps:FS.length,updated_at:new Date().toISOString()}));
   await _saveRecvNo(FDI);
@@ -880,7 +891,7 @@ async function saveDoc(status){
       }
       a.innerHTML=alrtH('ok',_dtype==='incoming'?'อัพโหลดเอกสารและส่งเรียบร้อยแล้ว':'สร้างเอกสารเรียบร้อยแล้ว');
       var _successMsg=finalStatus==='pending'?'ส่งเอกสารเข้าระบบเรียบร้อยแล้ว รอการอนุมัติตามขั้นตอน':
-                      finalStatus==='numbering'?'อัพโหลดและส่งเรียบร้อยแล้ว รอออกเลขที่หนังสือ':
+                      finalStatus==='numbering'?(_dtype==='incoming'?'บันทึกเรียบร้อยแล้ว รอลงทะเบียนรับ':'อัพโหลดและส่งเรียบร้อยแล้ว รอออกเลขที่หนังสือ'):
                       finalStatus==='completed'?'อัพโหลดและส่งเรียบร้อยแล้ว เอกสารถูกบันทึกในระบบ':
                       'บันทึกร่างเรียบร้อยแล้ว';
       setTimeout(function(){

@@ -1,3 +1,4 @@
+import { assertActiveProfile } from './activeProfile.ts';
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.108.2';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
@@ -30,21 +31,20 @@ export async function requireAuth(req: Request): Promise<{ caller: Caller; admin
     return { caller: { type: 'system' }, admin };
   }
 
-  const cronSecret = Deno.env.get('OVERDUE_CRON_SECRET') ?? '';
-  if (cronSecret && req.headers.get('x-cron-secret') === cronSecret) {
-    return { caller: { type: 'system' }, admin };
-  }
+  // Cron credentials are accepted only by check-overdue, never general APIs.
 
   const { data: callerData, error: callerErr } = await admin.auth.getUser(token);
   if (callerErr || !callerData?.user) throw { status: 401, message: 'invalid session' };
 
   const { data: profile, error: pErr } = await admin
     .from('users')
-    .select('id, role_code, email, contact_email')
+    .select('id, role_code, email, contact_email, is_active, approval_status, expires_at')
     .eq('auth_uid', callerData.user.id)
     .maybeSingle();
 
   if (pErr || !profile) throw { status: 403, message: 'profile not found' };
+
+  assertActiveProfile(profile);
 
   return {
     caller: {

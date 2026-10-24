@@ -1,4 +1,5 @@
-/* ─── DOC NUM — ออกเลขที่หนังสือขาออก (กนค. SPPTNNN/BBBB หรือ กนค. SPPTNNN-CC/BBBB) ─── */
+/* ─── DOC NUM — ออกเลขที่หนังสือขาออก (กนค. SPPTNNN/BBBB หรือ กนค. SPPTNNN-CC/BBBB)
+       และลงทะเบียนรับหนังสือขาเข้า (เลขรับ NNNN/BBBB เรียงต่อเนื่องทั้งปี + ตรารับ) ─── */
 var _thFontCache=null;
 
 /* แปลงชื่อชมรม → รหัส CLUBS (หลัก 8-9 ของเลขหนังสือ) — ยึด CLUBS เป็น canonical เดียว
@@ -41,6 +42,45 @@ async function _nextDocNum(docId,docType,catPfx,club,thisYear,thaiYear){
   return gnkPfx+catPfx+String(mx+1).padStart(3,'0')+(club?'-'+club:'')+'/'+thaiYear;
 }
 
+/* ── เลขทะเบียนรับ (หนังสือขาเข้า) ──
+   ระเบียบงานสารบรรณ: เลขรับเรียงต่อเนื่องตลอดปีปฏิทิน ขึ้นปีใหม่เริ่ม 0001 — รูปแบบ NNNN/{ปี พ.ศ.}
+   ไม่มีภาค/ตำแหน่ง/ประเภท และไม่มี "กนค." นำหน้า จึงไม่ชนช่วงเลขของหนังสือขาออก
+   (เดิมใช้รูปแบบเลขส่งของ กนค. ซึ่งผิดความหมาย — ตำแหน่งได้ 00 เสมอเพราะผู้ลงทะเบียนเป็น จนท.
+    ลำดับนับแยกตามหมวดแทนที่จะต่อเนื่องทั้งปี และใช้ช่วงเลข "กนค. XXXX" ร่วมกับขาออกจนชนกันได้)
+   dg() คืน error object แทนการ throw — ต้องโยนเอง ไม่งั้นได้ 0001 ซ้ำกับฉบับที่มีอยู่ */
+async function _nextRecvNum(docId,thaiYear){
+  var rows=await dg('documents','?doc_type=eq.incoming&doc_number=like.'+encodeURIComponent('*/'+thaiYear)+'&select=doc_number,id');
+  if(!Array.isArray(rows)) throw new Error('อ่านทะเบียนรับไม่สำเร็จ');
+  var re=new RegExp('^(\\d{4,})/'+thaiYear+'$');
+  var mx=rows.reduce(function(m,d){
+    if(d.id===docId) return m;
+    var r=re.exec(d.doc_number||'');
+    var n=r?parseInt(r[1],10):0;
+    return n>m?n:m;
+  },0);
+  return String(mx+1).padStart(4,'0')+'/'+thaiYear;
+}
+
+/* ── ตรารับ (กรอบ 4 บรรทัด) — ค่าระยะชุดเดียวใช้ทั้ง preview และตอนวาดลง PDF ให้ตรงกัน
+   1 CSS px ใน container ของ preview = 1 PDF pt */
+var _RECV_ORG='คณะกรรมการนิสิต คณะครุศาสตร์';
+function _recvStampMetrics(sz){ return {padX:sz*0.8,padY:sz*0.45,gap:sz*0.3,lineH:sz}; }
+function _fmtRecvTime(t){ return t?String(t).replace(':','.')+' น.':''; }
+function _recvStampLines(num,dateStr,timeStr){
+  return [_RECV_ORG,'เลขรับที่ '+(num||''),'วันที่ '+_fmtDateThai(dateStr||''),'เวลา '+_fmtRecvTime(timeStr)];
+}
+/* วาดเนื้อในตรารับใน preview ใหม่ (เรียกเมื่อเปลี่ยนวันที่/เวลา/ขนาดตัวอักษร) */
+function _renderRecvStamp(){
+  var ns=$e('num-stamp-num'); if(!ns||!$e('num-recv-mode')) return;
+  var sz=parseInt(($e('num-fontsize')||{}).value)||12;
+  var m=_recvStampMetrics(sz);
+  var lines=_recvStampLines(($e('num-preview')||{}).textContent||'',gv('num-docdate'),gv('num-recvtime'));
+  ns.style.fontSize=sz+'px';
+  ns.style.padding=m.padY+'px '+m.padX+'px';
+  ns.style.gap=m.gap+'px';
+  ns.innerHTML=lines.map(function(l){return '<div style="line-height:1;height:'+m.lineH+'px">'+esc(l)+'</div>'}).join('');
+}
+
 /* ── การส่งต่อหลังออกเลข — บังคับส่งเข้าคิว จนท.กิจการนิสิตอัตโนมัติเสมอ ──
    เดิมเป็น dropdown ที่เว้นว่างได้ (มีตัวเลือก "ไม่ส่งต่อ") ทำให้เอกสารเข้าสถานะ
    "รอเจ้าหน้าที่ยื่นในระบบ" โดยไม่เคยผ่านมือ จนท. เลย — ตอนนี้ตัดการเลือกออกทั้งหมด
@@ -62,71 +102,69 @@ async function showNumModal(docId){
   if(!Array.isArray(_stfList)) _stfList=[];
   var _fwdFieldHtml=_numFwdNoticeHtml(_stfList);
 
-  if(doc.doc_type==='incoming'){ /* สลับ 2026-07-22: incoming=ฟอร์มง่าย ใช้ตำแหน่งผู้สร้างเอง */
-    var creator=(await dg('user_directory','?id=eq.'+safeId(doc.created_by)+'&select=position_code,full_name&limit=1'))[0]||{};
-    var posCode=GNK_NUM[creator.position_code]||'00';
-    var posName=PTH[creator.position_code]||creator.position_code||'ไม่ระบุตำแหน่ง';
-    var ltCode=doc.subject_line||'';
-    var clubCode=doc.from_department||'';
-    var semOpts=Object.keys(SEMS).map(function(k){
-      return '<option value="'+k+'">'+k+' — '+esc(SEMS[k])+'</option>';
-    }).join('');
-    var ltOpts='<option value="">— กรุณาเลือกประเภทจดหมาย —</option>'+OUT_LTYPES.slice(1).map(function(l,i){
-      var code=String(i+1);
-      return '<option value="'+code+'"'+(code===ltCode?' selected':'')+'>'+code+'. '+esc(l)+'</option>';
-    }).join('');
-    var clubOpts='<option value="">— ไม่มีชมรม —</option>'+Object.keys(CLUBS).map(function(code){
-      return '<option value="'+code+'"'+(code===clubCode?' selected':'')+'>'+code+' — '+esc(CLUBS[code])+'</option>';
-    }).join('');
+  if(doc.doc_type==='incoming'){ /* สลับ 2026-07-22: incoming=ฟอร์มง่าย — ลงทะเบียนรับ (เลขรับต่อเนื่องทั้งปี) ไม่ใช่เลขส่งของ กนค. */
+    var _now=new Date();
+    var _thaiYear=String(_now.getFullYear()+543);
+    var _nowTime=String(_now.getHours()).padStart(2,'0')+':'+String(_now.getMinutes()).padStart(2,'0');
+    // วันที่ตามเวลาเครื่อง (ไทย) — today ด้านบนเป็นวันที่ UTC ซึ่งช่วงเที่ยงคืน–7 โมงเช้ายังเป็น "เมื่อวาน"
+    var _todayLocal=_now.getFullYear()+'-'+String(_now.getMonth()+1).padStart(2,'0')+'-'+String(_now.getDate()).padStart(2,'0');
+    // เลขรับถัดไปจริง ๆ (ไม่ใช่ XXX) — ถ้ามีคนลงทะเบียนพร้อมกัน ตอนบันทึกจะคำนวณใหม่และอาจเลื่อนไปหนึ่งเลข
+    var _nextNo='';
+    try{ _nextNo=await _nextRecvNum(docId,_thaiYear); }catch(_ne){ console.warn('อ่านทะเบียนรับไม่สำเร็จ:',_ne); }
+    // ผู้ดำรงตำแหน่งที่หนังสือส่งถึง — จะถูกเสนอให้รับทราบอัตโนมัติหลังลงทะเบียน
+    var _addrPos=doc.addressed_to||'';
+    var _addrUsers=_addrPos?await dg('user_directory','?position_code=eq.'+encodeURIComponent(_addrPos)+'&is_active=eq.true&approval_status=eq.approved&select=id,full_name&order=full_name'):[];
+    if(!Array.isArray(_addrUsers)) _addrUsers=[];
+    _addrUsers=_addrUsers.filter(function(u){return u.id!==doc.created_by});
+    var _addrLbl=_addrPos?(PTH[_addrPos]||_addrPos):'';
+    var _ackNotice=_addrUsers.length
+      ?'<div class="al al-in" style="margin-top:4px;margin-bottom:12px;align-items:flex-start"><span class="al-icon">'+svg('eye',13)+'</span>'+
+        '<span style="font-size:12px;line-height:1.7"><strong>เสนอผู้รับอัตโนมัติ</strong> — เมื่อลงทะเบียนแล้ว ระบบจะเสนอหนังสือให้ <strong>'+esc(_addrLbl)+'</strong> ('+
+        _addrUsers.map(function(u){return esc(u.full_name||'')}).join(', ')+') รับทราบและแจ้งเตือนทันที</span></div>'
+      :'<div class="al al-wa" style="margin-top:4px;margin-bottom:12px;align-items:flex-start"><span class="al-icon">'+svg('info',13)+'</span>'+
+        '<span style="font-size:12px;line-height:1.7">ไม่พบผู้ดำรงตำแหน่ง'+(_addrLbl?' <strong>'+esc(_addrLbl)+'</strong>':'ที่หนังสือส่งถึง')+
+        ' — หลังลงทะเบียนแล้ว กด “เสนอให้รับทราบ” ในหน้าเอกสารเพื่อเลือกผู้รับเอง</span></div>';
 
     w.innerHTML=[
       '<div class="mo"><div class="modal" style="max-width:880px;width:95vw">',
-      '<div class="modal-head"><span class="modal-title">'+svg('pen',15)+' ออกเลขที่หนังสือขาเข้า</span>',
+      '<div class="modal-head"><span class="modal-title">'+svg('pen',15)+' ลงทะเบียนรับหนังสือขาเข้า</span>',
       '<button class="btn btn-soft sm btn-icon" data-action="closeModal">'+svg('x',14)+'</button></div>',
       '<div class="modal-body" style="display:grid;grid-template-columns:280px 1fr;gap:18px;align-items:start;max-height:72vh;overflow:hidden;padding-bottom:0">',
 
       // ─── ซ้าย: กรอกข้อมูล ───
       '<div style="overflow-y:auto;max-height:72vh;padding-right:4px;padding-bottom:16px">',
-      '<div class="al al-ok" style="margin-bottom:12px"><span class="al-icon">'+svg('ok',13)+'</span>',
-      '<span style="font-size:12px">ลายเซ็นครบแล้ว กรอกข้อมูลแล้วลากตำแหน่งเลขที่/วันที่บนตัวอย่างเอกสาร</span></div>',
-      '<div class="fg"><label class="fl">ภาคการศึกษา (หลักที่ 1) <span class="req">*</span></label>',
-      '<select class="fi" id="num-sem" onchange="_previewOutNum()">'+semOpts+'</select></div>',
-      '<div class="fg"><label class="fl">ตำแหน่ง (หลักที่ 2–3)</label>',
-      '<div class="fi" style="background:#f9f7f5;color:#6b6560;cursor:default;font-size:12px">'+esc(posCode)+' — '+esc(posName)+'</div></div>',
-      '<input type="hidden" id="num-poscode" value="'+posCode+'">',
-      '<div class="fg"><label class="fl">ประเภทจดหมาย (หลักที่ 4) <span class="req">*</span></label>',
-      '<select class="fi" id="num-lt" onchange="_previewOutNum()">'+ltOpts+'</select></div>',
-      '<div class="fg"><label class="fl">ชมรม (หลักที่ 8–9)</label>',
-      '<select class="fi" id="num-club" onchange="_previewOutNum()">'+clubOpts+'</select></div>',
-      /* เลขรับที่ประทับมาจากหน่วยงานต้นทาง — คนละเลขกับเลขที่ กนค. ออกเอง เก็บไว้อ้างอิง/ค้นหา
-         ไม่บังคับ เพราะหนังสือบางฉบับมาถึงก่อนถูกลงทะเบียนรับ */
-      '<div class="fg"><label class="fl">เลขรับที่ (จากหน่วยงานต้นทาง)</label>',
-      '<input class="fi" id="num-recvno" value="'+esc(doc.received_number||'')+'" placeholder="เช่น 3544 หรือ (2791.03)/1212">',
-      '<div style="font-size:11px;color:#a89e99;margin-top:4px;line-height:1.6">เลขตามตราประทับ “เลขรับที่” บนหัวเอกสาร — ไม่ใช่เลขที่หนังสือของ กนค.</div></div>',
-      '<div class="fg"><label class="fl">ลงวันที่รับ (ต้นทาง)</label>',
+      '<input type="hidden" id="num-recv-mode" value="1">',
+      '<div class="al al-in" style="margin-bottom:12px;align-items:flex-start"><span class="al-icon">'+svg('info',13)+'</span>',
+      '<span style="font-size:12px;line-height:1.7">เลขรับเรียงต่อเนื่องตลอดปีปฏิทินตามระเบียบงานสารบรรณ (ขึ้นปีใหม่เริ่ม 0001) — ระบบออกเลขถัดไปให้เอง ลากตรารับบนตัวอย่างไปวางมุมบนขวาของหนังสือ</span></div>',
+      '<div class="fg"><label class="fl">เลขรับที่</label>',
+      '<div class="fi" id="num-preview" style="background:#f9f7f5;color:#1261AB;font-size:14px;font-family:\'TH Sarabun PSK\', Sarabun, sans-serif;font-weight:700;cursor:default;letter-spacing:.5px">'+esc(_nextNo||('XXXX/'+_thaiYear))+'</div>',
+      '<div style="font-size:11px;color:#a89e99;margin-top:4px;line-height:1.6">ถ้ามีผู้ลงทะเบียนรับพร้อมกัน ระบบจะใช้เลขถัดไปที่ว่างโดยอัตโนมัติ</div></div>',
+      '<div class="two-col-sm"><div class="fg"><label class="fl">วันที่รับ <span class="req">*</span></label>',
+      '<input type="date" class="fi" id="num-docdate" value="'+_todayLocal+'" min="'+_now.getFullYear()+'-01-01" max="'+_todayLocal+'" onchange="_renderRecvStamp()"></div>',
+      '<div class="fg"><label class="fl">เวลารับ <span class="req">*</span></label>',
+      '<input type="time" class="fi" id="num-recvtime" value="'+_nowTime+'" onchange="_renderRecvStamp()"></div></div>',
+      /* "ที่" ของหนังสือต้นทาง (เช่น อว 64.6(2790.04)/0422) — คนละเลขกับเลขรับที่ กนค. ออกเอง เก็บไว้อ้างอิง/ค้นหา */
+      '<div class="fg"><label class="fl">ที่ (เลขที่หนังสือของหน่วยงานต้นทาง)</label>',
+      '<input class="fi" id="num-recvno" value="'+esc(doc.received_number||'')+'" placeholder="เช่น อว 64.6(2790.04)/0422"></div>',
+      '<div class="fg"><label class="fl">ลงวันที่ (ของหนังสือต้นทาง)</label>',
       '<input type="date" class="fi" id="num-recvdate" value="'+esc(doc.received_date||'')+'"></div>',
-      '<div class="fg"><label class="fl">วันที่หนังสือ</label>',
-      '<div class="fi" style="background:#f9f7f5;color:#6b6560;cursor:default">'+_fmtDateThai(today)+'</div>',
-      '<input type="hidden" id="num-docdate" value="'+today+'"></div>',
+      '<div class="fg"><label class="fl">ส่งถึง</label>',
+      '<div class="fi" style="background:#f9f7f5;color:#6b6560;cursor:default;font-size:12px">'+esc(_addrLbl||'— ไม่ระบุ —')+'</div></div>',
+      _ackNotice,
       '<div class="fg"><label class="fl">ขนาดตัวอักษร</label>',
       '<div style="display:flex;align-items:center;gap:8px">',
-      '<input type="range" id="num-fontsize" min="8" max="24" value="10" style="flex:1" oninput="_updateStampFontSize()">',
-      '<span id="num-fontsize-val" style="font-size:12px;color:#6b6560;min-width:36px;text-align:right">10 pt</span>',
+      '<input type="range" id="num-fontsize" min="8" max="24" value="12" style="flex:1" oninput="_updateStampFontSize()">',
+      '<span id="num-fontsize-val" style="font-size:12px;color:#6b6560;min-width:36px;text-align:right">12 pt</span>',
       '</div></div>',
       '<div class="fg"><label class="fl" style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:500">',
       '<input type="checkbox" id="num-stamp-lock" onchange="_toggleStampLock()">',
-      '<span>ล็อคตำแหน่งเลขที่/วันที่</span></label>',
+      '<span>ล็อคตำแหน่งตรารับ</span></label>',
       '<div style="font-size:11px;color:#a89e99;margin-top:4px;line-height:1.6">เมื่อล็อคแล้วตำแหน่งจะไม่เลื่อน — เลื่อนดูเอกสารแต่ละหน้าได้ตามปกติ</div></div>',
-      '<div class="fg"><label class="fl">ตัวอย่างเลขที่</label>',
-      '<div class="fi" id="num-preview" style="background:#f9f7f5;color:#1261AB;font-size:12px;font-family:\TH Sarabun PSK\', Sarabun, sans-serif;font-weight:700;cursor:default;letter-spacing:.5px">—</div></div>',
-      _fwdFieldHtml,
-      '<div class="fg"><label class="fl">หมายเหตุ</label>',
-      '<textarea class="fi" id="num-note" rows="2" placeholder="หมายเหตุ (ถ้ามี)"></textarea></div>',
-      '<div style="font-size:11px;color:#a89e99;margin-top:6px;line-height:1.7;display:flex;gap:6px;align-items:flex-start">',
-      svg('info',12)+'<span>ลากกล่องเลขที่และวันที่บนตัวอย่างด้านขวาเพื่อปรับตำแหน่งก่อนบันทึก</span></div>',
+      '<div class="fg"><label class="fl">ข้อความถึงผู้รับ (ถ้ามี)</label>',
+      '<textarea class="fi" id="num-note" rows="2" placeholder="เช่น โปรดพิจารณาดำเนินการ"></textarea></div>',
       '</div>',
 
-      // ─── ขวา: PDF preview พร้อม draggable stamps ───
+      // ─── ขวา: PDF preview พร้อมตรารับที่ลากได้ ───
       '<div id="num-pdf-outer" style="background:#525659;border-radius:8px;overflow-y:auto;overflow-x:hidden;max-height:72vh;min-height:320px;padding:8px">',
       '<div id="num-pdf-wrap" style="display:block;width:100%">',
       '<div id="num-pdf-loading" style="color:rgba(255,255,255,.7);font-size:13px;display:flex;flex-direction:column;align-items:center;gap:10px">',
@@ -137,16 +175,21 @@ async function showNumModal(docId){
       '</div>',
       '<div class="modal-foot">',
       '<button class="btn btn-soft" data-action="closeModal">ยกเลิก</button>',
-      '<button class="btn btn-primary" data-action="doSetDocNumber" data-id="'+docId+'">'+svg('ok',13)+' ออกเลขและเสร็จสิ้น</button>',
+      '<button class="btn btn-primary" data-action="doSetDocNumber" data-id="'+docId+'">'+svg('ok',13)+' ลงทะเบียนรับ</button>',
       '</div></div></div>'
     ].join('');
 
-    _previewOutNum();
     setTimeout(function(){_loadNumPDFPreview(docId)},80);
     return;
   }
 
   // หนังสือขาออก (สลับ 2026-07-22: มีขั้นตอนอนุมัติ): auto-generate เลขที่ (รูปแบบ กนค. SPPTNNN-CC/BBBB)
+  // วันที่หนังสือ = วันทำการตามกติกาออกเลข (numIssueInfo ใน utils.js) ไม่ใช่วันที่ตามนาฬิกาเครื่อง —
+  // เลย 22:00 น. ได้วันทำการถัดไป, วันหยุดตามปฏิทินนิสิต/เสาร์–อาทิตย์ออกไม่ได้
+  var _ni=await checkNumIssue();
+  if(_ni.blocked||!_ni.date){showAlert(numIssueMsg(_ni),'wa');return;}
+  today=_ni.date;
+  var _niNote=rNumIssueNote(_ni);
   var _ltIdx=LETTER_TYPES.indexOf(doc.description);
   var _ltCode=_ltIdx>=0?String(_ltIdx+1):'';
   var _sEntry=(SENDER_POS||[]).filter(function(p){return p.name===doc.addressed_to})[0]||null;
@@ -177,7 +220,7 @@ async function showNumModal(docId){
     '<select class="fi" id="num-lt" onchange="_previewIncNum()">'+incLtOpts+'</select></div>',
     '<div class="fg"><label class="fl">วันที่หนังสือ</label>',
     '<div class="fi" style="background:#f9f7f5;color:#6b6560;cursor:default">'+_fmtDateThai(today)+'</div>',
-    '<input type="hidden" id="num-docdate" value="'+today+'"></div>',
+    '<input type="hidden" id="num-docdate" value="'+today+'">'+_niNote+'</div>',
     '<div class="fg"><label class="fl">ขนาดตัวอักษร</label>',
     '<div style="display:flex;align-items:center;gap:8px">',
     '<input type="range" id="num-fontsize" min="8" max="24" value="10" style="flex:1" oninput="_updateStampFontSize()">',
@@ -219,7 +262,8 @@ function _previewOutNum(){
   var p=$e('num-preview');
   if(!p) return;
   if(!sem||!lt){p.textContent='— (กรุณาเลือกภาคเรียนและประเภทจดหมาย)';return}
-  var _bbbb=String(new Date().getFullYear()+543);
+  var _dd=gv('num-docdate')||''; // ปีของเลขตามวันที่หนังสือ — ออกหลัง 22:00 น. ของ 31 ธ.ค. เป็นเลขของปีถัดไป
+  var _bbbb=String((/^\d{4}/.test(_dd)?+_dd.slice(0,4):new Date().getFullYear())+543);
   var txt='กนค. '+sem+pos+lt+'XXX'+(club?'-'+club:'')+'/'+_bbbb;
   p.textContent=txt;
   var ns=$e('num-stamp-num');
@@ -234,7 +278,8 @@ function _previewIncNum(){
   var p=$e('num-preview');
   if(!p) return;
   if(!sem||!lt){p.textContent='— (กรุณาเลือกภาคเรียนและประเภทหนังสือ)';return}
-  var _bbbb=String(new Date().getFullYear()+543);
+  var _dd=gv('num-docdate')||''; // ปีของเลขตามวันที่หนังสือ — ออกหลัง 22:00 น. ของ 31 ธ.ค. เป็นเลขของปีถัดไป
+  var _bbbb=String((/^\d{4}/.test(_dd)?+_dd.slice(0,4):new Date().getFullYear())+543);
   var txt='กนค. '+sem+pos+lt+'XXX'+(club?'-'+club:'')+'/'+_bbbb;
   p.textContent=txt;
   var ns=$e('num-stamp-num');
@@ -261,6 +306,7 @@ function _updateStampFontSize(){
   var lbl=$e('num-fontsize-val'); if(lbl) lbl.textContent=sz+' pt';
   var ns=$e('num-stamp-num'); if(ns) ns.style.fontSize=sz+'px';
   var ds=$e('num-stamp-date'); if(ds) ds.style.fontSize=sz+'px';
+  _renderRecvStamp();
 }
 
 function _toggleStampLock(){
@@ -371,7 +417,7 @@ async function _loadNumPDFPreview(docId){
     } else if(!pdfjsLib.GlobalWorkerOptions.workerSrc){
       pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
     }
-    var pdf=await pdfjsLib.getDocument(pdfUrl).promise;
+    var pdf=await pdfjsLib.getDocument({url:pdfUrl,isEvalSupported:false}).promise;
     var outer=$e('num-pdf-outer');
     var availW=Math.max((outer?outer.clientWidth:420)-16, 200);
     var page1=await pdf.getPage(1);
@@ -426,15 +472,23 @@ async function _loadNumPDFPreview(docId){
 
         ns=document.createElement('div');
         ns.id='num-stamp-num'; ns.style.cssText=SCSS;
-        ns.style.left='42px'; ns.style.top=defTop+'px';
-        ns.textContent=($e('num-preview')||{}).textContent||'กนค. XXXX/XXXX';
-        cont.appendChild(ns);
+        if($e('num-recv-mode')){
+          // ตรารับ: กรอบเดียว 4 บรรทัด วางมุมบนขวา (ตั้ง left จริงหลังวัดความกว้างได้ — ดูท้ายฟังก์ชัน)
+          ns.style.cssText+=';display:flex;flex-direction:column;border:1px solid #1261AB;background:rgba(255,255,255,.6)';
+          ns.style.left='0px'; ns.style.top='28px';
+          cont.appendChild(ns);
+          _renderRecvStamp();
+        }else{
+          ns.style.left='42px'; ns.style.top=defTop+'px';
+          ns.textContent=($e('num-preview')||{}).textContent||'กนค. XXXX/XXXX';
+          cont.appendChild(ns);
 
-        ds=document.createElement('div');
-        ds.id='num-stamp-date'; ds.style.cssText=SCSS;
-        ds.style.left='42px'; ds.style.top=(defTop+Math.round(pvp0.height*0.065))+'px';
-        ds.textContent=_fmtDateThai(gv('num-docdate')||'');
-        cont.appendChild(ds);
+          ds=document.createElement('div');
+          ds.id='num-stamp-date'; ds.style.cssText=SCSS;
+          ds.style.left='42px'; ds.style.top=(defTop+Math.round(pvp0.height*0.065))+'px';
+          ds.textContent=_fmtDateThai(gv('num-docdate')||'');
+          cont.appendChild(ds);
+        }
 
         inner.appendChild(cont);
       }
@@ -452,11 +506,15 @@ async function _loadNumPDFPreview(docId){
 
     wrap.innerHTML=''; wrap.style.cssText='display:block;width:100%';
     wrap.appendChild(col);
-    if(cont&&ns&&ds){
+    if(cont&&ns){
       _makeStampDraggable(ns,cont);
-      _makeStampDraggable(ds,cont);
+      if(ds) _makeStampDraggable(ds,cont);
       _updateStampFontSize();
       _toggleStampLock();
+      if(!ds){ // ตรารับ — ชิดขวาบนหลังรู้ความกว้างจริง
+        var _pw=parseFloat(cont.dataset.pdfW)||cont.offsetWidth;
+        ns.style.left=Math.max(0,_pw-ns.offsetWidth-28)+'px';
+      }
     }
   }catch(e){
     console.warn('PDF preview failed:',e);
@@ -467,7 +525,14 @@ async function _loadNumPDFPreview(docId){
 /* [UX] wrap doSetDocNumber ด้วย showConfirm ก่อน irreversible action */
 function doSetDocNumber(docId){
   var docDate=gv('num-docdate');
-  if(!docDate){showAlert('กรุณาเลือกวันที่หนังสือ','wa');return}
+  var _recvMode=!!$e('num-recv-mode');
+  if(!docDate){showAlert(_recvMode?'กรุณาระบุวันที่รับ':'กรุณาเลือกวันที่หนังสือ','wa');return}
+  if(_recvMode){
+    // เลขรับนับต่อเนื่องภายในปีปฏิทิน — วันที่รับต้องอยู่ในปีเดียวกับเลขที่จะออก และไม่ใช่วันในอนาคต
+    var _dEl=$e('num-docdate');
+    if((_dEl&&_dEl.min&&docDate<_dEl.min)||(_dEl&&_dEl.max&&docDate>_dEl.max)){showAlert('วันที่รับต้องอยู่ในปีปัจจุบันและไม่เกินวันนี้','wa');return}
+    if(!gv('num-recvtime')){showAlert('กรุณาระบุเวลารับ','wa');return}
+  }
   // จับค่าฟอร์มทั้งหมดก่อน showConfirm เพราะ showConfirm จะ replace mwrap แล้วทำให้ elements หาย
   var _ns=$e('num-stamp-num'), _ds=$e('num-stamp-date');
   var _cont=$e('num-stamp-container');
@@ -493,10 +558,30 @@ function doSetDocNumber(docId){
     docnum:(gv('num-docnum')||'').trim(),
     fontsize:parseInt(($e('num-fontsize')||{}).value)||10,
     numPdfX:_numPdfX, numTopPdf:_numTopPdf,
-    datPdfX:_datPdfX, datTopPdf:_datTopPdf
+    datPdfX:_datPdfX, datTopPdf:_datTopPdf,
+    recvMode:_recvMode,
+    recvTime:gv('num-recvtime')||'',
+    hasStampPos:!!_ns   // false = โหลดตัวอย่างไม่ได้ → ตรารับใช้ตำแหน่งเริ่มต้นมุมบนขวา
   };
   var previewNum=($e('num-preview')||{}).textContent||'—';
   var dateDisplay=_fmtDateThai?_fmtDateThai(docDate):docDate;
+  if(_recvMode){
+    showConfirm(
+      'ยืนยันลงทะเบียนรับ?',
+      'เลขรับที่: '+previewNum+'\nวันที่รับ: '+dateDisplay+' เวลา '+_fmtRecvTime(_cap.recvTime),
+      function(){_doSetDocNumberConfirmed(docId,_cap);},
+      {
+        confirmLabel:'ลงทะเบียนรับ',
+        confirmClass:'btn-primary',
+        cancelLabel:'กลับไปตรวจสอบ',
+        icon:'pen',
+        iconBg:'#EFF6FF',
+        iconColor:'#2563EB',
+        detail:'เลขรับออกแล้วแก้ไขภายหลังไม่ได้ — ระบบจะประทับตรารับลงหนังสือ และเสนอให้ผู้รับตามหนังสือรับทราบทันที'
+      }
+    );
+    return;
+  }
   showConfirm(
     'ยืนยันออกเลขหนังสือ?',
     'เลขที่: '+previewNum+'\nวันที่: '+dateDisplay,
@@ -520,20 +605,20 @@ async function _doSetDocNumberConfirmed(docId,cap){
     var doc=(await dg('documents','?id=eq.'+safeId(docId)))[0]||{};
     var docNum, note='', fwdId=null, fwdStaffAll=false;
     var _numPdfX=cap.numPdfX,_numTopPdf=cap.numTopPdf,_datPdfX=cap.datPdfX,_datTopPdf=cap.datTopPdf,_dateText='';
+    // อ่านสถานะสดก่อนออกเลข — กันออกเลขซ้ำเมื่อมีคนลงทะเบียน/ออกเลขฉบับนี้ไปแล้วระหว่างที่หน้านี้เปิดค้าง
+    if(doc.status!=='numbering'){
+      showAlert('เอกสารนี้ไม่อยู่ในสถานะรอออกเลขแล้ว'+(doc.doc_number?' (เลขปัจจุบัน: '+doc.doc_number+')':'')+' — กรุณาโหลดหน้าใหม่','wa');
+      if(btn){btn.disabled=false;btn.innerHTML=svg('ok',13)+' บันทึก';}
+      return;
+    }
+    var _recvNote='';   // ข้อความถึงผู้รับ (ขาเข้า) — ใช้เป็นข้อความในรายการ "เสนอเพื่อโปรดทราบ"
 
-    if(doc.doc_type==='incoming'){ /* สลับ 2026-07-22: incoming=ฟอร์มง่าย ใช้ตำแหน่งผู้สร้างเอง */
-      var sem=cap.sem||'1';
-      var pos=cap.poscode||'00';
-      var lt=cap.lt||'';
-      var club=cap.club||'';
-      note=cap.note||'';
-      fwdStaffAll=true; fwdId=null;   // ส่งเข้าคิว จนท.กิจการนิสิตเสมอ ไม่มีทางข้ามขั้นตอนนี้
-      if(!lt){showAlert('กรุณาเลือกประเภทจดหมาย','wa');if(btn){btn.disabled=false;btn.innerHTML=svg('ok',13)+' ออกเลขและเสร็จสิ้น';}return}
+    if(doc.doc_type==='incoming'){ /* สลับ 2026-07-22: incoming=ฟอร์มง่าย — ลงทะเบียนรับ ไม่ส่งเข้าคิว จนท. (จนท. เป็นผู้ลงทะเบียนเอง) */
       var thisYear=new Date().getFullYear();
       var thaiYear=String(thisYear+543);
-      var catPfx=sem+pos+lt;
-      docNum=await _nextDocNum(docId,'incoming',catPfx,club,thisYear,thaiYear);
-      note=note||('ออกเลขหนังสือขาเข้า: '+docNum);
+      docNum=await _nextRecvNum(docId,thaiYear);
+      _recvNote=cap.note||'';
+      note='วันที่รับ '+_fmtDateThai(docDate)+' เวลา '+_fmtRecvTime(cap.recvTime)+(_recvNote?' · '+_recvNote:'');
       _dateText=_fmtDateThai(docDate);
     } else if(doc.doc_type==='outgoing'){
       var sem=cap.sem||'1';
@@ -543,7 +628,15 @@ async function _doSetDocNumberConfirmed(docId,cap){
       note=cap.note||'';
       fwdStaffAll=true; fwdId=null;   // ส่งเข้าคิว จนท.กิจการนิสิตเสมอ ไม่มีทางข้ามขั้นตอนนี้
       if(!lt){showAlert('กรุณาเลือกประเภทหนังสือ','wa');if(btn){btn.disabled=false;btn.innerHTML=svg('ok',13)+' ออกเลขและเสร็จสิ้น';}return}
-      var thisYear=new Date().getFullYear();
+      // เช็คกติกาวันที่ออกเลขซ้ำตอนกดยืนยัน — หน้าต่างอาจเปิดค้างข้าม 22:00 น. หรือข้ามเที่ยงคืน
+      // วันที่ที่ประทับลง PDF ต้องตรงกับที่ผู้ใช้เห็นตอนวางตำแหน่ง จึงให้เปิดใหม่แทนการเปลี่ยนวันเงียบ ๆ
+      var _ni=await checkNumIssue();
+      if(_ni.blocked||!_ni.date){showAlert(numIssueMsg(_ni),'wa');return}
+      if(_ni.date!==docDate){
+        showAlert('วันที่หนังสือเปลี่ยนเป็น'+_numDateLong(_ni.date)+(numIssueMsg(_ni)?' — '+numIssueMsg(_ni):'')+' กรุณากด "ออกเลขหนังสือ" อีกครั้งเพื่อตรวจสอบวันที่ก่อนออกเลข','wa');
+        return;
+      }
+      var thisYear=+docDate.slice(0,4); // ปีของวันที่หนังสือ ไม่ใช่ปีตามนาฬิกา
       var thaiYear=String(thisYear+543);
       var catPfx=sem+pos+lt;
       docNum=await _nextDocNum(docId,'outgoing',catPfx,club,thisYear,thaiYear);
@@ -556,8 +649,9 @@ async function _doSetDocNumberConfirmed(docId,cap){
       if(!docNum){showAlert('กรุณาระบุเลขที่หนังสือ','wa');if(btn){btn.disabled=false;btn.innerHTML=svg('ok',13)+' บันทึกและเสร็จสิ้น';}return}
     }
 
-    // ด่านสุดท้าย: เอกสารขาเข้า/ขาออกต้องเข้าคิว จนท. เสมอ (กันกรณีค่าถูกแก้ผ่าน DOM/console)
-    if((doc.doc_type==='incoming'||doc.doc_type==='outgoing')&&!fwdStaffAll&&!fwdId){
+    // ด่านสุดท้าย: หนังสือขาออกต้องเข้าคิว จนท. เสมอ (กันกรณีค่าถูกแก้ผ่าน DOM/console)
+    // ขาเข้าไม่ต้อง — จนท. คือผู้ลงทะเบียนรับเอง ปลายทางคือผู้รับตามหนังสือ (เสนอเพื่อโปรดทราบด้านล่าง)
+    if(doc.doc_type==='outgoing'&&!fwdStaffAll&&!fwdId){
       fwdStaffAll=true; fwdId=null;
     }
 
@@ -576,10 +670,11 @@ async function _doSetDocNumberConfirmed(docId,cap){
       }catch(_ue){
         var _isDup=/duplicate key|unique|23505/i.test((_ue&&_ue.message)||'');
         if(_isSeqDoc&&_isDup&&_r<3){
-          docNum=await _nextDocNum(docId,doc.doc_type,catPfx,club,thisYear,thaiYear);
+          docNum=(doc.doc_type==='incoming')
+            ?await _nextRecvNum(docId,thaiYear)
+            :await _nextDocNum(docId,doc.doc_type,catPfx,club,thisYear,thaiYear);
           upd.doc_number=docNum;
-          if(doc.doc_type==='incoming') note='ออกเลขหนังสือขาเข้า: '+docNum;
-          else if(doc.doc_type==='outgoing'&&!cap.note) note='ออกเลขหนังสือขาออก: '+docNum;
+          if(doc.doc_type==='outgoing'&&!cap.note) note='ออกเลขหนังสือขาออก: '+docNum;
         }else{
           throw _ue; // เลขซ้ำเกิน 4 รอบ (แทบเป็นไปไม่ได้) หรือ error อื่น — โยนให้ catch แสดงผล ผู้ใช้กดใหม่ได้
         }
@@ -593,7 +688,8 @@ async function _doSetDocNumberConfirmed(docId,cap){
         await dpa('documents',docId,{received_number:cap.recvNo||null,received_date:cap.recvDate||null});
       }catch(_re){console.warn('บันทึกเลขรับไม่สำเร็จ (ยังไม่ได้รัน 43_incoming_receive_no_and_ack.sql?):',_re)}
     }
-    await dp('document_history',{document_id:docId,action:'ออกเลขที่หนังสือ: '+docNum,performed_by:CU.id,note:note||'ออกเลขหนังสือและวันที่เรียบร้อยแล้ว'});
+    if(doc.doc_type==='incoming') await dp('document_history',{document_id:docId,action:'ลงทะเบียนรับหนังสือ เลขรับที่: '+docNum,performed_by:CU.id,note:note});
+    else await dp('document_history',{document_id:docId,action:'ออกเลขที่หนังสือ: '+docNum,performed_by:CU.id,note:note||'ออกเลขหนังสือและวันที่เรียบร้อยแล้ว'});
     if(fwdStaffAll){
       await dp('document_history',{document_id:docId,action:'ส่งเข้ากิจการทั้งหมด',performed_by:CU.id,note:note||'แจ้งเจ้าหน้าที่กิจการนิสิตทุกคน'});
     } else if(fwdId){
@@ -637,14 +733,28 @@ async function _doSetDocNumberConfirmed(docId,cap){
               var _clr=PDFLib.rgb(0.07,0.38,0.67);
               var _stampSz=cap.fontsize||10;
               var _ascentAt=_stampAscentPx(_stampSz);
-              if(docNum) _pg.drawText(docNum,{x:_numPdfX,y:_ph-_numTopPdf-_ascentAt,size:_stampSz,font:_stampFont,color:_clr});
-              if(_dateText) _pg.drawText(_dateText,{x:_datPdfX,y:_ph-_datTopPdf-_ascentAt,size:_stampSz,font:_stampFont,color:_clr});
+              if(doc.doc_type==='incoming'){
+                /* ตรารับ — กรอบ + 4 บรรทัด ใช้ระยะชุดเดียวกับ preview (_recvStampMetrics) */
+                var _rm=_recvStampMetrics(_stampSz);
+                var _rl=_recvStampLines(docNum,docDate,cap.recvTime);
+                var _rw=_rl.reduce(function(m,l){return Math.max(m,_stampFont.widthOfTextAtSize(l,_stampSz))},0)+_rm.padX*2;
+                var _rh=_rl.length*_rm.lineH+(_rl.length-1)*_rm.gap+_rm.padY*2;
+                var _rx=cap.hasStampPos?_numPdfX:Math.max(0,_pg.getWidth()-_rw-28);
+                var _rt=cap.hasStampPos?_numTopPdf:28;
+                _pg.drawRectangle({x:_rx,y:_ph-_rt-_rh,width:_rw,height:_rh,borderColor:_clr,borderWidth:1});
+                _rl.forEach(function(l,i){
+                  _pg.drawText(l,{x:_rx+_rm.padX,y:_ph-_rt-_rm.padY-i*(_rm.lineH+_rm.gap)-_ascentAt,size:_stampSz,font:_stampFont,color:_clr});
+                });
+              }else{
+                if(docNum) _pg.drawText(docNum,{x:_numPdfX,y:_ph-_numTopPdf-_ascentAt,size:_stampSz,font:_stampFont,color:_clr});
+                if(_dateText) _pg.drawText(_dateText,{x:_datPdfX,y:_ph-_datTopPdf-_ascentAt,size:_stampSz,font:_stampFont,color:_clr});
+              }
               var _stampBytes=await _pdfDoc.save();
               var _stampPath='stamped_'+Date.now()+'_'+_pf.file_name.replace(/[^a-zA-Z0-9._-]/g,'_');
               var _stampBlob=new Blob([_stampBytes],{type:'application/pdf'});
               await upFile(_stampPath,_stampBlob);
               await dp('document_files',{document_id:docId,file_name:_pf.file_name,file_path:_stampPath,file_size:_stampBlob.size,file_type:'application/pdf',uploaded_by:CU.id,version:(_pf.version||1)+1});
-              await dp('document_history',{document_id:docId,action:'ประทับเลขหนังสือลงในเอกสาร: '+docNum,performed_by:CU.id});
+              await dp('document_history',{document_id:docId,action:(doc.doc_type==='incoming'?'ประทับตรารับลงในเอกสาร: ':'ประทับเลขหนังสือลงในเอกสาร: ')+docNum,performed_by:CU.id});
             }else{
               // ปั๊มอัตโนมัติไม่สำเร็จ — บันทึก audit ให้รู้ว่าต้องปั๊มเอง (เลขที่ในระบบยังถูกต้อง)
               await dp('document_history',{document_id:docId,action:'ปั๊มเลขอัตโนมัติไม่สำเร็จ (โหลดฟอนต์ไทยไม่ได้) เลขที่ในระบบถูกต้อง โปรดดาวน์โหลดไฟล์แล้วปั๊มเลขเอง',performed_by:CU.id,note:'เลขที่: '+docNum});
@@ -653,25 +763,18 @@ async function _doSetDocNumberConfirmed(docId,cap){
         }
       }catch(_se){console.warn('PDF stamp failed:',_se)}
     }
-    /* แจ้งผู้รับหนังสือขาเข้าซ้ำตอนออกเลข — ซ้ำกับอีเมลตอนสร้างเอกสาร (docForm.js) จึงส่งเฉพาะเมื่อเปิด notify_fyi (2026-10-04) */
-    if(doc.doc_type==='incoming'&&settOn('notify_fyi',false)){
-      try{
-        var posUsers=await dg('user_directory','?position_code=eq.'+encodeURIComponent(doc.addressed_to)+'&is_active=eq.true&approval_status=eq.approved&limit=1');
-        var posUser=posUsers[0];
-        if(posUser){
-          var posEmail=posUser.contact_email||posUser.email;
-          var eSubj='[กนค.] หนังสือขาเข้า เลขที่ '+docNum+': '+(doc.title||'');
-          if(posEmail&&!posEmail.includes('@gnk.student')){
-            var eBody='เรียน '+posUser.full_name+', มีหนังสือขาเข้าถึงท่าน เลขที่ '+docNum+' เรื่อง "'+esc(doc.title||'')+'"';
-            var er=await sendEmailEdge({to:posEmail,subject:eSubj,html:eBody,documentId:docId,recipientUserId:posUser.id});
-            if(er.ok&&typeof showEmailToast==='function') showEmailToast(posEmail,eSubj);
-            await logNotifRow({document_id:docId,recipient_id:posUser.id,recipient_email:posEmail,subject:eSubj,body:eBody,notification_type:'outgoing',status:er.ok?'sent':'failed',sent_at:new Date().toISOString()});
-          }
-        }
-      }catch(ne){console.warn('Outgoing notify failed:',ne)}
-      await _notifyNumberForward(docId,docNum,note,fwdId,fwdStaffAll,'ขาเข้า');
+    /* หนังสือขาเข้า: ลงทะเบียนแล้วเสนอผู้รับตามหนังสือ (addressed_to) ให้รับทราบอัตโนมัติ
+       เดิมส่งเข้าคิว จนท. ทั้งที่ จนท. เป็นผู้ลงทะเบียนเอง (วนกลับมาที่เดิม) และอีเมลแจ้งผู้รับซ้ำกับตอนสร้าง
+       ตอนนี้ผู้รับได้รายการ "เสนอเพื่อโปรดทราบ" + อีเมล/LINE ขอให้รับทราบ ผ่านโค้ดชุดเดียวกับการเสนอเอง (docAck.js) */
+    if(doc.doc_type==='incoming'){
+      var _ack={added:[],reason:'error'};
+      try{ _ack=await _autoProposeAckToAddressee(docId,_recvNote); }catch(ae){console.warn('auto ack failed:',ae)}
       $e('mwrap').innerHTML='';
-      var a2=$e('dal');if(a2)a2.innerHTML='<div class="al al-ok"><span class="al-icon">'+svg('ok',13)+'</span><span>ออกเลขหนังสือขาเข้าเรียบร้อยแล้ว เลขที่: <strong class="mono">'+esc(docNum)+'</strong>'+(fwdStaffAll?' และส่งเข้ากิจการทั้งหมดแล้ว':(fwdId?' และส่งต่อให้เจ้าหน้าที่แล้ว':''))+'</span></div>';
+      var _ackMsg=_ack.added.length
+        ?' และเสนอให้ <strong>'+_ack.added.map(function(u){return esc(u.full_name||'')}).join(', ')+'</strong> รับทราบแล้ว'
+        :(_ack.reason==='exists'?'':' — <strong>ยังไม่ได้เสนอผู้รับ</strong> ('+(_ack.reason==='no_holder'?'ไม่พบผู้ดำรงตำแหน่งที่หนังสือส่งถึง':'เสนออัตโนมัติไม่สำเร็จ')+') กรุณากด “เสนอให้รับทราบ”');
+      var a2=$e('dal');if(a2)a2.innerHTML='<div class="al '+(_ack.added.length||_ack.reason==='exists'?'al-ok':'al-wa')+'"><span class="al-icon">'+svg('ok',13)+'</span><span>ลงทะเบียนรับเรียบร้อยแล้ว เลขรับที่: <strong class="mono">'+esc(docNum)+'</strong>'+_ackMsg+'</span></div>';
+      if(!_ack.added.length&&_ack.reason!=='exists'){ setTimeout(function(){nav('det',docId)},3000); return; } // ให้อ่านคำเตือนทัน
     } else {
       await _notifyNumberForward(docId,docNum,note,fwdId,fwdStaffAll,'ขาออก');
       $e('mwrap').innerHTML='';

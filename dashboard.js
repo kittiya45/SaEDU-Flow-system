@@ -323,7 +323,7 @@ function _buildCal(docs){
 async function vDash(){
   var _ds=await Promise.all([
     dg('documents','?order=created_at.desc&limit=500&select=id,title,doc_type,status,urgency,due_date,created_by,created_at,doc_number'),
-    dg('workflow_steps','?assigned_to=eq.'+CU.id+'&select=document_id,status'),
+    dg('workflow_steps','?assigned_to=eq.'+CU.id+'&select='+STEP_REACH_SEL),
     // บอร์ดประกาศ — ตารางอาจยังไม่ถูกสร้าง (supabase/18_create_announcements.sql) → ได้ error object → ซ่อนการ์ดเงียบ ๆ
     dg('announcements','?is_active=eq.true&order=pinned.desc,created_at.desc&limit=10').catch(function(){return null})
   ]);
@@ -339,7 +339,8 @@ async function vDash(){
       }
     }catch(e){}
   }
-  var _myIds2=_mySteps2.map(function(s){return s.document_id});
+  if(!Array.isArray(_mySteps2)) _mySteps2=[];
+  var _myIds2=reachedStepDocIds(_mySteps2); // เฉพาะขั้นที่ถึงคิวแล้ว — ขั้นที่ยัง pending ไม่นับว่าเอกสารถึงฉัน
   var _myActiveIds2=_mySteps2.filter(function(s){return s.status==='active'}).map(function(s){return s.document_id});
   var _myActive=_myActiveIds2.length;
   var _canSeeAll=CU.role_code==='ROLE-SYS'||CU.role_code==='ROLE-STF'||CU.position_code==='GNK-SEC';

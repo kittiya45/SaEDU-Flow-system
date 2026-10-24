@@ -15,17 +15,25 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DIST = path.join(ROOT, 'dist');
 
-/* ไฟล์ชั้นบนสุดที่ต้องไป — นอกเหนือจาก *.js ทุกไฟล์ (เก็บโดย glob ด้านล่าง) */
+/* ไฟล์ชั้นบนสุดที่ต้องไป — โค้ด JavaScript ระบุชื่อแยกใน APP_JS */
 const TOP_FILES = [
   'index.html', 'manual.html', 'dev-manual.html',
   'styles.css', 'styles.tailwind.css',
   'vercel.json', // server.js อ่าน CSP/security headers จากไฟล์นี้ — ไม่มีความลับข้างใน
 ];
-/* *.js ชั้นบนสุดที่ *ไม่ใช่* โค้ดแอป */
-const SKIP_JS = new Set(['postcss.config.js']);
-/* โฟลเดอร์ asset — คัดลอกทั้งโฟลเดอร์ ยกเว้น dotfile และ .txt */
+/* รายการโค้ดแอปที่อนุญาต — ไม่ glob เพื่อกันสคริปต์ ops/credential หลุดขึ้นเว็บ */
+const APP_JS = new Set([
+  'config.js', 'utils.js', 'events.js', 'auth.js', 'homeViews.js', 'dashboard.js',
+  'docList.js', 'docForm.js', 'workflow.js', 'report.js', 'docSign.js', 'sigProfile.js',
+  'account.js', 'docAck.js', 'docDetail.js', 'docNum.js', 'notif.js', 'viewer.js',
+  'editor.js', 'stats.js', 'sysAdmin.js', 'dev-sql-bundle.js', 'dev.js',
+  'docTypeAdmin.js', 'templates.js', 'admin.js', 'adminImport.js', 'layout.js', 'boot.js',
+]);
+/* Assets: จำกัดชนิดรูป/ฟอนต์ และระบุชื่อ vendor ที่อนุญาต */
 const DIRS = ['img', 'font', 'vendor'];
-const SKIP_EXT = new Set(['.txt', '.md']);
+const IMAGE_EXT = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.ico']);
+const FONT_EXT = new Set(['.otf', '.ttf', '.woff', '.woff2']);
+const VENDOR_FILES = new Set(['vendor/supabase.js', 'vendor/lucide.js', 'vendor/purify.min.js']);
 
 function fail(msg) { console.error('✖ ' + msg); process.exit(1); }
 
@@ -38,6 +46,7 @@ const copied = [];
 function copyFile(rel) {
   const src = path.join(ROOT, rel), dst = path.join(DIST, rel);
   fs.mkdirSync(path.dirname(dst), { recursive: true });
+  if (!fs.lstatSync(src).isFile()) fail(`ไม่อนุญาต symlink/ไฟล์พิเศษ: ${rel}`);
   fs.copyFileSync(src, dst);
   count++; bytes += fs.statSync(src).size; copied.push(rel);
 }
@@ -45,8 +54,13 @@ function copyDir(rel) {
   for (const ent of fs.readdirSync(path.join(ROOT, rel), { withFileTypes: true })) {
     if (ent.name.startsWith('.') || ent.name === 'Icon\r') continue;
     const r = path.join(rel, ent.name);
+    if (ent.isSymbolicLink()) fail(`ไม่อนุญาต symlink: ${r}`);
     if (ent.isDirectory()) copyDir(r);
-    else if (ent.isFile() && !SKIP_EXT.has(path.extname(ent.name).toLowerCase())) copyFile(r);
+    else if (ent.isFile()) {
+      const ext = path.extname(ent.name).toLowerCase();
+      if ((r.startsWith('img/') && IMAGE_EXT.has(ext)) ||
+          (r.startsWith('font/') && FONT_EXT.has(ext)) || VENDOR_FILES.has(r)) copyFile(r);
+    }
   }
 }
 
@@ -57,13 +71,14 @@ for (const f of TOP_FILES) {
   if (!fs.existsSync(path.join(ROOT, f))) fail(`ไม่พบ ${f}`);
   copyFile(f);
 }
-for (const name of fs.readdirSync(ROOT)) {
-  if (name.endsWith('.js') && !SKIP_JS.has(name) && fs.statSync(path.join(ROOT, name)).isFile()) copyFile(name);
-}
+for (const name of APP_JS) copyFile(name);
 for (const d of DIRS) {
   if (!fs.existsSync(path.join(ROOT, d))) fail(`ไม่พบโฟลเดอร์ ${d}/`);
   copyDir(d);
 }
+
+// vercel.json is server configuration, not a public download.
+fs.writeFileSync(path.join(DIST, 'public-files.json'), JSON.stringify(copied.filter(f => f !== 'vercel.json'), null, 2) + '\n');
 
 /* เซิร์ฟเวอร์สำรอง + package.json ให้ `npm start` / pm2 ใช้ได้ทันที */
 fs.copyFileSync(path.join(ROOT, 'scripts', 'static-server.js'), path.join(DIST, 'server.js'));
@@ -71,7 +86,7 @@ fs.writeFileSync(path.join(DIST, 'package.json'), JSON.stringify({
   name: 'saeduflow',
   private: true,
   description: 'SaEDU Flow — static site (build output, see README.txt)',
-  engines: { node: '>=18' },
+  engines: { node: '^22.0.0 || ^24.0.0' },
   scripts: { start: 'node server.js' },
 }, null, 2) + '\n');
 fs.writeFileSync(path.join(DIST, 'README.txt'), `SaEDU Flow — ไฟล์เว็บพร้อมใช้ (สร้างเมื่อ ${new Date().toISOString()})
@@ -81,7 +96,7 @@ fs.writeFileSync(path.join(DIST, 'README.txt'), `SaEDU Flow — ไฟล์เ�
 
 วิธีเปิดใช้ (เลือกอย่างใดอย่างหนึ่ง)
   ก) ให้ web server (nginx/Apache) เสิร์ฟโฟลเดอร์นี้เป็นไฟล์ static — index.html คือหน้าแรก
-  ข) รันด้วย Node 18+ :  node server.js        → เปิดที่ port 3020
+  ข) รันด้วย Node.js LTS ที่ยังได้รับ security updates (22/24 พร้อมแพตช์ล่าสุด) :  node server.js        → เปิดที่ port 3020
      (เปลี่ยน port: PORT=8080 node server.js ; รันค้างไว้: pm2 start server.js --name saeduflow)
      ถ้า proxy มาใต้ path เช่น https://host/saeduflow/ ให้ตั้ง BASE_PATH=/saeduflow
 

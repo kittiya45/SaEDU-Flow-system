@@ -68,6 +68,18 @@ if ! mkdir "$LOCK" 2>/dev/null; then
 fi
 trap 'rmdir "$LOCK" 2>/dev/null' EXIT
 
+# รอให้ backup รายสัปดาห์เสร็จก่อน — ทั้งสองงานเริ่มเที่ยงวันจันทร์ และรอบ 2026-10-19 การลบ/ย้ายไฟล์ของงานนี้
+# ทำให้ backup ที่ยังดาวน์โหลดอยู่เจอ "Object not found" แล้วทิ้งทั้งชุด รอสูงสุด 3 ชม. แล้วรันต่อ
+# (lock ค้างจากเครื่องดับกลางคัน ต้องไม่ทำให้ Storage เต็มเพราะงานนี้ไม่ได้รันอีกเลย)
+BACKUP_LOCK="$LOG_DIR/.backup-weekly-lock"
+if [ -d "$BACKUP_LOCK" ]; then
+  log "รอ backup รายสัปดาห์ที่กำลังรันให้เสร็จก่อน"
+  waited=0
+  while [ -d "$BACKUP_LOCK" ] && [ "$waited" -lt 10800 ]; do sleep 60; waited=$((waited + 60)); done
+  if [ -d "$BACKUP_LOCK" ]; then log "backup ยังไม่เสร็จหลังรอ 3 ชม. — รันต่อ (ถ้า lock ค้าง ลบ $BACKUP_LOCK)"
+  else log "backup เสร็จแล้วหลังรอ $((waited / 60)) นาที"; fi
+fi
+
 if [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ]; then
   SUPABASE_SERVICE_ROLE_KEY="$(security find-generic-password -s saedu-service-role -w 2>/dev/null || true)"
 fi

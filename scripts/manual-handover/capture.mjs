@@ -119,7 +119,7 @@ const F = {
   login: () => ({ id: 'login', cap: 'หน้าเข้าสู่ระบบ', vp: { width: 1000, height: 820 }, run: async p => { } }),
   register: (which) => ({ id: 'register', cap: which === 'staff' ? 'หน้าต่างสมัครสมาชิกสำหรับอาจารย์และเจ้าหน้าที่' : 'หน้าต่างสมัครสมาชิกสำหรับนิสิต กนค.', vp: { width: 1000, height: 900 }, crop: true, run: async p => { await p.click(which === 'staff' ? '[data-action="showRegStaffPopup"]' : '[data-action="showRegGnkPopup"]'); await modalOpen(p); } }),
   dash: (as, cap) => ({ id: 'dash', cap: cap || 'หน้าภาพรวม (Dashboard)', as, tall: true, run: async p => { await go(p, 'dash'); } }),
-  todo: (as) => ({ id: 'todo', cap: 'หน้างานของฉัน — รายการที่ถึงคิวต้องดำเนินการ', as, run: async p => { await go(p, 'todo'); } }),
+  todo: (as) => ({ id: 'todo', cap: 'หน้ารอฉันดำเนินการ — รายการที่ถึงคิวต้องดำเนินการ', as, run: async p => { await go(p, 'todo'); } }),
   docs: (as) => ({ id: 'docs', cap: 'หน้ารายการเอกสาร (แท็บ ตัวกรอง ค้นหา ส่งออก CSV)', as, tall: true, run: async p => { await go(p, 'docs'); } }),
   form_out: (as, cap) => ({ id: 'form_out', cap: cap || 'ฟอร์มสร้างหนังสือขาออก พร้อมสายขั้นตอนที่ระบบเติมให้ตามประเภทหนังสือ', as, tall: true, run: async p => {
     await go(p, 'new'); await p.click('[data-dtype="outgoing"]'); await p.waitForTimeout(400);

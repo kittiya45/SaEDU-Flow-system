@@ -8,10 +8,7 @@
    ถ้าจะบังคับจริงต้องเพิ่ม (auth.jwt()->>'aal') ใน policy สำหรับผู้ใช้ที่มี factor แล้ว */
 
 /* ── รูปโปรไฟล์ ── */
-var _PERSON_SVG='<svg width="18" height="18" viewBox="0 0 16 16" fill="none">'+
-  '<circle cx="8" cy="5.5" r="2.8" fill="rgba(255,255,255,0.95)"/>'+
-  '<path d="M2.5 15c0-3.04 2.46-5.5 5.5-5.5s5.5 2.46 5.5 5.5" fill="rgba(255,255,255,0.85)" stroke="none"/>'+
-  '</svg>';
+var _PERSON_SVG='<span style="color:#fff;display:inline-flex">'+svg('user',18)+'</span>';
 
 /* path รูปอยู่ใน bucket ส่วนตัว user-signatures (โฟลเดอร์ของเราเอง) — ต้องขอ signed URL
    resolveUserSigPath แคช URL ต่อ path ให้แล้ว และ path เปลี่ยนทุกครั้งที่อัปโหลดใหม่ จึงไม่ติดรูปเก่า */

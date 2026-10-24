@@ -194,7 +194,7 @@ async function renderPdfView(url){
       await loadSc('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js');
       window.pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
     }
-    pdfDoc=await pdfjsLib.getDocument(url).promise;
+    pdfDoc=await pdfjsLib.getDocument({url:url,isEvalSupported:false}).promise;
     totalPages=pdfDoc.numPages;
     await doRenderAll();
     var zIn=$e('pdf-zoom-in'); var zOut=$e('pdf-zoom-out');

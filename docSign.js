@@ -51,12 +51,9 @@ async function showActModal(action,docId){
       '<input type="range" id="asig-sz" min="1" max="8" value="2" oninput="_actSigSz=+this.value">',
       '</div>',
       '<div id="sig-panel-upload" class="hidden">',
-      '<label for="asig-file" class="upload-zone" id="asig-drop-zone" style="min-height:104px;padding:14px;border-radius:12px">',
-      '<div class="upload-zone-inner" style="gap:4px">',
-      '<div class="upload-zone-icon" style="margin-bottom:0;opacity:.35;transform:scale(.85)">'+svg('pen',30)+'</div>',
-      '<div class="upload-zone-text" style="font-size:12.5px">คลิกเพื่ออัปโหลดรูปลายเซ็น</div>',
-      '<div class="upload-zone-hint">PNG พื้นหลังโปร่งใส แนะนำ</div>',
-      '</div></label>',
+      '<label for="asig-file" class="upload-zone sm" id="asig-drop-zone">',
+      uploadZoneInner('อัปโหลดรูปลายเซ็น','แนะนำ PNG พื้นหลังโปร่งใส'),
+      '</label>',
       '<input type="file" id="asig-file" accept="image/*" class="hidden">',
       '<div id="asig-prev-wrap" class="hidden" style="margin-top:8px;display:flex;align-items:center;gap:10px;border:1px solid #EBEBEB;border-radius:12px;padding:10px;background:#fff">',
       '<img id="asig-prev" style="height:72px;max-width:150px;object-fit:contain">',
@@ -162,8 +159,9 @@ async function showActModal(action,docId){
     '<div class="fg"><label class="fl">รายละเอียดที่ต้องแก้ไข</label>',
     '<textarea class="fi" id="anote" rows="3" placeholder="อธิบายรายละเอียดที่ต้องแก้ไขให้ชัดเจน..."></textarea></div>',
     '<div class="fg"><label class="fl">แนบไฟล์วงแก้ไข (ถ้ามี)</label>',
-    '<div class="border-2 border-dashed border-[#EBEBEB] rounded-[10px] p-3 text-center cursor-pointer" id="rej-drop-zone" onclick="document.getElementById(\'rej-file\').click()">',
-    '<div class="text-xs text-[#a89e99]">คลิกเพื่ออัปโหลด PDF / รูปภาพที่วงหรือไฮไลต์ส่วนที่ต้องแก้ไข</div></div>',
+    '<label for="rej-file" class="upload-zone sm" id="rej-drop-zone">',
+    uploadZoneInner('แนบไฟล์ที่วงจุดแก้ไข','PDF หรือรูปภาพที่วง/ไฮไลต์ส่วนที่ต้องแก้ไข'),
+    '</label>',
     '<input type="file" id="rej-file" accept=".pdf,image/*" style="display:none" onchange="var n=this.files[0];var d=document.getElementById(\'rej-fname\');if(d&&n)d.textContent=\'✓ \'+n.name;">',
     '<div id="rej-fname" class="text-[11px] text-[#16A34A] font-semibold mt-1"></div></div>',
     '</div>',
@@ -173,6 +171,7 @@ async function showActModal(action,docId){
     '</div></div></div>'
   ];
   w.innerHTML=html.join('');
+  _wireDropzone($e('rej-drop-zone'),$e('rej-file'),function(inp){inp.onchange&&inp.onchange()});
 }
 
 // ─── Signature state ───
@@ -357,7 +356,7 @@ async function _loadSigPosPreview(docId){
     } else if(!pdfjsLib.GlobalWorkerOptions.workerSrc){
       pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
     }
-    _actSigPdf=await _sigWithTimeout(pdfjsLib.getDocument(fileUrl).promise,30000,'ดาวน์โหลดไฟล์เอกสาร');
+    _actSigPdf=await _sigWithTimeout(pdfjsLib.getDocument({url:fileUrl,isEvalSupported:false}).promise,30000,'ดาวน์โหลดไฟล์เอกสาร');
     var N=_actSigPdf.numPages;
     _actSigPage=1;
 

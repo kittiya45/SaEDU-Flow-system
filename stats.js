@@ -326,16 +326,16 @@ html.push('</div>');
   var _yearStart=_selYear+'-01-01T00:00:00';
   var _yearEnd=(_selYear+1)+'-01-01T00:00:00';
 
-  // รวมเอกสารทั้งขาเข้า+ขาออกที่มีชื่อโครงการ (project_name) ในปีที่เลือก
+  // รวมเอกสารทั้งขาเข้า+ขาออกที่มีชื่อโครงการในปีที่เลือก (ขาเข้ารุ่นแรกเก็บไว้ใน description — docFacets รวมให้)
   var _yrDocs=docs.filter(function(d){
-    return d.project_name&&(d.created_at||'')>=_yearStart&&(d.created_at||'')<_yearEnd;
+    return docFacets(d).project&&(d.created_at||'')>=_yearStart&&(d.created_at||'')<_yearEnd;
   });
 
-  // จัดกลุ่มตาม project_name (ชื่อโครงการ)
-  var _projMap={};
+  // จัดกลุ่มตามโครงการ — รวมตัวสะกดต่างกันของโครงการเดียวกัน (projKey) ใช้ชื่อที่พบบ่อยที่สุดเป็นชื่อหลัก
+  var _projMap={}, _projLbl=projLabels(_yrDocs);
   _yrDocs.forEach(function(d){
-    var key=(d.project_name||'').trim()||'(ไม่ระบุโครงการ)';
-    if(!_projMap[key]) _projMap[key]={name:key,docs:[]};
+    var key=projKey(docFacets(d).project);
+    if(!_projMap[key]) _projMap[key]={name:_projLbl[key]||'(ไม่ระบุโครงการ)',docs:[]};
     _projMap[key].docs.push(d);
   });
   var _projects=Object.keys(_projMap).map(function(k){return _projMap[k]}).sort(function(a,b){
@@ -436,12 +436,15 @@ async function _downloadStatProjPdf(selYear,btnId){
     if(!window.PDFLib) await loadSc('https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js');
     var yearStart=selYear+'-01-01T00:00:00';
     var yearEnd=(selYear+1)+'-01-01T00:00:00';
-    var raw=await dg('documents','?status=eq.completed&project_name=not.is.null&select=id,title,doc_number,project_name,created_at&order=created_at.asc');
+    var raw=await dg('documents','?status=eq.completed&or=(project_name.not.is.null,and(doc_type.eq.incoming,description.not.is.null))&select=id,title,doc_type,doc_number,project_name,description,created_at&order=created_at.asc');
     if(!Array.isArray(raw)) throw new Error('โหลดรายการเอกสารไม่สำเร็จ');
     var yearDocs=raw.filter(function(d){
-      return (d.created_at||'')>=yearStart&&(d.created_at||'')<yearEnd;
+      return docFacets(d).project&&(d.created_at||'')>=yearStart&&(d.created_at||'')<yearEnd;
     });
     if(!yearDocs.length){showAlert('ไม่พบเอกสารที่ลงนามครบแล้วในปีนี้','wa');return;}
+    // โฟลเดอร์ใน ZIP ใช้ชื่อหลักของกลุ่ม — ตัวสะกดต่างกันของโครงการเดียวกันไม่แตกเป็นหลายโฟลเดอร์
+    var _zLbl=projLabels(yearDocs);
+    yearDocs.forEach(function(d){d.project_name=_zLbl[projKey(docFacets(d).project)]||docFacets(d).project});
     yearDocs.sort(function(a,b){
       var pa=(a.project_name||'').trim(),pb=(b.project_name||'').trim();
       return pa.localeCompare(pb,'th')||((a.created_at||'')<(b.created_at||'')?-1:1);

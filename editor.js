@@ -1,3 +1,10 @@
+/* DOCX conversion returns untrusted HTML; sanitize before attaching to the DOM. */
+function sanitizeDocxHtml(html){
+  if(!window.DOMPurify) throw new Error('โหลดตัวตรวจความปลอดภัยเอกสารไม่สำเร็จ');
+  return DOMPurify.sanitize(html,{USE_PROFILES:{html:true},
+    FORBID_TAGS:['style','form','input','button','textarea','select'],
+    FORBID_ATTR:['style','id','name'],SANITIZE_NAMED_PROPS:true});
+}
 /* ─── EDITOR ─── */
 function openEditor(url,name,fileId,docId){
   PED.url=url; PED.name=name; PED.fid=fileId; PED.did=docId;
@@ -75,12 +82,9 @@ if(!PED.isPDF&&!isImg&&!isDocx){alert('รองรับ PDF, DOCX และร
     '<input type="range" id="sig-sz" min="1" max="8" value="2" oninput="PED.sigSz=+this.value">',
     '</div></div>',
     '<div id="sp-upload" style="display:none">',
-    '<label for="sig-file" id="sig-dropzone" class="upload-zone" style="min-height:108px;padding:14px;border-radius:12px">',
-    '<div class="upload-zone-inner" style="gap:4px">',
-    '<div class="upload-zone-icon" style="margin-bottom:0;opacity:.35;transform:scale(.85)">'+svg('sign',28)+'</div>',
-    '<div class="upload-zone-text" style="font-size:12.5px">อัปโหลดรูปลายเซ็น</div>',
-    '<div class="upload-zone-hint">PNG โปร่งใสดีที่สุด</div>',
-    '</div></label>',
+    '<label for="sig-file" id="sig-dropzone" class="upload-zone sm">',
+    uploadZoneInner('อัปโหลดรูปลายเซ็น','แนะนำ PNG พื้นหลังโปร่งใส'),
+    '</label>',
     '<input type="file" id="sig-file" style="display:none" accept="image/*">',
     '<img id="sig-prev" style="display:none;width:100%;max-height:90px;object-fit:contain;border:1px solid var(--border);border-radius:6px;margin-top:8px">',
     '<button class="btn btn-primary sm fw" id="sig-place" style="display:none;margin-top:8px" data-action="pedAddSigImg">+ วางลายเซ็น</button>',
@@ -119,11 +123,9 @@ if(!PED.isPDF&&!isImg&&!isDocx){alert('รองรับ PDF, DOCX และร
     // Img panel
     '<div class="tool-sec" id="ps-img" style="display:none">',
     '<div class="tool-head">แทรกรูปภาพ</div>',
-    '<label for="ins-img" id="ins-dropzone" class="upload-zone" style="min-height:108px;padding:14px;border-radius:12px">',
-    '<div class="upload-zone-inner" style="gap:4px">',
-    '<div class="upload-zone-icon" style="margin-bottom:0;opacity:.35;transform:scale(.85)">'+svg('img2',28)+'</div>',
-    '<div class="upload-zone-text" style="font-size:12.5px">อัปโหลดรูปภาพ</div>',
-    '</div></label>',
+    '<label for="ins-img" id="ins-dropzone" class="upload-zone sm">',
+    uploadZoneInner('อัปโหลดรูปภาพ','PNG, JPG, GIF, WEBP'),
+    '</label>',
     '<input type="file" id="ins-img" style="display:none" accept="image/*">',
     '<img id="ins-prev" style="display:none;width:100%;max-height:90px;object-fit:contain;margin-top:8px">',
     '<button class="btn btn-primary sm fw" id="ins-btn" style="display:none;margin-top:8px" data-action="pedAddInsImg">+ วางรูป</button>',
@@ -206,7 +208,7 @@ async function pedAutoLoad(){
       var area3=$e('ped-area'); if(!area3)return;
       var w3=document.createElement('div');w3.className='ped-page-wrap';w3.dataset.page=1;
       w3.style.cssText='width:'+Math.round(794*(PED.scale/1.4))+'px;min-height:600px;position:relative;background:#fff;padding:40px 60px;box-sizing:border-box;font-family:TH Sarabun PSK,Sarabun,sans-serif;font-size:14px';
-      var cd3=document.createElement('div');cd3.innerHTML=res3.value;cd3.style.cssText='width:100%;outline:none';cd3.contentEditable='true';cd3.id='docx-content';
+      var cd3=document.createElement('div');cd3.innerHTML=sanitizeDocxHtml(res3.value);cd3.style.cssText='width:100%;outline:none';cd3.contentEditable='true';cd3.id='docx-content';
       var ly3=mkLayer(w3,1);ly3.style.pointerEvents='none';
       w3.appendChild(cd3);w3.appendChild(ly3);area3.appendChild(w3);
       PED.isDocxMode=true
@@ -215,7 +217,7 @@ async function pedAutoLoad(){
         await loadSc('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js');
         pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'
       }
-      PED.pdf=await pdfjsLib.getDocument({data:buf.slice(0)}).promise;
+      PED.pdf=await pdfjsLib.getDocument({data:buf.slice(0),isEvalSupported:false}).promise;
       PED.total=PED.pdf.numPages;
       ld.style.display='none';
       renderPEDPage()
@@ -274,22 +276,22 @@ async function pedLoadLocal(inp){
       var area2=$e('ped-area'); if(!area2)return;
       var w2=document.createElement('div');w2.className='ped-page-wrap';w2.dataset.page=1;
       w2.style.cssText='width:'+Math.round(794*PED.scale/1.4)+'px;min-height:600px;position:relative;background:#fff;padding:40px 60px;box-sizing:border-box;font-family:TH Sarabun PSK,Sarabun,sans-serif;font-size:14px';
-      var cd2=document.createElement('div');cd2.innerHTML=res2.value;cd2.style.cssText='width:100%;outline:none';cd2.contentEditable='true';cd2.id='docx-content';
+      var cd2=document.createElement('div');cd2.innerHTML=sanitizeDocxHtml(res2.value);cd2.style.cssText='width:100%;outline:none';cd2.contentEditable='true';cd2.id='docx-content';
       var ly2=mkLayer(w2,1);ly2.style.pointerEvents='none';
       w2.appendChild(cd2);w2.appendChild(ly2);area2.appendChild(w2);
-      PED.isDocxMode=true;PED.docxHtml=res2.value
-    }catch(e){if(ld)ld.innerHTML='<p style="color:var(--er)">โหลด DOCX ไม่ได้: '+e.message+'</p>'}
+      PED.isDocxMode=true;PED.docxHtml=cd2.innerHTML
+    }catch(e){if(ld)ld.innerHTML='<p style="color:var(--er)">โหลด DOCX ไม่ได้: '+esc(e.message)+'</p>'}
   } else if(PED.isPDF){
     if(!window.pdfjsLib){
       await loadSc('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js');
       pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'
     }
     try{
-      PED.pdf=await pdfjsLib.getDocument({data:buf.slice(0)}).promise;
+      PED.pdf=await pdfjsLib.getDocument({data:buf.slice(0),isEvalSupported:false}).promise;
       PED.total=PED.pdf.numPages;
       if(ld) ld.style.display='none';
       renderPEDPage()
-    } catch(e){if(ld)ld.innerHTML='<p style="color:var(--er)">โหลด PDF ไม่ได้: '+e.message+'</p>'}
+    } catch(e){if(ld)ld.innerHTML='<p style="color:var(--er)">โหลด PDF ไม่ได้: '+esc(e.message)+'</p>'}
   } else {
     var reader=new FileReader();
     reader.onload=function(ev){

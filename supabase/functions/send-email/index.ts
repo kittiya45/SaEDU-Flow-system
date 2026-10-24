@@ -17,6 +17,7 @@ Deno.serve(async (req: Request) => {
   if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
 
   try {
+    const { caller, admin } = await requireAuth(req);
     const body = await req.json();
     const { to, subject, html, documentId, recipientUserId, testSelf } = body;
 
@@ -24,7 +25,6 @@ Deno.serve(async (req: Request) => {
       return json({ error: 'Missing required fields: to, subject, html' }, 400);
     }
 
-    const { caller, admin } = await requireAuth(req);
     await validateEmailSend(admin, caller, { to, documentId, recipientUserId, testSelf });
     await checkNotifyRateLimit(admin, caller, 'email', RATE_LIMIT_PER_HOUR);
 

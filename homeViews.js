@@ -326,7 +326,7 @@ function _buildCal(docs){
 async function vDash(){
   var _ds=await Promise.all([
     dg('documents','?order=created_at.desc&limit=500&select=id,title,doc_type,status,urgency,due_date,created_by,created_at,doc_number'),
-    dg('workflow_steps','?assigned_to=eq.'+CU.id+'&select=document_id,status'),
+    dg('workflow_steps','?assigned_to=eq.'+CU.id+'&select='+STEP_REACH_SEL),
     // บอร์ดประกาศ — ตารางอาจยังไม่ถูกสร้าง (supabase/18_create_announcements.sql) → ได้ error object → ซ่อนการ์ดเงียบ ๆ
     dg('announcements','?is_active=eq.true&order=pinned.desc,created_at.desc&limit=10').catch(function(){return null})
   ]);
@@ -342,7 +342,8 @@ async function vDash(){
       }
     }catch(e){}
   }
-  var _myIds2=_mySteps2.map(function(s){return s.document_id});
+  if(!Array.isArray(_mySteps2)) _mySteps2=[];
+  var _myIds2=reachedStepDocIds(_mySteps2); // เฉพาะขั้นที่ถึงคิวแล้ว — ขั้นที่ยัง pending ไม่นับว่าเอกสารถึงฉัน
   var _myActiveIds2=_mySteps2.filter(function(s){return s.status==='active'}).map(function(s){return s.document_id});
   var _myActive=_myActiveIds2.length;
   var _canSeeAll=CU.role_code==='ROLE-SYS'||CU.role_code==='ROLE-STF'||CU.position_code==='GNK-SEC';
@@ -406,39 +407,49 @@ async function vDash(){
 
   /* ── LEFT: Recent docs ── */
   html.push('<div style="min-width:0;display:flex;flex-direction:column">');
+  /* หัวการ์ดอยู่ในการ์ดเดียวกับรายการ (เดิมลอยอยู่นอกการ์ด ไม่ตรงกับปฏิทินข้าง ๆ)
+     แถว: ไอคอนตามประเภท · ชื่อเรื่อง + เลขที่/ประเภท/วันที่ · สถานะ — เลขที่ย้ายลงบรรทัดรอง
+     เพราะชิปเลขที่กว้างไม่เท่ากันทำให้ชื่อเรื่องแต่ละแถวเริ่มไม่ตรงกัน */
+  var recent=docs.slice(0,5);
+  html.push('<div class="recent-card">');
   html.push(
-    '<div class="section-head">'+
-    '<div>'+
-      '<div class="section-title">เอกสารล่าสุด</div>'+
-      '<div class="section-sub">'+docs.length+' รายการทั้งหมดที่คุณเกี่ยวข้อง</div>'+
-    '</div>'+
-    '<button class="btn btn-soft sm" data-action="nav" data-view="docs">ดูทั้งหมด →</button>'+
+    '<div class="recent-head">'+
+      '<div style="min-width:0">'+
+        '<div class="recent-title">เอกสารล่าสุด</div>'+
+        '<div class="recent-sub">'+docs.length+' รายการที่คุณเกี่ยวข้อง</div>'+
+      '</div>'+
+      '<button type="button" class="btn-line" data-action="nav" data-view="docs">ดูทั้งหมด '+svg('chevron-right',14)+'</button>'+
     '</div>'
   );
-
-  var recent=docs.slice(0,5);
-  html.push('<div class="list-panel" style="flex:1;display:flex;flex-direction:column">');
   if(recent.length){
+    html.push('<div class="recent-cols" aria-hidden="true"><span></span><span>เอกสาร</span><span>สถานะ</span><span>อัปเดตล่าสุด</span><span></span></div>');
+    html.push('<div class="recent-list">');
     recent.forEach(function(d){
       var isMyTask=_myActiveIds2.indexOf(d.id)!==-1;
+      var _ic=d.doc_type==='incoming'?'is-in':'is-out';
       html.push(
-        '<div class="list-row" data-action="nav" data-view="det" data-id="'+d.id+'">'+
-          (isMyTask?'<div style="width:8px;height:8px;border-radius:50%;flex-shrink:0;background:#E83A00" title="งานรอคุณ"></div>':'<div style="width:8px;flex-shrink:0"></div>')+
-          '<span class="mono" style="font-size:11px;flex-shrink:0;min-width:88px">'+esc(d.doc_number||'—')+'</span>'+
-          '<div style="flex:1;min-width:0">'+
-            '<div class="list-row-title">'+esc(d.title)+'</div>'+
-            '<div>'+tBadge(d.doc_type)+'</div>'+
+        '<div class="recent-row'+(isMyTask?' is-mine':'')+'" data-action="nav" data-view="det" data-id="'+d.id+'">'+
+          '<div class="recent-ico '+_ic+'">'+svg('doc',18)+'</div>'+
+          '<div class="recent-main">'+
+            '<div class="recent-doc-title">'+esc(d.title)+'</div>'+
+            '<div class="recent-meta">'+
+              (isMyTask?'<span class="recent-turn">ถึงคิวคุณ</span>':'')+
+              '<span class="recent-no">'+esc(d.doc_number||'—')+'</span>'+
+              '<span class="recent-seg is-type"><span class="recent-dot">·</span>'+esc(d.doc_type==='incoming'?'ขาเข้า':'ขาออก')+'</span>'+
+              '<span class="recent-seg is-date"><span class="recent-dot">·</span>'+fd(d.updated_at||d.created_at)+'</span>'+
+            '</div>'+
           '</div>'+
-          '<div style="flex-shrink:0">'+sBadge(d.status)+'</div>'+
-          '<div class="list-row-meta" style="white-space:nowrap;flex-shrink:0;min-width:72px;text-align:right">'+fd(d.created_at)+'</div>'+
-          '<div class="doc-row-act is-view" style="pointer-events:none" aria-hidden="true">'+svg('eye',16)+'</div>'+
+          '<div class="recent-status">'+sBadge(d.status)+'<span class="recent-date-m">'+fd(d.updated_at||d.created_at)+'</span></div>'+
+          '<div class="recent-date">'+fd(d.updated_at||d.created_at)+'</div>'+
+          '<div class="recent-chev" aria-hidden="true">'+svg('chevron-right',18)+'</div>'+
         '</div>'
       );
     });
+    html.push('</div>');
   } else {
     html.push(
-      '<div style="padding:64px 24px;text-align:center;flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center">'+
-        '<div style="width:64px;height:64px;border-radius:20px;background:#EBEBEB;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;color:#a89e99">'+svg('doc',28)+'</div>'+
+      '<div style="padding:56px 24px;text-align:center;flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center">'+
+        '<div style="width:64px;height:64px;border-radius:20px;background:#F5F3F0;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;color:#a89e99">'+svg('doc',28)+'</div>'+
         '<div style="font-size:15px;font-weight:700;color:#6b6560;margin-bottom:6px;line-height:1.5">ยังไม่มีเอกสาร</div>'+
         '<div class="list-row-meta" style="margin-bottom:20px">เริ่มต้นด้วยการสร้างเอกสารแรกของคุณ</div>'+
         (CAN.cr(CU.role_code)?'<button class="btn btn-primary sm" data-action="nav" data-view="new">'+svg('plus',13)+' สร้างเอกสารใหม่</button>':'')+
@@ -487,19 +498,20 @@ function _projYearRange(thYear){
 }
 
 async function _buildProjSummary(){
-  var raw=await dg('documents','?project_name=not.is.null&select=id,title,doc_number,project_name,status,created_at,updated_at&order=created_at.desc');
-  var all=Array.isArray(raw)?raw:[];
+  // ขาเข้ารุ่นแรกเก็บชื่อโครงการไว้ใน description เท่านั้น — ดึงมาด้วย แล้วให้ docFacets ตัดสิน
+  var raw=await dg('documents','?or=(project_name.not.is.null,and(doc_type.eq.incoming,description.not.is.null))&select=id,title,doc_type,doc_number,project_name,description,status,created_at,updated_at&order=created_at.desc');
+  var all=(Array.isArray(raw)?raw:[]).filter(function(d){return docFacets(d).project});
 
   var _rng=_projYearRange(_projYear);
   var yearDocs=all.filter(function(d){
     return (d.created_at||'')>=_rng.start&&(d.created_at||'')<_rng.end;
   });
 
-  /* group by project_name — รวมทั้งขาเข้า+ขาออก */
-  var projMap={};
+  /* group by โครงการ — รวมทั้งขาเข้า+ขาออก และรวมตัวสะกดต่างกันของโครงการเดียวกัน (projKey) */
+  var projMap={}, _lbl=projLabels(yearDocs);
   yearDocs.forEach(function(d){
-    var key=(d.project_name||'').trim()||'(ไม่ระบุโครงการ)';
-    if(!projMap[key]) projMap[key]={name:key,docs:[],latestDate:null,latestStatus:''};
+    var key=projKey(docFacets(d).project);
+    if(!projMap[key]) projMap[key]={name:_lbl[key]||'(ไม่ระบุโครงการ)',docs:[],latestDate:null,latestStatus:''};
     projMap[key].docs.push(d);
     var dt=d.updated_at||d.created_at;
     if(!projMap[key].latestDate||dt>projMap[key].latestDate){
@@ -598,12 +610,18 @@ async function _buildProjSummary(){
   return h.join('');
 }
 
-/* ─── MY TASKS ─── */
+/* ─── รอฉันดำเนินการ ───
+   รวมทุกงานที่ "ส่งมาถึงฉันแล้วและต้องลงมือ": ขั้นที่ถึงคิวลงนาม, เอกสารของฉันที่ถูกส่งคืนให้แก้ไข, รอออกเลข,
+   เสนอให้รับทราบ, เอกสารที่ส่งต่อมาถึงฉัน (คิวรับเอกสาร) — ไม่รวมเอกสารที่ยังไม่ถึงคิว */
 async function vTodo(){
   var _numAll=await dg('documents','?status=eq.numbering&select=id,title,doc_type,doc_number,from_department,created_by,updated_at,forwarded_at,created_at');
   // คิว "รออัพเข้าระบบ" = จนท.รับแล้วรอยื่น + ส่งถึง จนท.แล้วแต่ยังไม่มีใครกดรับ (ตรงกับ _isAwaitQueueDoc ใน docList.js)
   var _awaitAll=await dg('documents','?or=(status.eq.awaiting_submit,and(status.eq.completed,or(forwarded_to_staff.is.true,forwarded_to_id.not.is.null)))&select=id,title,doc_type,doc_number,from_department,created_by,updated_at,forwarded_at,created_at,status,accepted_by,forwarded_to_staff,forwarded_to_id');
   var mySteps=await dg('workflow_steps','?assigned_to=eq.'+CU.id+'&status=eq.active&order=created_at');
+  if(!Array.isArray(mySteps)) mySteps=[];
+  // เอกสารของฉันที่ถูกส่งคืนแก้ไข — ไม่มีขั้น active ค้าง (ตรวจแล้ว ต.ค. 2026: 0/19) จึงไม่เคยโผล่จากคิวลงนาม
+  var _rejAll=await dg('documents','?status=eq.rejected&created_by=eq.'+safeId(CU.id)+'&select=id,title,doc_type,doc_number,from_department,addressed_to,updated_at,created_at,forwarded_at,status');
+  var rejDocs=Array.isArray(_rejAll)?_rejAll:[];
   /* เอกสารที่ถูกเสนอให้เรารับทราบ (docAck.js) — นับรวมในกระดิ่งแล้ว จึงต้องมีที่ให้กดต่อที่นี่ด้วย
      ตาราง document_acks อาจยังไม่ถูกสร้าง → ข้ามทั้งบล็อกแบบเงียบ ๆ */
   var ackDocs=[];
@@ -619,16 +637,18 @@ async function vTodo(){
     return d.created_by===CU.id||CU.role_code==='ROLE-SYS'||CU.role_code==='ROLE-STF';
   });
   var awaitDocs=(Array.isArray(_awaitAll)?_awaitAll:[]).filter(function(d){
-    return ['ROLE-STF','ROLE-SYS','ROLE-DEV'].includes(CU.role_code);
+    if(['ROLE-STF','ROLE-SYS','ROLE-DEV'].includes(CU.role_code)) return true;
+    // ส่งต่อถึงฉันโดยระบุชื่อ (ไม่ใช่เจ้าหน้าที่) และยังไม่กดรับ — เดิมคิวนี้เห็นเฉพาะเจ้าหน้าที่
+    return d.status==='completed'&&d.forwarded_to_id===CU.id&&d.created_by!==CU.id;
   });
   var html=[];
 
-  if(!mySteps.length&&!numDocs.length&&!awaitDocs.length&&!ackDocs.length){
+  if(!mySteps.length&&!numDocs.length&&!awaitDocs.length&&!ackDocs.length&&!rejDocs.length){
     html.push(
       '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:80px 24px;text-align:center">'+
         '<div style="width:72px;height:72px;border-radius:22px;background:#F0FDF4;display:flex;align-items:center;justify-content:center;margin-bottom:20px;color:#16A34A">'+svg('ok',32)+'</div>'+
         '<div style="font-size:18px;font-weight:800;letter-spacing:-0.3px;color:#18120E;margin-bottom:8px;line-height:1.4">ทำงานครบหมดแล้ว!</div>'+
-        '<div style="font-size:13px;color:#a89e99;max-width:280px;line-height:1.7">เมื่อมีเอกสารถูกมอบหมายให้คุณ จะปรากฏที่นี่</div>'+
+        '<div style="font-size:13px;color:#a89e99;max-width:280px;line-height:1.7">เมื่อมีเอกสารส่งมาถึงคิวของคุณ จะปรากฏที่นี่</div>'+
       '</div>'
     );
     return html.join('');
@@ -657,7 +677,7 @@ async function vTodo(){
   });
 
   var statCards=[
-    {label:'งานทั้งหมด', val:mySteps.length, ico:'clip_f',
+    {label:'รอลงนาม / ตรวจ', val:mySteps.length, ico:'clip_f',
      grad:'linear-gradient(135deg,#1D4ED8 0%,#3B82F6 100%)', shadow:'rgba(29,78,216,.28)'},
     {label:'เลยกำหนด', val:overdue.length, ico:'warn_f',
      grad:'linear-gradient(135deg,#DC2626 0%,#EF4444 100%)', shadow:'rgba(220,38,38,.28)'},
@@ -674,93 +694,101 @@ async function vTodo(){
     {label:'รออัพเข้าระบบ', val:awaitDocs.length, ico:'clip_f', navTarget:'docs',
      grad:'linear-gradient(135deg,#0F766E 0%,#14B8A6 100%)', shadow:'rgba(15,118,110,.28)'}
   );
+  if(rejDocs.length) statCards.push(
+    {label:'ส่งคืนให้แก้ไข', val:rejDocs.length, ico:'warn_f', navTarget:'docs',
+     grad:'linear-gradient(135deg,#B45309 0%,#F59E0B 100%)', shadow:'rgba(180,83,9,.28)'}
+  );
   if(ackDocs.length) statCards.push(
     {label:'รอคุณรับทราบ', val:ackDocs.length, ico:'doc_f', navTarget:'docs',
      grad:'linear-gradient(135deg,#7C3AED 0%,#A855F7 100%)', shadow:'rgba(124,58,237,.28)'}
   );
   html.push(rStatCards(statCards, {fit:true}));
 
-  /* ── renderDocQueue: doc-level staff queues (numbering / awaiting_submit) ── */
-  function renderDocQueue(label, accentColor, bgColor, svgIco, docs){
-    if(!docs.length) return '';
-    var rows=docs.map(function(d){
-      var since=d.forwarded_at||d.updated_at||d.created_at;
-      var waitTxt='—';
-      if(since){
-        var sinceMid=new Date(since); sinceMid.setHours(0,0,0,0);
-        var days=Math.round((todayMidnight-sinceMid)/86400000);
-        waitTxt=days<=0?'วันนี้':days===1?'รอ 1 วัน':'รอ '+days+' วัน';
-      }
-      return '<div class="list-row" onclick="nav(\'det\',\''+d.id+'\')">'+
-          '<div style="width:8px;height:8px;border-radius:50%;flex-shrink:0;background:'+accentColor+'"></div>'+
-          '<span class="mono" style="font-size:11px;flex-shrink:0;min-width:88px">'+esc(d.doc_number||'—')+'</span>'+
-          '<div style="flex:1;min-width:0">'+
-            '<div class="list-row-title">'+esc(d.title)+'</div>'+
-            '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">'+
-              tBadge(d.doc_type)+
-              // คิวรออัพเข้าระบบมี 2 ระยะ — แยกให้เห็นว่าต้องกดรับก่อน หรือรับแล้วรอยื่น
-              (d.status==='completed'&&(d.forwarded_to_staff||d.forwarded_to_id)
-                ?'<span style="font-size:11px;font-weight:700;color:#D97706">รอกดรับเอกสาร</span>'
-                :d.status==='awaiting_submit'?'<span style="font-size:11px;font-weight:700;color:#0F766E">รับแล้ว รอยื่นในระบบ</span>':'')+
-              (d.from_department?'<span style="font-size:11px;color:var(--text-3)">'+esc(d.from_department)+'</span>':'')+
-            '</div>'+
-          '</div>'+
-          '<span style="border-radius:8px;padding:4px 10px;font-size:11px;font-weight:700;white-space:nowrap;flex-shrink:0;background:'+bgColor+';color:'+accentColor+';line-height:1.65">'+waitTxt+'</span>'+
-          '<button class="btn btn-primary xs" style="flex-shrink:0" data-action="nav" data-view="det" data-id="'+d.id+'">ดำเนินการ</button>'+
-        '</div>';
-    }).join('');
-
-    return '<div style="margin-bottom:20px">'+
-      '<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">'+
-        '<div style="width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;background:'+bgColor+';color:'+accentColor+'">'+svg(svgIco,13)+'</div>'+
-        '<span style="font-size:13px;font-weight:700;color:'+accentColor+'">'+label+'</span>'+
-        '<span style="background:#EBEBEB;border-radius:10px;padding:2px 9px;font-size:11px;color:#a89e99;font-weight:600">'+docs.length+' งาน</span>'+
+  /* ── คิวงาน: การ์ดเดียว หัวอยู่ในการ์ด · แถว = [จำนวนวัน] [ชื่อเรื่อง + เลขที่/ประเภท/ข้อมูลรอง] [ปุ่มขอบ]
+     เดิมทุกแถวมีปุ่มส้ม "ดำเนินการ" (13 แถว = 13 ปุ่มส้ม ขัด One Voice Rule) และป้าย "รอ N วัน" สีเดียวกันหมด
+     ไม่ว่ารอ 2 หรือ 68 วัน — ตอนนี้ทั้งแถวกดได้ ปุ่มเป็น .btn-line บอกงานเฉพาะคิว ตัวเลขวันไล่สีตามความค้าง
+     และเรียงจากค้างนานที่สุดก่อน  สไตล์ .q-* อยู่ใน styles.css ── */
+  function qCard(label, accentColor, bgColor, svgIco, count, rowsHtml, sub){
+    return '<section class="q-card">'+
+      '<div class="q-head">'+
+        '<div class="q-head-ico" style="background:'+bgColor+';color:'+accentColor+'">'+svg(svgIco,16)+'</div>'+
+        '<div class="q-head-txt"><div class="q-title">'+label+'</div>'+(sub?'<div class="q-sub">'+sub+'</div>':'')+'</div>'+
+        '<span class="q-count">'+count+' งาน</span>'+
       '</div>'+
-      '<div style="background:#fff;border-radius:14px;border:1px solid rgba(0,0,0,.055);overflow:hidden;box-shadow:var(--sh-card)">'+rows+'</div>'+
+      '<div class="q-list">'+rowsHtml+'</div>'+
+    '</section>';
+  }
+  function qRow(d, age, metaHtml, actLabel){
+    return '<div class="q-row" data-action="nav" data-view="det" data-id="'+d.id+'">'+
+        '<div class="q-age '+age.tone+'"><span class="q-age-n'+(typeof age.n==='number'?'':' is-word')+'">'+age.n+'</span><span class="q-age-l">'+age.l+'</span></div>'+
+        '<div class="q-main">'+
+          '<div class="q-doc-title" title="'+esc(d.title||'')+'">'+esc(d.title||'(ไม่มีชื่อเรื่อง)')+'</div>'+
+          '<div class="q-meta">'+
+            '<span class="q-no">'+esc(d.doc_number||'—')+'</span>'+
+            '<span class="q-seg"><span class="q-dot">·</span>'+(d.doc_type==='incoming'?'ขาเข้า':'ขาออก')+'</span>'+
+            metaHtml+
+          '</div>'+
+        '</div>'+
+        '<button type="button" class="btn-line q-act" data-action="nav" data-view="det" data-id="'+d.id+'">'+actLabel+'</button>'+
+        '<div class="q-chev" aria-hidden="true">'+svg('chevron-right',18)+'</div>'+
       '</div>';
   }
+  function qSeg(txt, cls){
+    return txt?'<span class="q-seg'+(cls?' '+cls:'')+'"><span class="q-dot">·</span>'+txt+'</span>':'';
+  }
 
-  html.push(renderDocQueue('รอคุณรับทราบ',    '#7C3AED','#F5F3FF','eye', ackDocs));
-  html.push(renderDocQueue('รอออกเลขหนังสือ', '#2563EB','#EFF6FF','doc', numDocs));
-  html.push(renderDocQueue('รออัพเข้าระบบ',   '#0F766E','#F0FDFA','up',  awaitDocs));
+  /* ── renderDocQueue: doc-level staff queues (ack / numbering / awaiting_submit) ── */
+  function renderDocQueue(label, accentColor, bgColor, svgIco, docs, actLabel){
+    if(!docs.length) return '';
+    var list=docs.map(function(d){
+      var since=d.forwarded_at||d.updated_at||d.created_at, days=null;
+      if(since){var m=new Date(since); m.setHours(0,0,0,0); days=Math.max(0,Math.round((todayMidnight-m)/86400000));}
+      return {d:d, days:days};
+    }).sort(function(x,y){return (y.days===null?-1:y.days)-(x.days===null?-1:x.days)});
+    var rows=list.map(function(it){
+      var d=it.d, days=it.days;
+      var age=days===null?{n:'—',l:'',tone:'is-muted'}
+        :days===0?{n:'ใหม่',l:'วันนี้',tone:'is-calm'}
+        :{n:days,l:'วันที่รอ',tone:days<=3?'is-calm':days<=14?'is-warn':'is-late'};
+      // คิวรออัพเข้าระบบมี 2 ระยะ — แยกให้เห็นว่าต้องกดรับก่อน หรือรับแล้วรอยื่น
+      var stage=d.status==='completed'&&(d.forwarded_to_staff||d.forwarded_to_id)?'<span class="q-flag is-amber">รอกดรับเอกสาร</span>'
+        :d.status==='awaiting_submit'?'<span class="q-flag is-teal">รับแล้ว รอยื่นในระบบ</span>':'';
+      var act=actLabel;
+      if(stage) act=d.status==='awaiting_submit'?'ยื่นในระบบ':'รับเอกสาร';
+      // ขาเข้าเก็บรหัสชมรม ('26') ใน from_department — แปลงผ่าน docFacets ไม่งั้นคิวโชว์ตัวเลข
+      var _fc=docFacets(d), _from=_fc.senderName||_fc.senderUnit;
+      return qRow(d, age, qSeg(_from?esc(_from):'','is-from')+stage, act);
+    }).join('');
+    return qCard(label, accentColor, bgColor, svgIco, docs.length, rows, 'เรียงจากรอนานที่สุด');
+  }
 
-  /* ── renderGroup ── */
+  html.push(renderDocQueue('ส่งคืนให้แก้ไข',  '#B45309','#FFFBEB','edit', rejDocs,   'แก้ไข'));
+  html.push(renderDocQueue('รอคุณรับทราบ',    '#7C3AED','#F5F3FF','eye', ackDocs,   'รับทราบ'));
+  html.push(renderDocQueue('รอออกเลขหนังสือ', '#2563EB','#EFF6FF','doc', numDocs,   'ออกเลข'));
+  html.push(renderDocQueue('รออัพเข้าระบบ',   '#0F766E','#F0FDFA','up',  awaitDocs, 'ดำเนินการ'));
+
+  /* ── renderGroup: ขั้นตอนที่รอฉันลงนาม/ตรวจ แยกตามความเร่งด่วน ── */
   function renderGroup(label, accentColor, bgColor, svgIco, steps){
     if(!steps.length) return '';
-    var rows=steps.map(function(s,idx){
+    steps=steps.slice().sort(function(x,y){
+      var a=(x._due||{}).days, b=(y._due||{}).days;
+      return (a===null||a===undefined?1e9:a)-(b===null||b===undefined?1e9:b);
+    });
+    var rows=steps.map(function(s){
       var d=s._doc;
       var _di=s._due||taskDueInfo(s,d);
-      var daysLeft=_di.days;
-      var daysTxt=daysLeft===null?'—':daysLeft<0?'เกิน '+Math.abs(daysLeft)+' วัน':daysLeft===0?'วันนี้':daysLeft===1?'พรุ่งนี้':'อีก '+daysLeft+' วัน';
-      var dayColor=daysLeft===null?'var(--text-3)':daysLeft<0?'#DC2626':daysLeft<=1?'#EA580C':daysLeft<=3?'#D97706':'#15803D';
-      var dayBg=daysLeft===null?'var(--border)':daysLeft<0?'#FEF2F2':daysLeft<=1?'#FFF7ED':daysLeft<=3?'#FFFBEB':'#F0FDF4';
+      var dl=_di.days;
+      var age=dl===null?{n:'—',l:'ไม่มีกำหนด',tone:'is-muted'}
+        :dl<0?{n:Math.abs(dl),l:'วันที่เกิน',tone:'is-late'}
+        :dl===0?{n:'วันนี้',l:'ครบกำหนด',tone:'is-warn'}
+        :dl===1?{n:'พรุ่งนี้',l:'ครบกำหนด',tone:'is-warn'}
+        :{n:dl,l:'วันที่เหลือ',tone:dl<=3?'is-warn':'is-calm'};
       // บอกให้ชัดว่าตัวเลขวันมาจากกำหนดไหน — ไม่งั้น "เกิน 5 วัน" ชวนเข้าใจผิดว่ากิจกรรมผ่านไปแล้ว
-      var dueSrc=_di.src==='step'?'<span style="font-size:11px;color:var(--text-3);line-height:1.65">ครบกำหนดลงนาม '+fd(_di.ts)+'</span>'
-        :_di.src==='event'?'<span style="font-size:11px;color:var(--text-3);line-height:1.65">วันจัดกิจกรรม '+fd(_di.ts)+'</span>':'';
-      return '<div class="list-row" onclick="nav(\'det\',\''+d.id+'\')">'+
-          '<div style="width:8px;height:8px;border-radius:50%;flex-shrink:0;background:'+accentColor+'"></div>'+
-          '<span class="mono" style="font-size:11px;flex-shrink:0;min-width:88px">'+esc(d.doc_number||'—')+'</span>'+
-          '<div style="flex:1;min-width:0">'+
-            '<div class="list-row-title">'+esc(d.title)+'</div>'+
-            '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">'+
-              tBadge(d.doc_type)+
-              '<span style="font-size:11px;background:#fff5f0;color:#E83A00;padding:2px 8px;border-radius:6px;font-weight:600;line-height:1.65">'+esc(s.step_name||'ขั้นตอน')+'</span>'+
-              dueSrc+
-            '</div>'+
-          '</div>'+
-          '<span style="border-radius:8px;padding:4px 10px;font-size:11px;font-weight:700;white-space:nowrap;flex-shrink:0;background:'+dayBg+';color:'+dayColor+';line-height:1.65">'+daysTxt+'</span>'+
-          '<button class="btn btn-primary xs" style="flex-shrink:0" data-action="nav" data-view="det" data-id="'+d.id+'">ดำเนินการ</button>'+
-        '</div>';
+      var dueSrc=_di.src==='step'?qSeg('ครบกำหนดลงนาม '+fd(_di.ts),'is-from')
+        :_di.src==='event'?qSeg('วันจัดกิจกรรม '+fd(_di.ts),'is-from'):'';
+      return qRow(d, age, '<span class="q-flag is-brand">'+esc(s.step_name||'ขั้นตอน')+'</span>'+dueSrc, 'ดำเนินการ');
     }).join('');
-
-    return '<div style="margin-bottom:20px">'+
-      '<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">'+
-        '<div style="width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;background:'+bgColor+';color:'+accentColor+'">'+svg(svgIco,13)+'</div>'+
-        '<span style="font-size:13px;font-weight:700;color:'+accentColor+'">'+label+'</span>'+
-        '<span style="background:#EBEBEB;border-radius:10px;padding:2px 9px;font-size:11px;color:#a89e99;font-weight:600">'+steps.length+' งาน</span>'+
-      '</div>'+
-      '<div style="background:#fff;border-radius:14px;border:1px solid rgba(0,0,0,.055);overflow:hidden;box-shadow:var(--sh-card)">'+rows+'</div>'+
-      '</div>';
+    return qCard(label, accentColor, bgColor, svgIco, steps.length, rows, '');
   }
 
   html.push(renderGroup('เลยกำหนดแล้ว',  '#DC2626','#FEF2F2','x',     overdue));

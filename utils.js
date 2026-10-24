@@ -82,6 +82,19 @@ function gv(id){var el=document.getElementById(id);return el?el.value:''}
 function $e(id){return document.getElementById(id)}
 /* ผูก drag & drop ให้ .upload-zone — เดิมรับไฟล์ได้แค่คลิกเลือกผ่าน <label for=inputId>
    onFiles รับ element ที่มี .files เหมือน <input type=file> จริง เพื่อให้ใช้ handler เดิมได้โดยไม่ต้องแก้ */
+/* เนื้อในกล่องอัปโหลดแบบเดียวทั้งระบบ — ไอคอนเมฆ / "เลือกไฟล์ หรือลากและวางไฟล์ที่นี่" / ข้อความรองรับ / ปุ่มเลือกไฟล์
+   ใส่ไว้ใน .upload-zone (เพิ่มคลาส sm สำหรับกล่องเล็กใน modal/แถบเครื่องมือ) — hintId ให้โค้ดอื่นเปลี่ยนข้อความรองรับได้
+   title = ชื่อกล่อง (เป็น tooltip — ทุกจุดที่เรียกมีป้ายกำกับอยู่รอบกล่องแล้ว)
+   ปุ่มเป็น <span> ไม่ใช่ <button> — คลิกได้เพราะทั้งกล่องเป็น <label for> หรือมี onclick อยู่แล้ว
+   (<button> ใน <label> จะกลืนคลิกไม่ให้เปิดหน้าต่างเลือกไฟล์) */
+function uploadZoneInner(title,hint,hintId){
+  return '<div class="upload-zone-inner" title="'+esc(title||'อัปโหลดไฟล์')+'">'+
+    '<div class="upload-zone-icon">'+svg('cloud-upload',40)+'</div>'+
+    '<div class="upload-zone-title">เลือกไฟล์ หรือลากและวางไฟล์ที่นี่</div>'+
+    (hint||hintId?'<div class="upload-zone-hint"'+(hintId?' id="'+hintId+'"':'')+'>'+esc(hint||'')+'</div>':'')+
+    '<span class="upload-zone-btn">เลือกไฟล์</span>'+
+  '</div>';
+}
 function _wireDropzone(zoneEl,inputEl,onFiles){
   if(!zoneEl||!inputEl) return;
   zoneEl.addEventListener('dragover',function(e){e.preventDefault();zoneEl.classList.add('dragover')});
@@ -151,6 +164,33 @@ function fType(f){
 function fChip(f,s){
   var ft=fType(f);
   return '<div class="file-chip" style="background:'+ft.bg+';color:'+ft.cl+'">'+svg(ft.ic,s||19)+'</div>'
+}
+/* การ์ดไฟล์แบบ "หน้ากระดาษ + ป้ายนามสกุล" (ใช้ในหน้าแบบฟอร์ม) — w = ความกว้างเป็น px
+   ลายในหน้ากระดาษบอกชนิดไฟล์: ข้อความ / ตาราง / zip / รูป / โค้ด / วิดีโอ  สไตล์อยู่ใน styles.css (.fcard*) */
+var _FCARD_T={
+  txt:['TXT','#78716C','ln'], doc:['DOC','#2563EB','ln'], docx:['DOCX','#2563EB','ln'], pdf:['PDF','#DC2626','ln'],
+  md:['MD','#57534E','md'], mdx:['MDX','#57534E','md'],
+  xls:['XLS','#15803D','grid'], xlsx:['XLSX','#15803D','grid'], csv:['CSV','#0F766E','grid'],
+  zip:['ZIP','#7C3AED','zip'], rar:['RAR','#7C3AED','zip'], '7z':['7Z','#7C3AED','zip'], tar:['TAR','#B45309','zip'], gz:['GZ','#B45309','zip'],
+  ppt:['PPT','#EA580C','media'], pptx:['PPTX','#EA580C','media'],
+  json:['JSON','#CA8A04','code'], css:['CSS','#1D4ED8','code'], js:['CODE','#C2410C','code'], html:['HTML','#C2410C','code'],
+  png:['PNG','#57534E','media'], jpg:['JPG','#15803D','media'], jpeg:['JPG','#15803D','media'],
+  gif:['IMG','#DB2777','media'], webp:['IMG','#DB2777','media'], svg:['IMG','#DB2777','media'],
+  mp4:['VIDEO','#15803D','video'], mov:['VIDEO','#15803D','video'], webm:['VIDEO','#15803D','video']
+};
+function fCard(f,w){
+  var n=((f&&(f.file_name||f.name))||'').toLowerCase();
+  var ext=(n.match(/\.([a-z0-9]+)$/)||[])[1]||'';
+  var t=_FCARD_T[ext]||[ext?ext.toUpperCase().slice(0,5):'FILE','#78716C','ln'];
+  var cl=t[1], k=t[2], ln=function(c){return '<i class="fcard-ln'+(c?' '+c:'')+'"></i>'}, body='';
+  if(k==='grid') body='<i class="fcard-grid">'+new Array(13).join('<i></i>')+'</i>';
+  else if(k==='zip') body='<i class="fcard-zip"></i>';
+  else if(k==='media'||k==='video') body='<i class="fcard-media">'+(k==='video'?'<i class="fcard-play" style="border-left-color:'+cl+'"></i>':'<i class="fcard-dot" style="background:'+cl+'"></i>')+'</i>'+ln('w6')+ln('w4');
+  else if(k==='code') body='<i class="fcard-code" style="color:'+cl+'">'+ln('w3')+ln('w6 in')+ln('w5 in')+ln('w3')+'</i>';
+  else if(k==='md') body='<i class="fcard-hash">#</i>'+ln('w5')+ln('w8')+ln('w6')+ln('w7');
+  else body=ln('w5')+ln('w8')+ln('w7')+ln('w8')+ln('w6')+ln('w7');
+  return '<div class="fcard" style="font-size:'+(w||44)+'px" aria-hidden="true"><i class="fcard-page">'+body+'</i>'+
+    '<span class="fcard-badge" style="background:'+cl+'">'+esc(t[0])+'</span></div>'
 }
 /* PDF หลักสำหรับลงนาม = ไฟล์ PDF แรกที่ผู้ใช้อัปโหลด (ไม่นับฉบับ [ลงนาม] ที่ระบบสร้าง)
    working = เวอร์ชันล่าสุดของกลุ่มชื่อเดียวกัน (ฉบับเซ็นแล้วถ้ามี — ใช้ซ้อนลายเซ็นต่อ) */
@@ -284,52 +324,13 @@ function svg(n,s){
   return '<i data-lucide="'+ln+'" width="'+s+'" height="'+s+'" stroke-width="1.6" style="display:inline-flex;vertical-align:middle;flex-shrink:0;pointer-events:none"></i>'
 }
 
-/* solid/filled icon variants — used for stat-card icons on coloured backgrounds */
+/* ไอคอนบนการ์ดสถิติพื้นสี — ใช้ Lucide (lucide.dev) เส้นหนาขึ้นเล็กน้อยให้อ่านง่ายบนพื้น gradient
+   ชื่อ *_f คงไว้เพราะ ico ของการ์ดใน homeViews.js อ้างอยู่ */
 function svgf(n,s){
   s=s||18;
-  var P={
-    /* document stack */
-    doc_f:'<path fill="currentColor" d="M3 2a1 1 0 011-1h6l4 4v9a1 1 0 01-1 1H4a1 1 0 01-1-1V2z"/>'
-         +'<path fill="rgba(0,0,0,.25)" d="M10 1l4 4h-3a1 1 0 01-1-1V1z"/>'
-         +'<rect fill="rgba(255,255,255,.55)" x="5" y="8" width="6" height="1.2" rx=".6"/>'
-         +'<rect fill="rgba(255,255,255,.4)" x="5" y="10.5" width="4" height="1.2" rx=".6"/>',
-    /* pen / signature */
-    pen_f:'<path fill="currentColor" d="M11.7 1.3a1 1 0 011.4 0l1.6 1.6a1 1 0 010 1.4L5.5 13.5 2 14l.5-3.5L11.7 1.3z"/>'
-         +'<path fill="rgba(255,255,255,.4)" d="M10.5 3l2.5 2.5-1 1L9.5 4l1-1z"/>'
-         +'<path fill="rgba(255,255,255,.25)" d="M2 14l1.5-1 .5.5-1.5 1L2 14z"/>',
-    /* filled checkmark circle — circle is white (currentColor), tick is dark so it's visible */
-    check_f:'<circle fill="currentColor" cx="8" cy="8" r="6.8"/>'
-            +'<path fill="none" stroke="rgba(0,0,0,.38)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" d="M4.8 8.2L7.3 10.7L11.8 5.5"/>'
-            +'<path fill="none" stroke="rgba(0,0,0,.12)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" d="M4.8 8.8L7.3 11.3L11.8 6.1"/>',
-    /* filled bell */
-    bell_f:'<path fill="currentColor" d="M8 1a1 1 0 011 1 5 5 0 015 4.5v3l1.5 2.5h-13L4 9.5v-3A5 5 0 017 2a1 1 0 011-1z"/>'
-          +'<path fill="currentColor" d="M6.5 13.5a1.5 1.5 0 003 0H6.5z"/>'
-          +'<ellipse fill="rgba(255,255,255,.3)" cx="6" cy="6" rx="1.5" ry="1"/>',
-    /* filled warning triangle */
-    warn_f:'<path fill="currentColor" d="M7.13 1.64a1 1 0 011.74 0l6.13 10.5A1 1 0 0114.13 14H1.87a1 1 0 01-.87-1.5l6.13-10.86z"/>'
-          +'<rect fill="rgba(255,255,255,.9)" x="7.4" y="5.5" width="1.2" height="4.5" rx=".6"/>'
-          +'<circle fill="rgba(255,255,255,.9)" cx="8" cy="11.5" r=".8"/>',
-    /* filled clipboard / tasks */
-    clip_f:'<path fill="currentColor" d="M4 3a1 1 0 00-1 1v9a1 1 0 001 1h8a1 1 0 001-1V4a1 1 0 00-1-1H9.5A1.5 1.5 0 008 1.5 1.5 1.5 0 006.5 3H4z"/>'
-          +'<rect fill="rgba(255,255,255,.55)" x="5" y="6.5" width="6" height="1.1" rx=".55"/>'
-          +'<rect fill="rgba(255,255,255,.4)" x="5" y="8.8" width="4.5" height="1.1" rx=".55"/>'
-          +'<rect fill="rgba(255,255,255,.3)" x="5" y="11" width="3" height="1.1" rx=".55"/>',
-    /* filled calendar */
-    cal_f:'<rect fill="currentColor" x="2" y="4" width="12" height="10" rx="2"/>'
-         +'<rect fill="rgba(255,255,255,.25)" x="2" y="7" width="12" height="1.2"/>'
-         +'<path fill="rgba(255,255,255,.7)" d="M5 2.5a.5.5 0 011 0V5H5V2.5zm5 0a.5.5 0 011 0V5h-1V2.5z"/>'
-         +'<circle fill="rgba(255,255,255,.6)" cx="5.5" cy="9.5" r=".9"/>'
-         +'<circle fill="rgba(255,255,255,.6)" cx="8" cy="9.5" r=".9"/>'
-         +'<circle fill="rgba(255,255,255,.6)" cx="10.5" cy="9.5" r=".9"/>'
-         +'<circle fill="rgba(255,255,255,.45)" cx="5.5" cy="12" r=".9"/>'
-         +'<circle fill="rgba(255,255,255,.45)" cx="8" cy="12" r=".9"/>',
-    /* filled users / people */
-    users_f:'<circle fill="currentColor" cx="5.5" cy="5" r="2.8"/>'
-           +'<path fill="currentColor" d="M0 14c0-3.3 2.5-5.5 5.5-5.5S11 10.7 11 14H0z"/>'
-           +'<circle fill="rgba(255,255,255,.45)" cx="11.5" cy="5.5" r="2.2"/>'
-           +'<path fill="rgba(255,255,255,.35)" d="M8 14c0-2.5 1.6-4.2 3.5-4.8a5 5 0 013.5 4.8H8z"/>'
-  };
-  return '<svg width="'+s+'" height="'+s+'" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">'+(P[n]||'')+'</svg>'
+  var M={doc_f:'file-text',pen_f:'pen-line',check_f:'circle-check',bell_f:'bell',
+    warn_f:'triangle-alert',clip_f:'clipboard-list',cal_f:'calendar',users_f:'users'};
+  return '<i data-lucide="'+(M[n]||n)+'" width="'+s+'" height="'+s+'" stroke-width="2.2" style="display:inline-flex;vertical-align:middle;flex-shrink:0;pointer-events:none"></i>'
 }
 
 function loadSc(src){
@@ -355,6 +356,113 @@ function addWorkingDays(fromDate, days){
   }
   return d;
 }
+/* ─── วันที่ออกเลขหนังสือขาออก ───
+   นิสิตส่งเอกสารได้ทุกวัน แต่เลขหนังสือขาออกต้องลงวันที่เป็นวันทำการ (จ.–ศ. ไม่รวมวันหยุดตามปฏิทินนิสิต
+   ที่ผู้ดูแลกรอกไว้ใน num_holidays) และออกได้ไม่เกิน num_cutoff_time (22:00) — ออกหลังเวลานั้น
+   เลขและวันที่หนังสือเป็นของวันทำการถัดไปอัตโนมัติ (ปี พ.ศ. ท้ายเลขก็ตามวันนั้น)
+   วันเสาร์–อาทิตย์/วันหยุด: num_holiday_mode='block' (ค่าเริ่มต้น) ออกเลขไม่ได้ · 'shift' ออกได้แต่ลงวันทำการถัดไป
+   นับตามเวลาไทยเสมอ ฝั่ง DB คำนวณชุดเดียวกัน (supabase/60_num_issue_date.sql) — แก้กติกาต้องแก้ทั้งสองที่
+   ใช้กับหนังสือขาออกเท่านั้น (สลับ 2026-07-22: outgoing=มีขั้นตอนอนุมัติ) — ลงทะเบียนรับขาเข้าไม่เกี่ยว */
+var _SW_DOW=['อาทิตย์','จันทร์','อังคาร','พุธ','พฤหัสบดี','ศุกร์','เสาร์'];
+var _SW_MON=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+var _BKK_OFS=7*3600e3; // ไทยไม่มี daylight saving — UTC+7 ตลอดปี
+function _numCfg(){
+  var m=/^(\d{1,2}):(\d{2})/.exec(String(SETT.num_cutoff_time||'').trim())||[0,22,0];
+  var hol={}; (String(SETT.num_holidays||'').match(/\d{4}-\d{2}-\d{2}/g)||[]).forEach(function(d){hol[d]=1});
+  return {on:settOn('num_window_enabled',true), wk:settOn('num_weekdays_only',true),
+          cut:(Math.min(+m[1],24)*60+Math.min(+m[2],59))||1440, // 00:00 = ไม่มีเวลาตัด
+          shift:String(SETT.num_holiday_mode||'block')==='shift', hol:hol};
+}
+/* d = Date ที่เลื่อนเป็นเวลาไทยแล้ว (อ่านด้วย getUTC*) → '' ถ้าเป็นวันทำการ */
+function _numDayOff(d,c){
+  if(c.wk&&(d.getUTCDay()===0||d.getUTCDay()===6)) return 'weekend';
+  if(c.hol[d.toISOString().slice(0,10)]) return 'holiday';
+  return '';
+}
+function _numNextWorkday(d,c){
+  for(var i=1;i<=60;i++){
+    var n=new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate()+i));
+    if(!_numDayOff(n,c)) return n;
+  }
+  return null;
+}
+/* → {date:'YYYY-MM-DD'|null, blocked, shifted, reason:'weekend'|'holiday'|'late'|'', today:'YYYY-MM-DD'} */
+function numIssueInfo(atMs){
+  var c=_numCfg(), b=new Date((atMs||Date.now())+_BKK_OFS), today=b.toISOString().slice(0,10);
+  var r={date:today,blocked:false,shifted:false,reason:'',today:today};
+  if(!c.on) return r;
+  var off=_numDayOff(b,c), late=b.getUTCHours()*60+b.getUTCMinutes()>=c.cut;
+  if(!off&&!late) return r;
+  r.reason=off||'late';
+  var nx=_numNextWorkday(b,c);
+  r.date=nx?nx.toISOString().slice(0,10):null;
+  if(off&&!c.shift) r.blocked=true; else r.shifted=true;
+  return r;
+}
+function _numDateLong(ymd){
+  var d=new Date(ymd+'T00:00:00Z');
+  return 'วัน'+_SW_DOW[d.getUTCDay()]+'ที่ '+d.getUTCDate()+' '+_SW_MON[d.getUTCMonth()]+' '+(d.getUTCFullYear()+543);
+}
+function numIssueRuleText(){
+  var c=_numCfg();
+  return 'ออกเลขหนังสือได้'+(c.wk?'วันจันทร์–ศุกร์':'ทุกวัน')+' ยกเว้นวันหยุดตามปฏิทินนิสิต'+
+    (c.cut<1440?' ไม่เกิน '+String(Math.floor(c.cut/60)).padStart(2,'0')+':'+String(c.cut%60).padStart(2,'0')+' น.':'');
+}
+function numIssueMsg(info){
+  var why={weekend:'วันนี้เป็นวันเสาร์–อาทิตย์',holiday:'วันนี้เป็นวันหยุดตามปฏิทินนิสิต',late:'เลยเวลาออกเลขของวันนี้แล้ว'}[info.reason]||'';
+  if(info.blocked)
+    return 'ยังออกเลขหนังสือไม่ได้ — '+why+' ('+numIssueRuleText()+')'+(info.date?' · ออกเลขได้อีกครั้ง'+_numDateLong(info.date):'');
+  if(info.shifted)
+    return why+' — เลขและวันที่หนังสือจะเป็นของ'+_numDateLong(info.date)+' (วันทำการถัดไป) โดยอัตโนมัติ';
+  return '';
+}
+/* วันหยุดตามปฏิทินนิสิตที่กำลังจะถึง (ภายใน days วัน) → [{ymd,name}] */
+function _numUpcomingHolidays(fromYmd,days,max){
+  var out=[], end=new Date(Date.parse(fromYmd+'T00:00:00Z')+days*864e5).toISOString().slice(0,10);
+  String(SETT.num_holidays||'').split(/\n/).forEach(function(l){
+    var m=/(\d{4}-\d{2}-\d{2})\s*(.*)/.exec(l);
+    if(m&&m[1]>=fromYmd&&m[1]<=end) out.push({ymd:m[1],name:m[2].trim()});
+  });
+  return out.sort(function(a,b){return a.ymd<b.ymd?-1:1}).slice(0,max||3);
+}
+/* หมายเหตุช่วงเวลาออกเลขหนังสือ (หน้าออกเลข + หน้ารายละเอียดเอกสารที่รอออกเลข) — info = numIssueInfo()/checkNumIssue() */
+function rNumIssueNote(info){
+  var c=_numCfg(); info=info||numIssueInfo();
+  if(!c.on) return '';
+  var hm=function(m){return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0')};
+  var days=c.wk?'วันจันทร์–ศุกร์':'ทุกวัน';
+  var rows=[];
+  rows.push(c.cut<1440
+    ?[days+' 00:00–'+hm(c.cut-1)+' น.','ออกเลขได้ เลขและวันที่หนังสือเป็นวันนั้น']
+    :[days+' ตลอดวัน','ออกเลขได้ เลขและวันที่หนังสือเป็นวันนั้น']);
+  if(c.cut<1440) rows.push(['ตั้งแต่ '+hm(c.cut)+' น.','ออกเลขได้ แต่เลขและวันที่หนังสือเป็นของวันทำการถัดไป'+(c.wk?' (เช่น กดคืนวันศุกร์ → ลงวันจันทร์)':'')]);
+  rows.push([(c.wk?'เสาร์–อาทิตย์ และ':'')+'วันหยุดตามปฏิทินนิสิต',c.shift?'ออกเลขได้ แต่ลงวันที่เป็นวันทำการถัดไป':'ออกเลขไม่ได้']);
+  var hol=_numUpcomingHolidays(info.today||new Date(Date.now()+_BKK_OFS).toISOString().slice(0,10),60,3);
+  var why={weekend:'วันนี้เป็นวันเสาร์–อาทิตย์',holiday:'วันนี้เป็นวันหยุดตามปฏิทินนิสิต'}[info.reason]||'';
+  var now=info.blocked?'ตอนนี้ออกเลขไม่ได้ ('+why+')'+(info.date?' — ออกได้อีกครั้ง'+_numDateLong(info.date):'')
+         :info.shifted?'ตอนนี้: '+numIssueMsg(info)
+         :'ตอนนี้ออกเลขได้ — ลงวันที่'+_numDateLong(info.date);
+  return '<div style="background:#FAFAF8;border:1px solid #EBEBEB;border-radius:10px;padding:10px 12px;margin-top:8px;font-size:11px;color:#6b6560;line-height:1.7">'+
+    '<div style="font-weight:700;color:#18120E;display:flex;align-items:center;gap:6px;margin-bottom:4px">'+svg('clock',12)+' หมายเหตุ: ช่วงเวลาออกเลขหนังสือ</div>'+
+    rows.map(function(r){return '<div style="display:flex;gap:6px"><span style="flex-shrink:0">•</span><span><strong style="color:#18120E;font-weight:600">'+esc(r[0])+'</strong> — '+esc(r[1])+'</span></div>'}).join('')+
+    (hol.length?'<div style="margin-top:4px">วันหยุดที่จะถึง: '+hol.map(function(h){return esc(_numDateLong(h.ymd).replace(/^วัน\S+ที่ /,'')+(h.name?' ('+h.name+')':''))}).join(', ')+'</div>':'')+
+    '<div style="margin-top:6px;padding-top:6px;border-top:1px dashed #E5E0DB;font-weight:600;color:'+(info.blocked?'#B91C1C':info.shifted?'#B45309':'#15803D')+'">'+esc(now)+'</div>'+
+  '</div>';
+}
+/* ใช้เวลาเซิร์ฟเวอร์ผ่าน RPC num_issue_info() ถ้ามี (นาฬิกาเครื่องผู้ใช้อาจคลาดเคลื่อน และ trigger ฝั่ง DB
+   ตรวจด้วยเวลาเซิร์ฟเวอร์) — ยังไม่ได้รัน SQL หรือเรียกไม่สำเร็จ → คำนวณจากเวลาเครื่อง */
+async function checkNumIssue(){
+  try{
+    var r=await fetch(SU+'/rest/v1/rpc/num_issue_info',{method:'POST',headers:H,body:'{}'});
+    if(r.ok){
+      var j=await r.json();
+      if(j&&typeof j.blocked==='boolean'&&j.today)
+        return {date:j.date||null,blocked:j.blocked,shifted:!!j.shifted,reason:j.reason||'',today:j.today};
+    }
+  }catch(e){}
+  return numIssueInfo();
+}
+
 /* คำนวณจำนวนวันทำการที่เหลือจากวันนี้ถึง targetDate */
 function workingDaysLeft(targetDate){
   var now=new Date(); now.setHours(0,0,0,0);
@@ -704,3 +812,73 @@ function showAlert(msg, type){
   });
   _lo.observe(document.body||document.documentElement,{childList:true,subtree:true});
 })();
+
+/* ─── มุมมองข้อมูลเอกสารแบบเดียวกันทุกประเภท (ค้นหา / กรอง / แสดงผล / ส่งออก) ───
+   คอลัมน์ 4 ตัวนี้เก็บคนละความหมายตาม doc_type (สลับ 2026-07-22 — incoming = ฟอร์มง่าย, outgoing = มี workflow):
+     incoming: description = ชื่อโครงการ, from_department = รหัสชมรมใน CLUBS (ว่าง = กนค.),
+               subject_line = ดัชนี OUT_LTYPES ('1'–'9'), addressed_to = รหัสตำแหน่ง POSS ที่ส่งถึง
+     outgoing: description = ประเภทหนังสือ (LETTER_TYPES), subject_line = เรื่องที่ระบุเอง (หรือชื่อเรื่อง),
+               from_department = ชื่อผู้ส่ง (พิมพ์เอง), addressed_to = ตำแหน่ง/สังกัดของผู้ส่ง (ชื่อใน SENDER_POS)
+   ห้ามนำค่าดิบไปค้นหา/แสดง/ส่งออกตรง ๆ — ค้นคำว่า "แบดมินตัน" จะไม่เจอหนังสือที่เก็บเป็น '26'
+   และจอจะโชว์ GNK-PRE แทนหัวหน้านิสิต ให้ผ่าน docFacets() เสมอ
+   ไม่แปลงรหัสใน DB เป็นข้อความ เพราะ docNum.js ใช้รหัสเหล่านี้ประกอบเลขหนังสือ */
+function normText(s){return String(s==null?'':s).replace(/\s+/g,' ').trim()}
+/* กุญแจจัดกลุ่มโครงการ — "โครงการBorn to speak" / "Born to Speak" / "ค่าย…  ครั้งที่ 26" (เว้นวรรคสองที) ให้เป็นโครงการเดียวกัน */
+function projKey(s){return normText(s).toLowerCase().replace(/^โครงการ\s*/,'').replace(/\s+/g,'')}
+function docFacets(d){
+  d=d||{};
+  var inc=d.doc_type==='incoming'; /* สลับ 2026-07-22 */
+  var f={project:normText(d.project_name)||(inc?normText(d.description):''),letterType:'',senderName:'',senderUnit:'',recipient:''};
+  if(inc){
+    f.letterType=OUT_LTYPES[parseInt(d.subject_line,10)]||'';
+    f.senderUnit=d.from_department?(CLUBS[d.from_department]||normText(d.from_department)):'กนค.';
+    f.recipient=PTH[d.addressed_to]||normText(d.addressed_to);
+  }else{
+    f.letterType=normText(d.description);
+    var subj=normText(d.subject_line);
+    if(f.letterType==='เรื่องอื่น ๆ'&&subj&&subj!==normText(d.title)) f.letterType+=': '+subj;
+    f.senderName=normText(d.from_department);
+    f.senderUnit=normText(d.addressed_to);
+  }
+  return f;
+}
+function docSearchText(d){
+  var f=docFacets(d);
+  return normText([d.title,d.doc_number,d.received_number,f.project,f.letterType,f.senderName,f.senderUnit,f.recipient,
+    d.doc_type==='outgoing'?d.subject_line:''].join(' | ')).toLowerCase(); /* สลับ 2026-07-22 */
+}
+/* ทุกคำต้องเจอ (ลำดับไม่สำคัญ) หรือทั้งวลีเจอเมื่อไม่นับเว้นวรรค — "กนค.1065001" เจอ "กนค. 1065001/2569" */
+function docMatchQ(d,q){
+  q=normText(q).toLowerCase();
+  if(!q) return true;
+  var t=docSearchText(d);
+  if(q.split(' ').every(function(w){return t.indexOf(w)!==-1})) return true;
+  return t.replace(/ /g,'').indexOf(q.replace(/ /g,''))!==-1;
+}
+/* {key: ชื่อที่ใช้แสดง} — ใช้ตัวสะกดที่พบบ่อยที่สุดในกลุ่มเป็นชื่อหลัก */
+function projLabels(docs){
+  var m={};
+  (docs||[]).forEach(function(d){
+    var p=docFacets(d).project; if(!p) return;
+    var k=projKey(p); (m[k]=m[k]||{})[p]=(m[k][p]||0)+1;
+  });
+  var out={};
+  Object.keys(m).forEach(function(k){
+    out[k]=Object.keys(m[k]).sort(function(a,b){return m[k][b]-m[k][a]||a.length-b.length})[0];
+  });
+  return out;
+}
+
+/* ─── เอกสารจะ "ถึง" ผู้ลงนามก็ต่อเมื่อขั้นของเขาถูกเปิดแล้ว ───
+   workflow_steps ถูกสร้างครบทุกขั้นตั้งแต่ตอนส่งเอกสาร (ขั้นที่ยังไม่ถึงคิวเป็น pending)
+   เดิมทุกหน้าดึง "เอกสารที่ฉันมีขั้นตอนอยู่" โดยไม่ดูสถานะ อาจารย์ที่ปรึกษา (ขั้นท้าย ๆ) จึงเห็นเอกสารตั้งแต่วันที่นิสิตกดส่ง
+   (ต.ค. 2026: อาจารย์ 7 คนเห็นเอกสาร 35 ฉบับที่ยังไม่ถึงคิว) — ใช้ stepReached() กรองทุกครั้งที่ขอบเขตเอกสารมาจากขั้นตอนของผู้ใช้
+   ถึงคิวแล้ว = active / done / rejected หรือเคยถูกเปิดหรือเคยมีการดำเนินการ (deadline_datetime/action_at จะถูกตั้งตอนเปิดขั้น)
+   ขั้นที่ถูกดึงกลับหรือถูกรีเซ็ตกลับเป็น pending จะหายไปจนกว่าจะถึงคิวอีกครั้ง */
+var STEP_REACH_SEL='document_id,status,action_at,deadline_datetime';
+function stepReached(s){
+  return !!s&&(s.status==='active'||s.status==='done'||s.status==='rejected'||!!s.action_at||!!s.deadline_datetime);
+}
+function reachedStepDocIds(steps){
+  return Array.isArray(steps)?[...new Set(steps.filter(stepReached).map(function(s){return s.document_id}))]:[];
+}

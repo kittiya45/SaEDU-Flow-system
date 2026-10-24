@@ -59,10 +59,10 @@ function _closeNotifPanel(){var p=$e('notif-panel');if(p)p.style.display='none';
 /* ─── MOBILE BOTTOM NAV ─── */
 /* [UX] แสดงเฉพาะบน viewport < 600px แทน sidebar ที่ซ่อนไป */
 function _buildMobileNav(view, activeSteps, pendingCount, navItems){
-  // แสดงแค่ 5 items สำคัญ: ภาพรวม, งานของฉัน, เอกสาร, สร้าง, โปรไฟล์
+  // แสดงแค่ 5 items สำคัญ: ภาพรวม, รอฉันดำเนินการ, เอกสาร, สร้าง, โปรไฟล์
   var items=[
     {k:'dash', i:'home',  l:'ภาพรวม',    b:null},
-    {k:'todo', i:'tasks', l:'งานของฉัน', b:activeSteps||null},
+    {k:'todo', i:'tasks', l:'รอฉันดำเนินการ', b:activeSteps||null},
     {k:'docs', i:'doc',   l:'เอกสาร',    b:pendingCount||null}
   ];
   if(CAN&&CAN.cr&&CU&&CAN.cr(CU.role_code)) items.push({k:'new',i:'plus',l:'สร้าง',b:null});
@@ -164,18 +164,18 @@ async function nav(view, id) {
       try{
         results = await Promise.all([
           dg('documents',      '?status=in.(pending,rejected)&select=id,created_by'),
-          dg('workflow_steps', '?assigned_to=eq.'+safeId(CU.id)+'&select=document_id'),
+          dg('workflow_steps', '?assigned_to=eq.'+safeId(CU.id)+'&select='+STEP_REACH_SEL),
           dg('documents',      _fwdQ)
         ]);
         if(!Array.isArray(results[2])) throw new Error('fwd query failed');
       }catch(_e){
         results = await Promise.all([
           dg('documents',      '?status=in.(pending,rejected)&select=id,created_by'),
-          dg('workflow_steps', '?assigned_to=eq.'+safeId(CU.id)+'&select=document_id'),
+          dg('workflow_steps', '?assigned_to=eq.'+safeId(CU.id)+'&select='+STEP_REACH_SEL),
           dg('documents',      '?forwarded_to_id=eq.'+safeId(CU.id)+'&status=eq.completed&select=id&limit=99')
         ]);
       }
-      var psIds = results[1].map(function(s){ return s.document_id; });
+      var psIds = reachedStepDocIds(results[1]); // ขั้นที่ยังไม่ถึงคิวไม่นับเป็น "เอกสารที่ยังเดินอยู่" ของฉัน
       var pendCount = results[0].filter(function(d){ return d.created_by===CU.id || psIds.indexOf(d.id)!==-1; }).length || 0;
       var fwdDocs = results[2]||[]; var fwdCount = 0;
       if(fwdDocs.length){
@@ -224,7 +224,7 @@ async function nav(view, id) {
   try {
     if(view==='dash'||view==='todo'){
       if(!await _ensureHomeViews()){
-        throw new Error('โหลดหน้าภาพรวม/งานของฉันไม่สำเร็จ — ลอง hard refresh (Cmd+Shift+R) หรือปิด ad blocker แล้วรีเฟรช');
+        throw new Error('โหลดหน้าภาพรวม/รอฉันดำเนินการไม่สำเร็จ — ลอง hard refresh (Cmd+Shift+R) หรือปิด ad blocker แล้วรีเฟรช');
       }
     }
     if      (view==='dash')               content = await vDash();
@@ -246,7 +246,7 @@ async function nav(view, id) {
 
   var isAdm = CU.role_code === 'ROLE-SYS';
   var titles = {
-    dash:'ภาพรวม', docs:'เอกสารทั้งหมด', todo:'งานของฉัน',
+    dash:'ภาพรวม', docs:'เอกสารทั้งหมด', todo:'รอฉันดำเนินการ',
     new:'สร้างเอกสารใหม่', edit:'แก้ไขเอกสาร', det:'รายละเอียดเอกสาร',
     tmpl:'แบบฟอร์มดาวน์โหลด',
     adm:'จัดการผู้ใช้งาน', sys:'จัดการระบบ', stat:'สถิติ & รายงาน',
@@ -256,7 +256,7 @@ async function nav(view, id) {
 
   var ni = [
     {k:'dash', i:'home', l:'ภาพรวม'},
-    {k:'todo', i:'tasks', l:'งานของฉัน', b: activeSteps || null},
+    {k:'todo', i:'tasks', l:'รอฉันดำเนินการ', b: activeSteps || null},
     {k:'docs', i:'doc',  l:'เอกสาร',    b: PC || null}
   ];
   if (CU.role_code !== 'ROLE-ADV') ni.push({k:'tmpl', i:'folder', l:'แบบฟอร์ม'});

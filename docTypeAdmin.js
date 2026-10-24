@@ -139,7 +139,7 @@ function rDocTypesCard(types){
         '<th style="text-align:center">ระยะเวลาขั้นต่ำ</th>'+
         '<th style="text-align:center">กำหนดส่ง</th>'+
         '<th style="text-align:center">สถานะ</th>'+
-        '<th style="text-align:right">จัดการ</th>'+
+        '<th style="text-align:center">จัดการ</th>'+
       '</tr></thead><tbody>'
     );
     types.forEach(function(t){
@@ -161,10 +161,10 @@ function rDocTypesCard(types){
               ?'<span class="badge b-signed">ใช้งาน</span>'
               :'<span class="badge b-rejected">ปิดใช้</span>')+
           '</td>'+
-          '<td style="text-align:right">'+
-            '<div class="flex gap-1.5 justify-end">'+
-              '<button class="btn btn-soft xs" data-action="showDocTypeModal" data-id="'+t.id+'">'+svg('edit',11)+' แก้ไข</button>'+
-              '<button class="btn btn-soft xs" style="color:#DC2626;border-color:#FECACA" data-action="deleteDocType" data-id="'+t.id+'" data-code="'+esc(t.code)+'">'+svg('trash',11)+'</button>'+
+          '<td style="text-align:center">'+
+            '<div class="flex gap-1.5 justify-center">'+
+              '<button class="btn-line" data-action="showDocTypeModal" data-id="'+t.id+'">แก้ไข</button>'+
+              '<button class="btn-line is-icon is-danger" data-action="deleteDocType" data-id="'+t.id+'" data-code="'+esc(t.code)+'" title="ลบ" aria-label="ลบ">'+svg('trash',14)+'</button>'+
             '</div>'+
           '</td>'+
         '</tr>'

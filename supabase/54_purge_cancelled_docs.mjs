@@ -84,10 +84,14 @@ function cloudDelete(remote, ref) {
   }
 }
 
-/* เลขหนังสือจริง กนค. {หมวด}{NNN}[-{ชมรม}]/{ปี} — แยกหมวดออกจากลำดับ ให้ตรงกับ _nextDocNum() */
+/* เลขหนังสือจริง กนค. {หมวด}{NNN}[-{ชมรม}]/{ปี} — แยกหมวดออกจากลำดับ ให้ตรงกับ _nextDocNum()
+   และเลขทะเบียนรับหนังสือขาเข้า NNNN/{ปี} (_nextRecvNum() — ลำดับเดียวต่อเนื่องทั้งปี จึงเป็นหมวด 'recv') */
 function parseRealNum(n) {
-  const m = /^กนค\. (\d+?)(\d{3})(?:-(\d+))?\/(\d{4})$/.exec(String(n || ''));
-  return m ? { cat: m[1], seq: Number(m[2]), club: m[3] || '', year: m[4] } : null;
+  const s = String(n || '');
+  const m = /^กนค\. (\d+?)(\d{3})(?:-(\d+))?\/(\d{4})$/.exec(s);
+  if (m) return { cat: m[1], seq: Number(m[2]), club: m[3] || '', year: m[4] };
+  const r = /^(\d{4,})\/(\d{4})$/.exec(s);
+  return r ? { cat: 'recv', seq: Number(r[1]), club: '', year: r[2] } : null;
 }
 
 (async () => {
@@ -131,7 +135,7 @@ function parseRealNum(n) {
   const tooNew = cancelled.length - aged.length;
 
   /* 1c. กันเลขหนังสือถูกออกซ้ำ — ดูเลขจริงทั้งระบบ (ทุกสถานะ) ว่าฉบับไหนเป็น max ของหมวดตัวเอง */
-  const { data: numbered, error: nErr } = await sb.from('documents').select('id,doc_type,doc_number').like('doc_number', 'กนค. %');
+  const { data: numbered, error: nErr } = await sb.from('documents').select('id,doc_type,doc_number').not('doc_number', 'is', null);
   if (nErr) die('อ่านเลขหนังสือล้มเหลว: ' + nErr.message);
   const maxSeq = new Map();   // key หมวด → seq สูงสุด
   const keyOf = (d, p) => `${d.doc_type}|${p.cat}|${p.club}|${p.year}`;

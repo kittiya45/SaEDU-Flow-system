@@ -15,6 +15,7 @@ Deno.serve(async (req: Request) => {
   if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
 
   try {
+    const { caller, admin } = await requireAuth(req);
     const body = await req.json();
     const { recipientId, text, group, flex, documentId, testSelf } = body;
     /* ยกเลิกการส่งเข้ากลุ่ม LINE เจ้าหน้าที่ 2026-10-04 — ข้อความกลุ่มหักโควตาเท่าจำนวนสมาชิก
@@ -25,7 +26,6 @@ Deno.serve(async (req: Request) => {
       return json({ error: 'Missing required fields: recipientId, text' }, 400);
     }
 
-    const { caller, admin } = await requireAuth(req);
     await validateLineSend(admin, caller, { recipientId, group, documentId, testSelf });
     await checkNotifyRateLimit(admin, caller, 'line', RATE_LIMIT_PER_HOUR);
 

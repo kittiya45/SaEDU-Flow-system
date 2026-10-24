@@ -123,7 +123,7 @@ function rAdmTbl(users){
     var m={'ROLE-SYS':'#D97706','ROLE-SGN':'#E83A00','ROLE-REV':'#B45309','ROLE-CRT':'#6B6157','ROLE-STF':'#0F766E','ROLE-ADV':'#7C3AED','ROLE-DEV':'#5C534A'};
     return m[rc]||'#a89e99';
   }
-  var personSVG='<svg width="20" height="20" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="5.5" r="2.8" fill="rgba(255,255,255,0.95)"/><path d="M2.5 15c0-3.04 2.46-5.5 5.5-5.5s5.5 2.46 5.5 5.5" fill="rgba(255,255,255,0.85)" stroke="none"/></svg>';
+  var personSVG='<span style="color:#fff;display:inline-flex">'+svg('user',20)+'</span>';
 
   var html=[
     '<div class="tbl-wrap"><table>',
@@ -134,7 +134,7 @@ function rAdmTbl(users){
       '<th>ตำแหน่ง</th>',
       '<th>สถานะ</th>',
       '<th>สมัครเมื่อ</th>',
-      '<th style="text-align:right">จัดการ</th>',
+      '<th style="text-align:center">จัดการ</th>',
     '</tr></thead><tbody>'
   ];
 
@@ -177,7 +177,7 @@ function rAdmTbl(users){
       dropItems.push('<button class="am-item am-danger" data-action="admDel" data-id="'+u.id+'">'+svg('trash',13)+' ลบผู้ใช้งาน</button>');
     }
     var actB=dropItems.length
-        ? '<div class="am-wrap"><button class="btn btn-soft xs btn-icon am-trig" onclick="toggleAM(\''+u.id+'\')" title="จัดการ">'+svg('dots',15)+'</button><div class="am-drop" id="amd-'+u.id+'">'+dropItems.join('')+'</div></div>'
+        ? '<div class="am-wrap"><button type="button" class="btn-line am-trig" onclick="toggleAM(\''+u.id+'\')" aria-haspopup="menu">จัดการ '+svg('chevron-down',14)+'</button><div class="am-drop" id="amd-'+u.id+'">'+dropItems.join('')+'</div></div>'
         : '<span class="text-[11px] text-[#a89e99]">—</span>';
 
     html.push('<tr>');
@@ -209,7 +209,7 @@ function rAdmTbl(users){
       :'<span class="text-[#a89e99]">—</span>')+'</td>');
     html.push('<td><div class="flex flex-col gap-0.5">'+apB+activeRow+'</div></td>');
     html.push('<td class="text-[12px] text-[#a89e99] whitespace-nowrap">'+fd(u.created_at)+'</td>');
-    html.push('<td><div class="flex gap-1.5 justify-end flex-wrap items-center">'+actB+'</div></td>');
+    html.push('<td><div class="flex gap-1.5 justify-center flex-wrap items-center">'+actB+'</div></td>');
     html.push('</tr>');
   });
 
@@ -714,11 +714,11 @@ document.addEventListener('click',function(e){
 })();
 
 /* ─── Popup core helpers ─── */
-var _XSVG='<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M1 1l10 10M11 1L1 11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
-var _ISVG='<svg width="14" height="14" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;margin-top:1px"><circle cx="8" cy="8" r="7" stroke="#C42800" stroke-width="1.5"/><path d="M8 7v5" stroke="#C42800" stroke-width="1.5" stroke-linecap="round"/><circle cx="8" cy="4.5" r=".8" fill="#C42800"/></svg>';
-var _SPINSVG='<svg width="13" height="13" viewBox="0 0 16 16" fill="none" class="gnk-spin"><circle cx="8" cy="8" r="6" stroke="rgba(255,255,255,.35)" stroke-width="1.7"/><path d="M8 2a6 6 0 0 1 6 6" stroke="#fff" stroke-width="1.7" stroke-linecap="round"/></svg>';
-var _DNSVG='<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 2v9M5 8l3 3 3-3" stroke="#fff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 13h12" stroke="#fff" stroke-width="1.7" stroke-linecap="round"/></svg>';
-var _OKSVG='<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M2 9l4 4 8-8" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+var _XSVG=svg('x',14);
+var _ISVG='<span style="color:#C42800;display:inline-flex;flex-shrink:0;margin-top:1px">'+svg('info',14)+'</span>';
+var _SPINSVG='<i data-lucide="loader-circle" width="13" height="13" stroke-width="2" class="gnk-spin" style="display:inline-flex;vertical-align:middle;flex-shrink:0"></i>';
+var _DNSVG='<span style="color:#fff;display:inline-flex">'+svg('download',13)+'</span>';
+var _OKSVG='<span style="color:#fff;display:inline-flex">'+svg('check',13)+'</span>';
 
 function _gnkOpen(id,boxHtml){
   var w=$e('mwrap'); if(!w)return;

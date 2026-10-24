@@ -189,6 +189,18 @@ async function downloadObject(bucket, path) {
     return Buffer.from(await data.arrayBuffer());
   });
 }
+/* ไฟล์ที่หายไประหว่าง list กับ download — รอบ backup 2026-10-19 ใช้เวลา 95 นาที และระหว่างนั้น
+   archive-nightly.sh ลบเอกสารที่ยกเลิกแล้วออกจาก Storage ไป 3 ไฟล์ ได้ "Object not found" แล้วทั้งชุดถูกทิ้ง
+   ไฟล์ที่ถูกลบ/ย้ายไปคลาวด์ไปแล้วไม่ใช่ส่วนที่ backup ขาด — ถามซ้ำว่ายังอยู่ไหม ถ้าไม่อยู่ก็ข้ามได้ */
+async function objectGone(bucket, path) {
+  const i = path.lastIndexOf('/');
+  const folder = i < 0 ? '' : path.slice(0, i), name = path.slice(i + 1);
+  try {
+    const { data, error } = await sb.storage.from(bucket).list(folder, { limit: 100, search: name });
+    if (error || !Array.isArray(data)) return false;
+    return !data.some(o => o.name === name);
+  } catch { return false; }
+}
 
 (async () => {
   const dir = singleFile ? outRoot : join(outRoot, `backup-${stamp}`);
@@ -245,20 +257,26 @@ async function downloadObject(bucket, path) {
     for (const bucket of ['documents', 'user-signatures']) {
       try {
         const objects = await listBucket(bucket);
-        let done = 0, bytes = 0, errs = 0;
+        let done = 0, bytes = 0, errs = 0, gone = 0;
         for (const o of objects) {
           let buf;
           try { buf = await downloadObject(bucket, o.path); }
-          catch (e) { errs++; console.log(`  ✕ ${bucket}/${o.path} — ${e.message || e}`); continue; }
+          catch (e) {
+            const msg = e.message || String(e);
+            if (/not found/i.test(msg) && await objectGone(bucket, o.path)) {
+              gone++; console.log(`  – ${bucket}/${o.path} — ถูกลบ/ย้ายออกระหว่าง backup (ไม่นับเป็นล้มเหลว)`); continue;
+            }
+            errs++; console.log(`  ✕ ${bucket}/${o.path} — ${msg}`); continue;
+          }
           const dest = join(dir, 'files', bucket, o.path);
           mkdirSync(dirname(dest), { recursive: true });
           writeFileSync(dest, buf);
           done++; bytes += buf.length;
           if (done % 50 === 0) console.log(`  ${bucket}: ${done}/${objects.length}`);
         }
-        manifest.storage[bucket] = { files: done, bytes, failed: errs };
+        manifest.storage[bucket] = { files: done, bytes, failed: errs, gone };
         totalBytes += bytes;
-        console.log(`  ${bucket}: ${done}/${objects.length} ไฟล์ · ${fmt(bytes)}${errs ? ` · ล้มเหลว ${errs}` : ''}`);
+        console.log(`  ${bucket}: ${done}/${objects.length} ไฟล์ · ${fmt(bytes)}${gone ? ` · หายระหว่างทาง ${gone}` : ''}${errs ? ` · ล้มเหลว ${errs}` : ''}`);
         // ไฟล์ที่โหลดไม่ได้แม้ลองซ้ำแล้ว = backup ไม่ครบ ต้องนับเป็นล้มเหลว ไม่ใช่แค่จดไว้ใน manifest
         if (errs) failed++;
       } catch (e) {

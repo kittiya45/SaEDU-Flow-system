@@ -63,7 +63,7 @@ function _rAckCard(docId,doc,acks,uMap){
       var ok=a.status==='acked';
       var last=i===acks.length-1;
       var _pos=u.position_code?(PTH[u.position_code]||u.position_code):'';
-      h.push('<div class="tl-item">');
+      h.push('<div class="tl-item'+(ok?'':' tl-item-wait')+'" style="--i:'+i+'">');
       h.push('<div class="tl-spine"><div class="tl-dot '+(ok?'tl-dot-done':'tl-dot-wait')+'">'+(ok?svg('ok',11):svg('clock',11))+'</div>'+
         (!last?'<div class="tl-line '+(ok?'tl-line-done':'tl-line-wait')+'"></div>':'')+'</div>');
       h.push('<div class="tl-body"><div class="tl-title">'+esc(u.full_name||'—')+'</div>');
@@ -181,6 +181,34 @@ async function doAckPropose(docId){
   }
 }
 
+/* เสนอผู้รับตามหนังสือ (documents.addressed_to = position_code) ให้รับทราบอัตโนมัติ
+   เรียกจากการลงทะเบียนรับหนังสือขาเข้า (docNum.js) — เขียนแถว/ประวัติ/แจ้งเตือนชุดเดียวกับ doAckPropose
+   คืน {added:[user...], reason:'ok'|'exists'|'no_holder'|'unavailable'} — ไม่ throw ให้การลงทะเบียนล้ม */
+async function _autoProposeAckToAddressee(docId,note){
+  var doc=(await dg('documents','?id=eq.'+safeId(docId)))[0]||{};
+  if(!doc.addressed_to) return {added:[],reason:'no_holder'};
+  var acks=await loadDocAcks(docId);
+  if(!acks) return {added:[],reason:'unavailable'};          // ยังไม่ได้รัน 43_incoming_receive_no_and_ack.sql
+  var holders=await dg('user_directory','?position_code=eq.'+encodeURIComponent(doc.addressed_to)+'&is_active=eq.true&approval_status=eq.approved&select=id,full_name,email,contact_email,position_code');
+  if(!Array.isArray(holders)) return {added:[],reason:'unavailable'};
+  holders=holders.filter(function(u){return u.id!==doc.created_by});
+  if(!holders.length) return {added:[],reason:'no_holder'};
+  var already={}; acks.forEach(function(a){already[a.user_id]=true});
+  var todo=holders.filter(function(u){return !already[u.id]});
+  if(!todo.length) return {added:[],reason:'exists'};
+  var added=[];
+  for(var i=0;i<todo.length;i++){
+    try{
+      await dp('document_acks',{document_id:docId,user_id:todo[i].id,status:'pending',note:note||null,requested_by:CU.id});
+      added.push(todo[i]);
+    }catch(e){console.warn('auto ack insert failed',todo[i].id,e)}
+  }
+  if(!added.length) return {added:[],reason:'unavailable'};
+  await dp('document_history',{document_id:docId,action:'เสนอเอกสารเพื่อรับทราบ: '+added.map(function(u){return u.full_name}).join(', '),performed_by:CU.id,note:note||'อัตโนมัติหลังลงทะเบียนรับ'});
+  try{ await _notifyAckRequested(docId,added,note); }catch(ne){console.warn('ack notify failed:',ne)}
+  return {added:added,reason:'ok'};
+}
+
 /* ถอนรายชื่อที่ยังไม่ได้รับทราบ */
 async function rmAckRow(ackId,docId){
   showConfirm('ถอนรายชื่อผู้รับทราบ','ผู้ที่ถูกถอนจะไม่เห็นปุ่มรับทราบอีก และรายชื่อจะหายจากการ์ดนี้',async function(){
@@ -268,12 +296,9 @@ async function showAckModal(docId){
     '<input type="range" id="asig-sz" min="1" max="8" value="2" oninput="_actSigSz=+this.value">',
     '</div>',
     '<div id="sig-panel-upload" class="hidden">',
-    '<label for="asig-file" class="upload-zone" id="asig-drop-zone" style="min-height:104px;padding:14px;border-radius:12px">',
-    '<div class="upload-zone-inner" style="gap:4px">',
-    '<div class="upload-zone-icon" style="margin-bottom:0;opacity:.35;transform:scale(.85)">'+svg('pen',30)+'</div>',
-    '<div class="upload-zone-text" style="font-size:12.5px">คลิกเพื่ออัปโหลดรูปลายเซ็น</div>',
-    '<div class="upload-zone-hint">PNG พื้นหลังโปร่งใส แนะนำ</div>',
-    '</div></label>',
+    '<label for="asig-file" class="upload-zone sm" id="asig-drop-zone">',
+    uploadZoneInner('อัปโหลดรูปลายเซ็น','แนะนำ PNG พื้นหลังโปร่งใส'),
+    '</label>',
     '<input type="file" id="asig-file" accept="image/*" class="hidden">',
     '<div id="asig-prev-wrap" class="hidden" style="margin-top:8px;display:flex;align-items:center;gap:10px;border:1px solid #EBEBEB;border-radius:12px;padding:10px;background:#fff">',
     '<img id="asig-prev" style="height:72px;max-width:150px;object-fit:contain">',
@@ -508,9 +533,9 @@ async function _notifyAckRequested(docId,users,note){
     var u=users[i];
     var em=u.contact_email||u.email||'';
     var body='เรียน '+(u.full_name||'')+'<br>มีหนังสือเสนอให้ท่านรับทราบ'+
-      (doc.doc_number?'<br>เลขที่: '+esc(doc.doc_number):'')+
+      (doc.doc_number?'<br>'+(doc.doc_type==='incoming'?'เลขรับที่':'เลขที่')+': '+esc(doc.doc_number):'')+
       '<br>เรื่อง: '+esc(doc.title||'')+
-      (doc.received_number?'<br>เลขรับที่ (ต้นทาง): '+esc(doc.received_number):'')+
+      (doc.received_number?'<br>ที่ (หนังสือต้นทาง): '+esc(doc.received_number):'')+
       (note?'<br>ข้อความจากผู้เสนอ: '+esc(note):'')+
       '<br><br>กรุณาเข้าระบบแล้วกด "รับทราบเอกสาร" เพื่อลงนามรับทราบ'+
       (SETT.app_url?'<br>'+SETT.app_url:'');

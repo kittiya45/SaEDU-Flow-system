@@ -12,8 +12,8 @@ The app is a vanilla-JS SPA against a real Supabase backend — you can't log in
 1. `npm run build` (styles.tailwind.css is gitignored, must exist), then `python3 -m http.server <port>` from repo root.
 2. Playwright is already in `node_modules` — from a script outside the repo, `require('/Users/.../SaEDU-Flow-system/node_modules/playwright')` (CJS resolves from the script's path, not cwd).
 3. Make the run hermetic with `page.route` fulfills:
-   - `**://cdn.jsdelivr.net/**` → stub `window.supabase={createClient:()=>({auth:{getSession:async()=>({data:{session:null}}),onAuthStateChange:()=>({data:{subscription:{unsubscribe(){}}}}),signOut:async()=>({})},rpc:async()=>({data:null,error:null})})}` (boot.js needs getSession; auth.js subscribes onAuthStateChange).
-   - `**://unpkg.com/**` → `window.lucide={createIcons(){}}` (icons won't paint — cosmetic only).
+   - `**/vendor/supabase.js*` (supabase-js is vendored now, not on jsdelivr) → stub `window.supabase={createClient:()=>({auth:{getSession:async()=>({data:{session:null}}),onAuthStateChange:()=>({data:{subscription:{unsubscribe(){}}}}),signOut:async()=>({})},rpc:async()=>({data:null,error:null})})}` (boot.js needs getSession; auth.js subscribes onAuthStateChange). For the `acct`/`set` views also stub `auth.mfa.listFactors`/`getAuthenticatorAssuranceLevel` and `storage.from().createSignedUrl` (avatar).
+   - `**/vendor/lucide.js*` → `window.lucide={createIcons(){}}` (icons won't paint — cosmetic only).
    - `**://*.supabase.co/**` → `[]`; fonts → empty/abort.
 4. After `goto` + networkidle, in `page.evaluate`: override `window.dg` (return fake `user_directory` rows, `[]` otherwise), `dp`/`dpa` (capture into `window._INSERTS`/`_PATCHES`, return `[{id:'new-N'}]`), `sendNotifEmail=async()=>{}`, `loadAppSettings=async()=>{}`; set `window.CU` to a fake profile. Then `nav('new')` (or any view).
 5. Drive real UI: `click('[data-dtype="incoming"]')`, `selectOption('#fdsc', ...)`, `fill('#ftit', ...)` (title id is `ftit`, not `ftitle`), `click('[data-action="saveSend"]')`. Inspect `FS`, `window._INSERTS`, `#fal` text.

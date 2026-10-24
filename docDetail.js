@@ -189,7 +189,12 @@ async function vDet(docId){
       '<div style="margin-top:3px">ประวัติการลงนามและเลขหนังสือถูกเก็บไว้เป็นหลักฐาน (เลขไม่ถูกนำไปใช้ซ้ำ) · หากต้องการนำกลับมาใช้ ให้ผู้ดูแลระบบเปลี่ยนสถานะกลับเป็น "ร่างเอกสาร"</div>'+_cxNote+'</span></div>');
   }
   var _canNum=doc.status==='numbering'&&(doc.created_by===CU.id||['ROLE-SYS','ROLE-STF'].includes(CU.role_code));
-  if(doc.status==='numbering') banners.push('<div class="al al-wa"><span class="al-icon">'+svg('pen',13)+'</span><span>'+(_canNum?'<strong>ลายเซ็นครบทุกขั้นตอนแล้ว</strong> กดปุ่ม “ออกเลขหนังสือ” ด้านบนเพื่อกำหนดเลขที่และวันที่':'<strong>รอผู้จัดทำออกเลขที่หนังสือ</strong> เอกสารผ่านการลงนามครบแล้ว')+'</span></div>');
+  if(doc.status==='numbering'&&doc.doc_type==='incoming') banners.push('<div class="al al-wa"><span class="al-icon">'+svg('pen',13)+'</span><span>'+(_canNum?'<strong>หนังสือขาเข้ารอลงทะเบียนรับ</strong> กดปุ่ม “ลงทะเบียนรับ” ด้านบนเพื่อออกเลขรับและประทับตรารับ':'<strong>รอลงทะเบียนรับ</strong>')+'</span></div>');
+  else if(doc.status==='numbering'){
+    banners.push('<div class="al al-wa"><span class="al-icon">'+svg('pen',13)+'</span><span>'+(_canNum?'<strong>ลายเซ็นครบทุกขั้นตอนแล้ว</strong> กดปุ่ม “ออกเลขหนังสือ” ด้านบนเพื่อกำหนดเลขที่และวันที่':'<strong>รอผู้จัดทำออกเลขที่หนังสือ</strong> เอกสารผ่านการลงนามครบแล้ว')+'</span></div>');
+    // หนังสือขาออก: บอกล่วงหน้าว่าออกเลขได้ช่วงไหน (คิดจากเวลาเครื่อง — หน้าออกเลขเช็คกับเวลาเซิร์ฟเวอร์อีกครั้ง)
+    if(_canNum&&doc.doc_type==='outgoing') banners.push(rNumIssueNote(numIssueInfo()));
+  }
   // Banner: cascade — แสดงเมื่อ step ที่ active ถูก re-activate เพราะ step ถัดไปตีกลับ
   var _curActWf=wf.filter(function(s){return s.status==='active'})[0];
   var _nextRejWf=_curActWf?wf.find(function(s){return s.step_number>_curActWf.step_number&&s.status==='rejected'}):null;
@@ -245,7 +250,7 @@ async function vDet(docId){
     html.push('<button class="btn btn-danger sm" data-action="showActModal" data-act="reject" data-id="'+docId+'">'+svg('x',13)+' ส่งคืนแก้ไข</button>');
   }
   if(_canNum){
-    html.push('<button class="btn btn-primary sm" data-action="showNumModal" data-id="'+docId+'">'+svg('pen',13)+' ออกเลขหนังสือ</button>');
+    html.push('<button class="btn btn-primary sm" data-action="showNumModal" data-id="'+docId+'">'+svg('pen',13)+(doc.doc_type==='incoming'?' ลงทะเบียนรับ':' ออกเลขหนังสือ')+'</button>');
   }
   if(doc.status==='rejected'&&doc.created_by===CU.id){
     html.push('<button class="btn btn-primary sm" data-action="doReSubmit" data-id="'+docId+'">'+svg('up',13)+' ส่งใหม่อีกครั้ง</button>');
@@ -311,19 +316,24 @@ async function vDet(docId){
   // Info
   var _ico=function(i,bg,cl){return '<div style="width:26px;height:26px;border-radius:7px;background:'+bg+';display:flex;align-items:center;justify-content:center;color:'+cl+'">'+svg(i,13)+'</div>'};
   html.push('<div class="card"><div class="card-head">'+_ico('doc','#FFF3EE','#E83A00')+'<span class="card-head-title">ข้อมูลเอกสาร</span></div><div class="card-body">');
-  var _addrDisplay=doc.doc_type==='incoming'?(PTH[doc.addressed_to]||doc.addressed_to||'—'):(doc.addressed_to||'—');
-  var _fromDisplay=doc.doc_type==='incoming'&&doc.description?'โครงการ: '+doc.description:(doc.from_department||'—');
+  /* ผู้ส่ง/ผู้รับอ่านผ่าน docFacets — สองประเภทเก็บคนละความหมายในคอลัมน์เดียวกัน (ดู utils.js)
+     ขาออก: addressed_to คือ "ตำแหน่ง / สังกัด" ของผู้ส่งตามฟอร์ม ไม่ใช่ผู้รับ — เดิมขึ้นป้าย "เรียน (ถึง)" ผิด */
+  var _fc=docFacets(doc), _isInc=doc.doc_type==='incoming'; /* สลับ 2026-07-22 */
+  var _party1=_isInc?['ส่งถึงตำแหน่ง',_fc.recipient]:['ผู้ส่งเอกสาร',_fc.senderName];
+  var _party2=_isInc?['สังกัด / ชมรม',_fc.senderUnit]:['ตำแหน่ง / สังกัด',_fc.senderUnit];
   // หัวเรื่อง + เลขที่เอกสาร
   html.push('<div class="detail-head"><span class="detail-title">'+esc(doc.title)+'</span><span class="detail-num">'+esc(doc.doc_number||'—')+'</span></div>');
   var _scell=function(label,val){return '<div class="stat-cell"><span class="stat-label">'+label+'</span><span class="stat-value">'+val+'</span></div>'};
   // โซน 1: ผู้รับ/ผู้ส่ง — พื้นอ่อน 2 คอลัมน์เท่ากัน
   html.push('<div class="detail-parties">');
-  html.push(_scell('เรียน (ถึง)','<span class="detail-val-accent">'+esc(_addrDisplay)+'</span>'));
-  html.push(_scell('จากฝ่าย / หน่วยงาน','<span class="detail-val">'+esc(_fromDisplay)+'</span>'));
+  html.push(_scell(_party1[0],'<span class="detail-val-accent">'+esc(_party1[1]||'—')+'</span>'));
+  html.push(_scell(_party2[0],'<span class="detail-val">'+esc(_party2[1]||'—')+'</span>'));
   html.push('</div>');
   // โซน 2: เมตาดาต้า — grid 3 คอลัมน์
   html.push('<div class="detail-fields">');
   [['ประเภท',tBadge(doc.doc_type)],
+   ['ประเภทหนังสือ',_fc.letterType?'<span class="detail-val">'+esc(_fc.letterType)+'</span>':'<span class="detail-val-muted">—</span>'],
+   ['โครงการ / กิจกรรม',_fc.project?'<span class="detail-val">'+esc(_fc.project)+'</span>':'<span class="detail-val-muted">—</span>'],
    ['ความเร่งด่วน',uBadge(doc.urgency)+
      (['ROLE-STF','ROLE-SYS'].includes(CU.role_code)?'<button class="btn btn-soft xs" data-action="showChgUrgency" data-id="'+docId+'" title="แก้ไขความเร่งด่วน">'+svg('edit',11)+'</button>':'')],
    ['วันที่เอกสาร','<span class="detail-val">'+fd(doc.doc_date)+'</span>'],
@@ -331,9 +341,9 @@ async function vDet(docId){
    ['ผู้จัดทำ','<span class="detail-val">'+esc(creator.full_name)+'</span>'],
    ['ผู้รับเอกสารเสร็จสิ้น',doc.final_recipient_id&&_aMap[doc.final_recipient_id]?'<span class="detail-val">'+esc(_aMap[doc.final_recipient_id].full_name)+'</span>':'<span class="detail-val-muted">ผู้จัดทำ (ค่าเริ่มต้น)</span>']
   ].concat(
-   // เลขรับที่ประทับมาจากหน่วยงานต้นทาง — แสดงเมื่อกรอกไว้ หรือเป็นหนังสือขาเข้า (ควรมีแต่ยังว่าง)
+   // "ที่" ของหนังสือต้นทาง — แสดงเมื่อกรอกไว้ หรือเป็นหนังสือขาเข้า (ควรมีแต่ยังว่าง)
    (doc.received_number||doc.doc_type==='incoming')
-     ? [['เลขรับที่ (ต้นทาง)',doc.received_number
+     ? [['ที่ (หนังสือต้นทาง)',doc.received_number
           ?'<span class="detail-val mono">'+esc(doc.received_number)+'</span>'+(doc.received_date?'<div style="font-size:11px;color:#a89e99;margin-top:2px">ลงวันที่ '+fd(doc.received_date)+'</div>':'')
           :'<span class="detail-val-muted">— ยังไม่ได้บันทึก —</span>']]
      : []
@@ -345,7 +355,9 @@ async function vDet(docId){
   ).forEach(function(r){html.push(_scell(r[0],r[1]))});
   html.push('</div>');
   // โซน 3: รายละเอียดเพิ่มเติม — ข้อความยาว แยกเป็นบล็อกอ่านง่าย line-height สูง
-  var _descBoxText=doc.description?((doc.description==='เรื่องอื่น ๆ'&&doc.subject_line)?'เรื่องอื่น ๆ: '+doc.subject_line:doc.description):'';
+  // description ของทั้งสองประเภทคือ "ประเภทหนังสือ" หรือ "โครงการ" ซึ่งแสดงในช่องด้านบนแล้ว — กล่องนี้เหลือไว้เฉพาะข้อความที่ยังไม่ถูกแสดง
+  var _descRaw=normText(doc.description);
+  var _descBoxText=(_descRaw&&_descRaw!==_fc.project&&_fc.letterType.indexOf(_descRaw)!==0)?_descRaw:'';
   if(_descBoxText) html.push('<div class="detail-desc"><div class="detail-desc-label">'+svg('doc',13)+' รายละเอียดเพิ่มเติม</div><div class="detail-desc-text">'+esc(_descBoxText)+'</div></div>');
   // Show forwarded_to / staff-pool info
   if(doc.status==='completed'&&doc.forwarded_to_staff&&_fwdPendingEarly){
@@ -376,9 +388,9 @@ async function vDet(docId){
     html.push('<div class="timeline">');
     wf.forEach(function(s,i){
       var done=s.status==='done', act=s.status==='active', rej=s.status==='rejected', cxl=s.status==='cancelled', last=i===wf.length-1;
-      html.push('<div class="tl-item">');
+      html.push('<div class="tl-item'+(!done&&!act&&!rej?' tl-item-wait':'')+'" style="--i:'+i+'">');
       html.push('<div class="tl-spine"><div class="tl-dot '+(done?'tl-dot-done':act?'tl-dot-active':rej?'tl-dot-rejected':'tl-dot-wait')+'">'+(done?svg('ok',11):rej?svg('x',11):i+1)+'</div>'+(!last?'<div class="tl-line '+(done?'tl-line-done':'tl-line-wait')+'"></div>':'')+'</div>');
-      html.push('<div class="tl-body"><div class="tl-title '+(act?'text-[#D97706]':rej?'text-[#DC2626]':'')+'">'+esc(s.step_name)+'</div>');
+      html.push('<div class="tl-body"><div class="tl-title '+(act?'text-[#E83A00]':rej?'text-[#DC2626]':'')+'">'+esc(s.step_name)+'</div>');
       html.push('<div class="tl-sub">'+(RTH[s.role_required]||s.role_required)+(s._assigneeName?' · <strong>'+esc(s._assigneeName)+'</strong>':'')+'</div>');
       if(s.action_at){
         var _adt=new Date(s.action_at);
@@ -437,11 +449,12 @@ async function vDet(docId){
     });
   }
   if(_dispHist.length){
-    _dispHist.forEach(function(h){
+    _dispHist.forEach(function(h,hi){
       var _hi=_histIcon(h.action);
       var _showNote=h.note&&(_histFullDetail||(h.action&&(h.action.indexOf('ส่งคืน')>=0||h.action.indexOf('ไม่อนุมัติ')>=0||h.action.indexOf('ยกเลิกเอกสาร')>=0)));
-      html.push('<div class="htl-item">');
-      html.push('<div class="htl-ic" style="background:'+_hi.bg+';color:'+_hi.cl+'">'+svg(_hi.ic,15)+'</div>');
+      /* hist เรียง performed_at.desc — แถวแรกคือเหตุการณ์ล่าสุด */
+      html.push('<div class="htl-item'+(hi===0?' htl-item-latest':'')+'" style="--i:'+hi+'">');
+      html.push('<div class="htl-ic" style="background:'+_hi.cl+'">'+svg(_hi.ic,15)+'</div>');
       html.push('<div class="htl-body"><div class="htl-action">'+esc(h.action)+'</div>');
       if(_showNote) html.push('<div class="htl-note">"'+esc(h.note)+'"</div>');
       html.push('<div class="htl-time">'+fdTime(h.performed_at)+'</div></div></div>');
@@ -1025,7 +1038,7 @@ async function doAct(action,docId){
 var _resubBusy=false;
 /* ── RE-SUBMIT หลัง reject ── */
 /* [UX] แทน confirm() ดิบด้วย showConfirm ของระบบ */
-function doReSubmit(docId){
+async function doReSubmit(docId){ // async: events.js เรียก .catch() กับค่าที่คืน
   if(_resubBusy)return;
   showConfirm(
     'ส่งเอกสารเข้าระบบอีกครั้ง?',

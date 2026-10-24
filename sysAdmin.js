@@ -215,32 +215,32 @@ function rDocNumCard(cfgs){
       '<div style="border-top:1px solid #F5F3F0;padding-top:16px">'+
         '<div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.7px;color:#a89e99;margin-bottom:10px">ประวัติการตั้งค่า</div>'+
         '<div style="border:1px solid #EBEBEB;border-radius:12px;overflow:hidden">'+
-          '<table style="width:100%;border-collapse:collapse">'+
-            '<thead><tr style="background:#FAFAF8">'+
-              '<th style="padding:9px 14px;font-size:10px;font-weight:700;color:#6b6560;text-align:left;border-bottom:1px solid #EBEBEB">ปี พ.ศ.</th>'+
-              '<th style="padding:9px 14px;font-size:10px;font-weight:700;color:#6b6560;text-align:left;border-bottom:1px solid #EBEBEB">ตัวอย่างขาเข้า</th>'+
-              '<th style="padding:9px 14px;font-size:10px;font-weight:700;color:#6b6560;text-align:left;border-bottom:1px solid #EBEBEB">ตัวอย่างขาออก</th>'+
-              '<th style="padding:9px 14px;font-size:10px;font-weight:700;color:#6b6560;text-align:right;border-bottom:1px solid #EBEBEB">รีเซ็ตล่าสุด</th>'+
-              '<th style="padding:9px 14px;font-size:10px;font-weight:700;color:#6b6560;text-align:right;border-bottom:1px solid #EBEBEB">วันที่แก้ไข</th>'+
+          '<table>'+
+            '<thead><tr>'+
+              '<th>ปี พ.ศ.</th>'+
+              '<th>ตัวอย่างขาเข้า</th>'+
+              '<th>ตัวอย่างขาออก</th>'+
+              '<th class="num">รีเซ็ตล่าสุด</th>'+
+              '<th class="num">วันที่แก้ไข</th>'+
             '</tr></thead><tbody>'
     );
     cfgs.forEach(function(c,i){
       var _os=c.out_start_seq||1;
       var _op=c.out_prefix||'กนค.';
-      var _bg=i%2===0?'#fff':'#FDFBF9';
+
       h.push(
-        '<tr style="background:'+_bg+'">'+
-          '<td style="padding:10px 14px;border-bottom:1px solid #F5F3F0">'+
+        '<tr>'+
+          '<td>'+
             '<span style="font-size:13px;font-weight:800;color:#18120E">'+c.year+'</span>'+
           '</td>'+
-          '<td style="padding:10px 14px;border-bottom:1px solid #F5F3F0">'+
+          '<td>'+
             '<span style="font-family:\'IBM Plex Mono\',monospace;font-size:12px;color:#C42800;font-weight:700;background:#FFF5F0;padding:2px 8px;border-radius:6px">'+esc(c.prefix)+'-'+c.year+'-001</span>'+
           '</td>'+
-          '<td style="padding:10px 14px;border-bottom:1px solid #F5F3F0">'+
+          '<td>'+
             '<span style="font-family:\'IBM Plex Mono\',monospace;font-size:12px;color:#1D4ED8;font-weight:700;background:#EFF6FF;padding:2px 8px;border-radius:6px">'+esc(_op)+c.year+'.'+String(_os).padStart(2,'0')+'</span>'+
           '</td>'+
-          '<td style="padding:10px 14px;border-bottom:1px solid #F5F3F0;text-align:right;font-size:12px;color:#a89e99">'+(c.seq_reset_at?fdTime(c.seq_reset_at):'—')+'</td>'+
-          '<td style="padding:10px 14px;border-bottom:1px solid #F5F3F0;text-align:right;font-size:12px;color:#a89e99">'+fd(c.created_at)+'</td>'+
+          '<td class="num" style="font-size:12px;color:#a89e99">'+(c.seq_reset_at?fdTime(c.seq_reset_at):'—')+'</td>'+
+          '<td class="num" style="font-size:12px;color:#a89e99">'+fd(c.created_at)+'</td>'+
         '</tr>'
       );
     });
@@ -551,6 +551,31 @@ function rAppSettingsCard(settings){
       '</div>';
     }).join('');
 
+  // ── กลุ่ม 2.3: วันที่ออกเลขหนังสือขาออก (utils.js numIssueInfo + supabase/60_num_issue_date.sql) ──
+  var _nOn=_val('num_window_enabled','true')!=='false', _nWk=_val('num_weekdays_only','true')!=='false';
+  var _nShift=_val('num_holiday_mode','block')==='shift';
+  function _nBox(inner){return '<div style="background:#FAFAF8;border-radius:12px;padding:14px 16px;border:1px solid #EBEBEB">'+inner+'</div>';}
+  function _nHead(t,d){return '<div style="font-size:11px;font-weight:700;color:#18120E;margin-bottom:2px">'+t+'</div><div style="font-size:10px;color:#a89e99;margin-bottom:8px;line-height:1.7">'+d+'</div>';}
+  var numRuleRow=
+    '<div style="font-size:11px;color:#6b6560;line-height:1.7;margin-bottom:10px">ใช้กับการออกเลขหนังสือขาออกทุกบัญชี — นิสิตสร้างและส่งเอกสารได้ทุกวันตามปกติ · นับตามเวลาประเทศไทย · ลงทะเบียนรับหนังสือขาเข้าไม่อยู่ในกติกานี้</div>'+
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px">'+
+      _nBox(_nHead('ใช้กติกาวันที่ออกเลข','ปิด = ออกเลขได้ทุกเวลา ลงวันที่ตามวันที่กด')+
+        '<select id="sett-num-0" data-key="num_window_enabled" class="fi text-[12px]" style="font-weight:700">'+
+          '<option value="true"'+(_nOn?' selected':'')+'>เปิดใช้</option><option value="false"'+(_nOn?'':' selected')+'>ปิด</option></select>')+
+      _nBox(_nHead('วันที่ออกเลขได้','วันอื่นถือเป็นวันหยุด')+
+        '<select id="sett-num-1" data-key="num_weekdays_only" class="fi text-[12px]" style="font-weight:700">'+
+          '<option value="true"'+(_nWk?' selected':'')+'>จันทร์–ศุกร์</option><option value="false"'+(_nWk?'':' selected')+'>ทุกวัน</option></select>')+
+      _nBox(_nHead('ออกเลขได้ไม่เกิน','หลังเวลานี้ เลขและวันที่เป็นของวันทำการถัดไป')+
+        '<input id="sett-num-2" data-key="num_cutoff_time" type="time" class="fi text-[13px]" style="font-weight:700" value="'+esc(_val('num_cutoff_time','22:00'))+'">')+
+      _nBox(_nHead('กดออกเลขในวันหยุด','เสาร์–อาทิตย์ และวันหยุดด้านล่าง')+
+        '<select id="sett-num-3" data-key="num_holiday_mode" class="fi text-[12px]" style="font-weight:700">'+
+          '<option value="block"'+(_nShift?'':' selected')+'>ไม่ให้ออกเลข</option><option value="shift"'+(_nShift?' selected':'')+'>ออกได้ ลงวันทำการถัดไป</option></select>')+
+    '</div>'+
+    '<div style="background:#FAFAF8;border-radius:12px;padding:14px 16px;border:1px solid #EBEBEB;margin-top:10px">'+
+      _nHead('วันหยุดตามปฏิทินนิสิต','บรรทัดละวัน รูปแบบ ปี ค.ศ.-เดือน-วัน ตามด้วยชื่อวันหยุดได้ เช่น 2026-12-07 ชดเชยวันพ่อ — ไม่ต้องใส่เสาร์–อาทิตย์ · วันที่ผ่านไปแล้วลบทิ้งได้')+
+      '<textarea id="sett-num-4" data-key="num_holidays" rows="5" class="fi text-[12px]" style="resize:vertical;font-family:monospace" placeholder="2026-12-07 ชดเชยวันพ่อ&#10;2026-12-10 วันรัฐธรรมนูญ&#10;2026-12-31 วันสิ้นปี">'+esc(_val('num_holidays',''))+'</textarea>'+
+    '</div>';
+
   // ── กลุ่ม 2.5: LINE OA (แจ้งเตือนผ่าน LINE) ──
   var lineRow=
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px">'+
@@ -608,6 +633,8 @@ function rAppSettingsCard(settings){
       emailRow+
       '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:#a89e99;margin:18px 0 8px">ลดอีเมลรบกวน</div>'+
       quietRow+
+      '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:#a89e99;margin:18px 0 8px">วันที่ออกเลขหนังสือขาออก</div>'+
+      numRuleRow+
       '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:#a89e99;margin:18px 0 8px">แจ้งเตือนผ่าน LINE OA</div>'+
       lineRow+
       '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:#a89e99;margin:18px 0 8px">ประกาศระบบ</div>'+

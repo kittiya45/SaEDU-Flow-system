@@ -40,8 +40,12 @@ async function exportDocPDF(docId){
     '<div class="kv"><span class="k">สถานะ:</span><span class="v">'+(stTh[doc.status]||doc.status)+'</span></div>'+
     '<div class="kv"><span class="k">ประเภท:</span><span class="v">'+(DTYPES[doc.doc_type]||doc.doc_type||'')+'</span></div>'+
     '<div class="kv"><span class="k">ความเร่งด่วน:</span><span class="v">'+esc(urgTxt(doc.urgency))+'</span></div>'+
-    '<div class="kv"><span class="k">จากฝ่าย:</span><span class="v">'+esc(doc.from_department||'—')+'</span></div>'+
-    '<div class="kv"><span class="k">เรียน:</span><span class="v">'+esc(doc.addressed_to||'—')+'</span></div>'+
+    (function(){ /* ผ่าน docFacets — ขาเข้าเก็บรหัส ('26', 'GNK-PRE') ส่วนขาออก addressed_to คือตำแหน่งผู้ส่ง ไม่ใช่ "เรียน" */
+      var f=docFacets(doc), kv=function(k,v){return '<div class="kv"><span class="k">'+k+':</span><span class="v">'+esc(v||'—')+'</span></div>'};
+      return kv('ประเภทหนังสือ',f.letterType)+kv('โครงการ',f.project)+
+        (doc.doc_type==='incoming'?kv('สังกัด / ชมรม',f.senderUnit)+kv('ส่งถึงตำแหน่ง',f.recipient) /* สลับ 2026-07-22 */
+          :kv('ผู้ส่ง',f.senderName)+kv('ตำแหน่ง / สังกัด',f.senderUnit));
+    })()+
     '<div class="kv"><span class="k">วันที่สร้าง:</span><span class="v">'+new Date(doc.created_at).toLocaleDateString('th-TH')+'</span></div>'+
     '<div class="kv"><span class="k">กำหนดเสร็จ:</span><span class="v">'+(doc.due_date?new Date(doc.due_date).toLocaleDateString('th-TH'):'—')+'</span></div>'+
     '</div>'+
@@ -66,16 +70,21 @@ async function exportCSV(){
     var _urows=await dg('user_directory','?id=in.('+_uids.map(safeId).join(',')+')'+'&select=id,full_name');
     (_urows||[]).forEach(function(u){_umap[u.id]=u.full_name});
   }
-  var headers=['เลขที่เอกสาร','ชื่อเรื่อง','ประเภท','ความเร่งด่วน','สถานะ','จากฝ่าย','เรียน','วันที่สร้าง','Deadline/วันที่กิจกรรม','ผู้สร้าง'];
+  // คอลัมน์ผู้ส่ง/ผู้รับมาจาก docFacets — เดิมส่งออกค่าดิบ ขาเข้าจึงได้ '26' / 'GNK-PRE' และขาออกได้ตำแหน่งผู้ส่งในคอลัมน์ "เรียน"
+  var headers=['เลขที่เอกสาร','ชื่อเรื่อง','ประเภท','ประเภทหนังสือ','โครงการ','ความเร่งด่วน','สถานะ','ผู้ส่ง','ตำแหน่ง / สังกัด / ชมรม','ส่งถึงตำแหน่ง','วันที่สร้าง','Deadline/วันที่กิจกรรม','ผู้สร้าง'];
   var rows=_docs.map(function(d){
+    var f=docFacets(d);
     return [
       d.doc_number||'—',
       d.title||'',
       DTYPES[d.doc_type]||d.doc_type||'',
+      f.letterType,
+      f.project,
       urgTxt(d.urgency),
       STTH[d.status]||d.status||'',
-      d.from_department||'',
-      d.addressed_to||'',
+      f.senderName,
+      f.senderUnit,
+      f.recipient,
       d.created_at?new Date(d.created_at).toLocaleDateString('th-TH'):'',
       d.due_date?new Date(d.due_date).toLocaleDateString('th-TH'):'',
       _umap[d.created_by]||d.created_by||''
